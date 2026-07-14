@@ -59,13 +59,23 @@ export interface AnthropicMessageResponse {
   usage?: AnthropicUsagePayload;
 }
 
+/**
+ * How the adapter drives extended thinking.
+ * - `adaptive` sends `thinking: { type: "adaptive" }`.
+ * - `none` OMITS the `thinking` field entirely, required for models that do not
+ *   support adaptive thinking (for example `claude-haiku-4-5`). `budget_tokens`
+ *   and `{ type: "disabled" }` are never sent.
+ */
+export type AnthropicThinkingMode = "adaptive" | "none";
+
 /** The request the adapter sends. No sampling parameters are ever included:
- * `temperature`/`top_p`/`top_k` are rejected on Opus 4.8. */
+ * `temperature`/`top_p`/`top_k` are rejected on Opus 4.8. `thinking` is present
+ * only in `adaptive` mode and omitted entirely in `none` mode. */
 export interface AnthropicMessageRequest {
   model: string;
   max_tokens: number;
   system: string;
-  thinking: { type: "adaptive" };
+  thinking?: { type: "adaptive" };
   messages: readonly { role: "user" | "assistant"; content: string }[];
 }
 
@@ -82,6 +92,9 @@ export interface AnthropicModelAdapterConfig {
   systemPrompt: string;
   model?: string;
   maxTokens?: number;
+  /** Extended-thinking mode. Defaults to `adaptive`; use `none` for models such
+   * as `claude-haiku-4-5` that do not support adaptive thinking. */
+  thinkingMode?: AnthropicThinkingMode;
   /** Adapter-level bounded retries (SDK retries are turned off). */
   maxRetries?: number;
   backoffBaseMs?: number;
@@ -250,6 +263,7 @@ export class AnthropicModelAdapter implements ModelAgentAdapter<
   public readonly model: string;
   public readonly maxTokens: number;
   public readonly maxRetries: number;
+  public readonly thinkingMode: AnthropicThinkingMode;
 
   private readonly backoffBaseMs: number;
   private readonly injectedClient: AnthropicMessageClient | undefined;
@@ -261,6 +275,7 @@ export class AnthropicModelAdapter implements ModelAgentAdapter<
     this.model = config.model ?? DEFAULT_MODEL;
     this.maxTokens = config.maxTokens ?? DEFAULT_MAX_TOKENS;
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.thinkingMode = config.thinkingMode ?? "adaptive";
     this.backoffBaseMs = config.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS;
     this.injectedClient = config.client;
     this.sleep = config.sleep ?? realSleep;
@@ -367,16 +382,19 @@ export class AnthropicModelAdapter implements ModelAgentAdapter<
   }
 
   private buildRequest(input: ModelPromptInput): AnthropicMessageRequest {
-    return {
+    const request: AnthropicMessageRequest = {
       model: this.model,
       max_tokens: this.maxTokens,
       system: this.systemPrompt,
-      thinking: { type: "adaptive" },
       messages: input.messages.map((message) => ({
         role: message.role,
         content: message.content,
       })),
     };
+    if (this.thinkingMode === "adaptive") {
+      request.thinking = { type: "adaptive" };
+    }
+    return request;
   }
 
   private buildUsage(params: {

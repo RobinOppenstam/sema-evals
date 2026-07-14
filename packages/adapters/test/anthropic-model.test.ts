@@ -40,7 +40,7 @@ function adapterWith(
   create: (
     request: AnthropicMessageRequest,
   ) => Promise<AnthropicMessageResponse>,
-  config: { maxRetries?: number } = {},
+  config: { maxRetries?: number; thinkingMode?: "adaptive" | "none" } = {},
 ): {
   adapter: AnthropicModelAdapter;
   createMock: ReturnType<typeof vi.fn>;
@@ -53,6 +53,7 @@ function adapterWith(
     sleep: async () => {},
     backoffBaseMs: 1,
     maxRetries: config.maxRetries ?? 4,
+    ...(config.thinkingMode ? { thinkingMode: config.thinkingMode } : {}),
   });
   return { adapter, createMock };
 }
@@ -72,6 +73,42 @@ describe("AnthropicModelAdapter", () => {
     expect(request).not.toHaveProperty("temperature");
     expect(request).not.toHaveProperty("top_p");
     expect(request).not.toHaveProperty("top_k");
+  });
+
+  it("defaults to adaptive thinking mode", () => {
+    const { adapter } = adapterWith(async () => textResponse("ok"));
+    expect(adapter.thinkingMode).toBe("adaptive");
+  });
+
+  it("omits the thinking field entirely in none mode", async () => {
+    const { adapter, createMock } = adapterWith(
+      async () => textResponse("ok"),
+      {
+        thinkingMode: "none",
+      },
+    );
+
+    await adapter.invoke(input);
+
+    const request = createMock.mock.calls[0]?.[0] as AnthropicMessageRequest;
+    expect(adapter.thinkingMode).toBe("none");
+    expect(request).not.toHaveProperty("thinking");
+    expect("thinking" in request).toBe(false);
+    expect(request).not.toHaveProperty("temperature");
+  });
+
+  it("sends the adaptive thinking field in adaptive mode", async () => {
+    const { adapter, createMock } = adapterWith(
+      async () => textResponse("ok"),
+      {
+        thinkingMode: "adaptive",
+      },
+    );
+
+    await adapter.invoke(input);
+
+    const request = createMock.mock.calls[0]?.[0] as AnthropicMessageRequest;
+    expect(request.thinking).toEqual({ type: "adaptive" });
   });
 
   it("preserves the system prompt, user turns, and assistant reply in order", async () => {
