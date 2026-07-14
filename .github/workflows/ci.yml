@@ -23,8 +23,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install the official Sema hashing source
-        run: python -m pip install --no-deps "semahash==0.3.0"
+      - name: Install the official Sema source and registry dependencies
+        run: python -m pip install "semahash==0.3.0"
       - name: Select the Sema interpreter
         run: echo "SEMA_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile

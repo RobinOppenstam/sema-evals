@@ -12,12 +12,34 @@ const MAX_BRIDGE_OUTPUT_BYTES = 1_000_000;
 
 const PYTHON_BRIDGE = String.raw`
 import json
+import os
 import sys
+import tempfile
+import uuid
 from importlib.metadata import version
+from pathlib import Path
 
 request = json.load(sys.stdin)
 action = request.get("action")
 package_version = version("semahash")
+
+
+def workspace_for(db_path, workspace_id="local", label="Local vocabulary"):
+    from sema.core.workspace import GraphWorkspace, WorkspaceSource
+
+    if not isinstance(db_path, str) or not db_path:
+        raise ValueError("workspace requests require a non-empty db_path")
+    resolved = Path(db_path).expanduser().resolve()
+    if not resolved.is_file():
+        raise FileNotFoundError(f"Sema registry not found: {resolved}")
+    source = WorkspaceSource(
+        workspace_id=workspace_id,
+        label=label,
+        db_path=str(resolved),
+        vocab_dir=str(resolved.parent),
+        read_only=True,
+    )
+    return GraphWorkspace(source)
 
 if action == "metadata":
     response = {
@@ -43,6 +65,112 @@ elif action == "hash":
         "hash": result["hash"],
         "sema_version": package_version,
     }
+elif action == "registry_build":
+    import numpy as np
+
+    from sema.core.mint import mint_pattern
+    from sema.taxonomy_graph.graph_store import GraphStore
+
+    db_path = request.get("db_path")
+    patterns = request.get("patterns")
+    if not isinstance(db_path, str) or not db_path:
+        raise ValueError("registry_build requires a non-empty db_path")
+    if not isinstance(patterns, list) or not patterns:
+        raise ValueError("registry_build requires a non-empty patterns list")
+    if not all(isinstance(pattern, dict) for pattern in patterns):
+        raise ValueError("registry_build patterns must be objects")
+
+    target = Path(db_path).expanduser().resolve()
+    if target.exists():
+        raise FileExistsError(f"Refusing to overwrite existing registry: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    scratch = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+    previous_cache_dir = os.environ.get("SEMA_CACHE_DIR")
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="sema-evals-cache-") as cache_dir:
+            os.environ["SEMA_CACHE_DIR"] = cache_dir
+            store = GraphStore(str(scratch))
+            store.embedding_service.get_embedding = lambda _text: np.zeros(
+                store.embedding_service.EMBEDDING_DIM, dtype=np.float32
+            )
+            minted_handles = set()
+            minted = []
+            for raw_pattern in patterns:
+                pattern = dict(raw_pattern)
+                handle = pattern.get("handle")
+                if not isinstance(handle, str) or not handle:
+                    raise ValueError("every registry pattern requires a non-empty handle")
+                if handle in minted_handles:
+                    raise ValueError(f"duplicate registry pattern handle: {handle}")
+                result = mint_pattern(pattern, store, known_handles=minted_handles)
+                if not result.success:
+                    raise ValueError(
+                        f"could not mint {handle}: " + "; ".join(result.errors)
+                    )
+                minted_handles.add(handle)
+                minted.append(
+                    {
+                        "handle": handle,
+                        "sema_ref": result.sema_ref,
+                        "sema_id": result.sema_id,
+                        "sema_stub": result.sema_stub,
+                    }
+                )
+        os.replace(scratch, target)
+    except Exception:
+        scratch.unlink(missing_ok=True)
+        raise
+    finally:
+        if previous_cache_dir is None:
+            os.environ.pop("SEMA_CACHE_DIR", None)
+        else:
+            os.environ["SEMA_CACHE_DIR"] = previous_cache_dir
+
+    workspace_id = request.get("workspace_id", "local")
+    label = request.get("label", "Local vocabulary")
+    workspace = workspace_for(str(target), workspace_id=workspace_id, label=label)
+    response = {
+        "db_path": str(target),
+        "patterns": minted,
+        "workspace": workspace.describe(),
+        "sema_version": package_version,
+    }
+elif action in {
+    "workspace_describe",
+    "workspace_lookup",
+    "workspace_resolve",
+    "workspace_handshake",
+}:
+    workspace = workspace_for(
+        request.get("db_path"),
+        workspace_id=request.get("workspace_id", "local"),
+        label=request.get("label", "Local vocabulary"),
+    )
+    if action == "workspace_describe":
+        result = workspace.describe()
+    elif action == "workspace_lookup":
+        ref = request.get("ref")
+        if not isinstance(ref, str) or not ref:
+            raise ValueError("workspace_lookup requires a non-empty ref")
+        result = workspace.lookup(ref)
+    elif action == "workspace_resolve":
+        handle = request.get("handle")
+        depth = request.get("depth", 0)
+        if not isinstance(handle, str) or not handle:
+            raise ValueError("workspace_resolve requires a non-empty handle")
+        if not isinstance(depth, int) or isinstance(depth, bool) or depth < 0:
+            raise ValueError("workspace_resolve depth must be a non-negative integer")
+        result = workspace.resolve(handle, depth=depth)
+    else:
+        ref = request.get("ref")
+        your_hash = request.get("your_hash")
+        if not isinstance(ref, str) or not ref:
+            raise ValueError("workspace_handshake requires a non-empty ref")
+        if your_hash is not None and not isinstance(your_hash, str):
+            raise ValueError("workspace_handshake your_hash must be a string or null")
+        result = workspace.handshake(ref, your_hash=your_hash)
+    response = {"result": result, "sema_version": package_version}
 else:
     raise ValueError(f"unsupported bridge action: {action!r}")
 
