@@ -89,13 +89,70 @@ export function planPairedMatrix<Scenario, Condition>(
   return cells.map((cell, executionIndex) => ({ ...cell, executionIndex }));
 }
 
+export interface ExecuteMatrixOptions<Scenario, Condition, Record> {
+  /**
+   * Maximum number of trials in flight at once. Defaults to `1` (strictly
+   * sequential, the historical behavior). Trials are always STARTED in the
+   * planned order — the pool always claims the lowest not-yet-started index —
+   * so the recorded execution order still follows the order seed even though
+   * completion order may differ under concurrency. Values below 1 are clamped
+   * to 1 and non-integers are truncated.
+   */
+  concurrency?: number;
+  /**
+   * Invoked once per trial as it settles, in COMPLETION order (which may differ
+   * from planned order under concurrency). Intended for progress reporting; it
+   * must not mutate the returned array, whose ordering is fixed to planned
+   * order regardless of when trials complete.
+   */
+  onComplete?: (record: Record, cell: MatrixCell<Scenario, Condition>) => void;
+}
+
+/**
+ * Executes planned matrix cells, returning one record per cell.
+ *
+ * The returned array is ALWAYS in planned order: `records[i]` is the result of
+ * `cells[i]`, regardless of the order trials actually complete in. This keeps
+ * downstream analysis deterministic and independent of provider timing. With
+ * `concurrency > 1` a bounded worker pool keeps at most N trials in flight while
+ * still starting them in planned order, so the randomized-order discipline is
+ * preserved (start order follows the seed; each record timestamps its own
+ * actual execution via `startedAt`/`completedAt`).
+ */
 export async function executeMatrix<Scenario, Condition, Record>(
   cells: readonly MatrixCell<Scenario, Condition>[],
   execute: (cell: MatrixCell<Scenario, Condition>) => Promise<Record>,
+  options: ExecuteMatrixOptions<Scenario, Condition, Record> = {},
 ): Promise<Record[]> {
-  const records: Record[] = [];
-  for (const cell of cells) {
-    records.push(await execute(cell));
+  const concurrency = Math.max(1, Math.trunc(options.concurrency ?? 1));
+  const records = new Array<Record>(cells.length);
+  let nextIndex = 0;
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      // Claiming the index before the first await is atomic on the single JS
+      // thread, so each worker takes the lowest not-yet-started cell: trials
+      // are started in planned order even though they finish out of order.
+      const current = nextIndex;
+      if (current >= cells.length) {
+        return;
+      }
+      nextIndex += 1;
+      const cell = cells[current];
+      if (cell === undefined) {
+        throw new Error("Matrix execution encountered an undefined cell.");
+      }
+      const record = await execute(cell);
+      records[current] = record;
+      options.onComplete?.(record, cell);
+    }
+  };
+
+  const workerCount = Math.min(concurrency, cells.length);
+  const workers: Promise<void>[] = [];
+  for (let index = 0; index < workerCount; index += 1) {
+    workers.push(worker());
   }
+  await Promise.all(workers);
   return records;
 }

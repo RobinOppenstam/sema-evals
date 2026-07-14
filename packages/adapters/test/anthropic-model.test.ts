@@ -296,3 +296,19 @@ describe("isRetryableModelError", () => {
     expect(isRetryableModelError(new Error("plain bug"))).toBe(false);
   });
 });
+
+describe("AnthropicModelAdapter timeout", () => {
+  it("defaults timeoutMs to 600000", () => {
+    const { adapter } = adapterWith(async () => textResponse("ok"));
+    expect(adapter.timeoutMs).toBe(600_000);
+  });
+
+  it("honors a configured timeoutMs", () => {
+    const adapter = new AnthropicModelAdapter({
+      systemPrompt: SYSTEM_PROMPT,
+      client: { messages: { create: async () => textResponse("ok") } },
+      timeoutMs: 1234,
+    });
+    expect(adapter.timeoutMs).toBe(1234);
+  });
+});

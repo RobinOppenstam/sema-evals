@@ -21,6 +21,9 @@ const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MAX_RETRIES = 4;
 const DEFAULT_BACKOFF_BASE_MS = 500;
 const MAX_BACKOFF_MS = 8_000;
+/** Request timeout in ms passed to the SDK client. Matches the SDK default so
+ * behavior is unchanged unless a run overrides it. */
+const DEFAULT_TIMEOUT_MS = 600_000;
 
 const RETRYABLE_NETWORK_CODES = new Set([
   "ECONNRESET",
@@ -98,6 +101,10 @@ export interface AnthropicModelAdapterConfig {
   /** Adapter-level bounded retries (SDK retries are turned off). */
   maxRetries?: number;
   backoffBaseMs?: number;
+  /** Request timeout in milliseconds passed to the SDK client at construction.
+   * A timed-out request surfaces as a connection-class error and is retried
+   * under the bounded-retry policy. Defaults to 600_000 (the SDK default). */
+  timeoutMs?: number;
   /** Injectable client so unit tests never touch the network. */
   client?: AnthropicMessageClient;
   /** Injectable sleep so tests do not wait on real backoff. */
@@ -108,8 +115,8 @@ function realSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function createDefaultClient(): AnthropicMessageClient {
-  const client = new Anthropic({ maxRetries: 0 });
+function createDefaultClient(timeoutMs: number): AnthropicMessageClient {
+  const client = new Anthropic({ maxRetries: 0, timeout: timeoutMs });
   return {
     messages: {
       create: async (request) => {
@@ -264,6 +271,7 @@ export class AnthropicModelAdapter implements ModelAgentAdapter<
   public readonly maxTokens: number;
   public readonly maxRetries: number;
   public readonly thinkingMode: AnthropicThinkingMode;
+  public readonly timeoutMs: number;
 
   private readonly backoffBaseMs: number;
   private readonly injectedClient: AnthropicMessageClient | undefined;
@@ -276,6 +284,7 @@ export class AnthropicModelAdapter implements ModelAgentAdapter<
     this.maxTokens = config.maxTokens ?? DEFAULT_MAX_TOKENS;
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.thinkingMode = config.thinkingMode ?? "adaptive";
+    this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.backoffBaseMs = config.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS;
     this.injectedClient = config.client;
     this.sleep = config.sleep ?? realSleep;
@@ -448,7 +457,7 @@ export class AnthropicModelAdapter implements ModelAgentAdapter<
     if (this.injectedClient) {
       return this.injectedClient;
     }
-    this.cachedClient ??= createDefaultClient();
+    this.cachedClient ??= createDefaultClient(this.timeoutMs);
     return this.cachedClient;
   }
 }
