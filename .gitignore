@@ -13,3 +13,10 @@ results/*
 !results/babel-relay/
 results/babel-relay/*
 !results/babel-relay/.gitkeep
+
+# Reports deliberately promoted into a dated public derivative are tracked.
+!results/public/
+!results/public/**
+
+# The static site is generated from tracked artifacts and never committed.
+site/dist/
