@@ -16,7 +16,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
+    "report:promote": "tsx scripts/promote-report.ts",
     "schemas:generate": "tsx scripts/generate-schemas.ts",
+    "site:build": "tsx scripts/build-site.ts",
     "test": "pnpm build && vitest run",
     "typecheck": "tsc --noEmit"
   },

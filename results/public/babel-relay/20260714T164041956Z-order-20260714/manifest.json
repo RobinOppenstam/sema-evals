@@ -1,0 +1,41 @@
+{
+  "artifactSchemaVersion": "0.3.0",
+  "protocolVersion": "0.3.0",
+  "experimentId": "babel-relay",
+  "runId": "20260714T164041956Z-order-20260714",
+  "mode": "model-pilot",
+  "evidenceClaim": "Exploratory model pilot. Not preregistered, not confirmatory evidence.",
+  "createdAt": "2026-07-14T16:40:41.956Z",
+  "orderSeed": 20260714,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "conditions": [
+    "baseline",
+    "equal-prose",
+    "opaque-resolver",
+    "addressed-voluntary",
+    "addressed-enforced"
+  ],
+  "scenarioCount": 6,
+  "trialCount": 150,
+  "fixtureDigest": "a8dcdc8d29395b62cfac17b69895b0c71f76f977e3d3c3ccca4a2f9166d97e2c",
+  "provenance": {
+    "artifactSchemaVersion": "0.3.0",
+    "protocolVersion": "0.3.0",
+    "fixtureDigest": "a8dcdc8d29395b62cfac17b69895b0c71f76f977e3d3c3ccca4a2f9166d97e2c",
+    "implementationCommit": "f9c9ba05d3d591cf80ced482ce724115c8001c33",
+    "dependencyLockDigest": "581175b4cb04ea42fe87ff06da4bd7e035308c88338266d4b3ea0ba9866546bd",
+    "promptDigest": "5f8976a6e93d1816dbd1341d5b906df443692e6c81b3ffe2f97e273f394aa99d",
+    "semaVersion": "not-connected",
+    "canonicalizationVersion": "fixture-stable-json-v1",
+    "vocabularyRoot": "",
+    "semanticBackend": "fixture-sha256-stable-json-v1",
+    "modelProvider": "llm.chutes.ai",
+    "modelName": "unsloth/Mistral-Nemo-Instruct-2407-TEE"
+  }
+}
