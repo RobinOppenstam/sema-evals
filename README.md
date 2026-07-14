@@ -171,13 +171,57 @@ docs/
 ├── EXPERIMENT_STANDARD.md
 └── adr/              durable research and architecture decisions
 
+scripts/              schema generation, report promotion, and static-site build
+├── promote-report.ts a run bundle into a tracked public derivative
+├── build-site.ts     the static public report site from promoted bundles
+└── lib/              redaction, aggregation, and HTML rendering (unit-tested)
+
 schemas/              generated public JSON Schemas
 results/              local generated artifacts, ignored by default
+└── public/           deliberately promoted public derivatives (tracked)
+site/dist/            generated static report site, ignored by default
 ```
 
 The reusable [adapter package](packages/adapters/README.md) exposes typed
 official-Python clients for reference generation, isolated registry builds,
 resolution, and pattern or vocabulary handshakes.
+
+## Public reports
+
+Result bundles under `results/` are untracked by default. Publishing is a
+deliberate act: a bundle is _promoted_ into a tracked, redacted public
+derivative, and a static site is generated from those derivatives and deployed
+to GitHub Pages. Nothing is published as a side effect of running an experiment.
+
+```bash
+# 1. Promote a local run bundle into results/public/<experimentId>/<runId>/
+pnpm report:promote -- results/babel-relay/<runId>
+#    Add --force to replace an already-promoted run.
+
+# 2. Build the static site into site/dist/ (recomputes every statistic)
+pnpm site:build
+```
+
+Promotion validates the manifest against `resultManifestSchema` and writes a
+**public derivative**: `manifest.json` and `summary.json` verbatim, plus
+`trials.public.jsonl` — the trial records with each transcript entry's raw
+provider payload stripped (`raw: null`) and each content block's text capped at
+20,000 characters. Full raw bundles are retained locally only. A `PROMOTED.md`
+records the source directory and the redaction rules.
+
+The site is plain generated HTML with inline CSS and inline SVG charts — no
+frontend framework and no runtime dependencies. Every rate and count shown is
+**recomputed from `trials.public.jsonl` at build time**; the committed
+`summary.json` is cross-checked and disagreements are printed as build warnings
+rather than trusted. Each run is labelled by mode
+(`deterministic-harness` / `model-pilot` / `confirmatory`) structurally, and a
+model pilot renders its manifest `evidenceClaim` verbatim so an exploratory run
+can never be mistaken for confirmatory evidence. See
+[ADR 0009](docs/adr/0009-static-public-report-site.md) for the rationale.
+
+On push to `main`, `.github/workflows/pages.yml` builds the site and deploys it
+to GitHub Pages. Enabling Pages (Settings → Pages → Source: GitHub Actions) is a
+one-time operator action.
 
 ## Research roadmap
 
