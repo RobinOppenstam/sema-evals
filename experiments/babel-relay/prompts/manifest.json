@@ -1,5 +1,5 @@
 {
-  "snapshotVersion": "2026-07-14.1",
+  "snapshotVersion": "2026-07-14.2",
   "prompts": {
     "spec-to-plan": {
       "file": "spec-to-plan.md",
@@ -11,7 +11,7 @@
     },
     "implementation-to-audit": {
       "file": "implementation-to-audit.md",
-      "sha256": "9a5b59496ce70d8d0629ec3782bc758b6e9d3c9b492197547cedbca4f06d0214"
+      "sha256": "99e9240b62dc2860599f294eb45e7c5a8eed19c8c23543de177ce75985b9745d"
     }
   }
 }

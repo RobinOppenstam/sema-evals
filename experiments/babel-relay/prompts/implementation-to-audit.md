@@ -27,5 +27,8 @@ DECISION: PROCEED
 DECISION: HALT
 ```
 
+Write that final line as plain text. Do not wrap it in markdown formatting —
+no asterisks, backticks, bold, or headings.
+
 Use `DECISION: PROCEED` only when the implementation matches the resolved
 definition. Use `DECISION: HALT` when they diverge.
