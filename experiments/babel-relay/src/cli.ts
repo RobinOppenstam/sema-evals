@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FixtureReferenceProvider } from "@sema-evals/adapters";
+import {
+  FixtureReferenceProvider,
+  SemaPythonReferenceProvider,
+  type SemanticReferenceProvider,
+} from "@sema-evals/adapters";
 import {
   ARTIFACT_SCHEMA_VERSION,
   EXPERIMENT_CONDITIONS,
@@ -27,6 +31,8 @@ interface CliOptions {
   outputRoot: string;
   orderSeed: number;
   seedCount: number;
+  semanticBackend: "fixture" | "sema-python";
+  semaPython: string;
 }
 
 function usage(): string {
@@ -38,6 +44,8 @@ function usage(): string {
     "  --output <path>     Result root directory",
     "  --order-seed <n>    Recorded randomization seed (default: 20260714)",
     "  --seeds <n>         Number of paired repetition seeds (default: 1)",
+    "  --semantic-backend  fixture or sema-python (default: fixture)",
+    "  --sema-python <cmd> Python executable with semahash installed",
     "  --help              Show this help",
   ].join("\n");
 }
@@ -58,6 +66,10 @@ function nonnegativeInteger(value: string | undefined, flag: string): number {
   return parsed;
 }
 
+function resolveFromRepoRoot(value: string): string {
+  return /[\\/]/.test(value) ? resolve(REPO_ROOT, value) : value;
+}
+
 function parseArgs(args: readonly string[]): CliOptions {
   const options: CliOptions = {
     fixturePath: join(
@@ -67,6 +79,8 @@ function parseArgs(args: readonly string[]): CliOptions {
     outputRoot: join(REPO_ROOT, "results/babel-relay"),
     orderSeed: 20_260_714,
     seedCount: 1,
+    semanticBackend: "fixture",
+    semaPython: resolveFromRepoRoot(process.env.SEMA_PYTHON ?? "python3"),
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -79,11 +93,11 @@ function parseArgs(args: readonly string[]): CliOptions {
       process.exit(0);
     }
     if (argument === "--fixtures") {
-      options.fixturePath = resolve(args[++index] ?? "");
+      options.fixturePath = resolve(REPO_ROOT, args[++index] ?? "");
       continue;
     }
     if (argument === "--output") {
-      options.outputRoot = resolve(args[++index] ?? "");
+      options.outputRoot = resolve(REPO_ROOT, args[++index] ?? "");
       continue;
     }
     if (argument === "--order-seed") {
@@ -94,10 +108,37 @@ function parseArgs(args: readonly string[]): CliOptions {
       options.seedCount = positiveInteger(args[++index], argument);
       continue;
     }
+    if (argument === "--semantic-backend") {
+      const backend = args[++index];
+      if (backend !== "fixture" && backend !== "sema-python") {
+        throw new Error(`${argument} requires fixture or sema-python.`);
+      }
+      options.semanticBackend = backend;
+      continue;
+    }
+    if (argument === "--sema-python") {
+      const command = args[++index];
+      if (!command) {
+        throw new Error(`${argument} requires a Python executable.`);
+      }
+      options.semaPython = resolveFromRepoRoot(command);
+      continue;
+    }
     throw new Error(`Unknown argument: ${argument}\n\n${usage()}`);
   }
 
   return options;
+}
+
+function createReferenceProvider(
+  options: CliOptions,
+): SemanticReferenceProvider {
+  if (options.semanticBackend === "sema-python") {
+    return new SemaPythonReferenceProvider({
+      pythonCommand: options.semaPython,
+    });
+  }
+  return new FixtureReferenceProvider();
 }
 
 function gitRevision(): string {
@@ -138,7 +179,8 @@ async function main(): Promise<void> {
   const { fixtureDigest, scenarioSet } = await loadScenarioFile(
     options.fixturePath,
   );
-  const referenceProvider = new FixtureReferenceProvider();
+  const referenceProvider = createReferenceProvider(options);
+  const semanticMetadata = await referenceProvider.metadata();
   const seeds = Array.from({ length: options.seedCount }, (_, index) => index);
   const promptDigest = fingerprint({
     experiment: EXPERIMENT_ID,
@@ -152,10 +194,10 @@ async function main(): Promise<void> {
     implementationCommit: gitRevision(),
     dependencyLockDigest: await fileDigest(join(REPO_ROOT, "pnpm-lock.yaml")),
     promptDigest,
-    semaVersion: process.env.SEMA_VERSION ?? "not-connected",
-    canonicalizationVersion: "fixture-stable-json-v1",
+    semaVersion: semanticMetadata.semaVersion,
+    canonicalizationVersion: semanticMetadata.canonicalizationVersion,
     vocabularyRoot: process.env.SEMA_VOCABULARY_ROOT ?? "",
-    semanticBackend: referenceProvider.backend,
+    semanticBackend: semanticMetadata.backend,
     modelProvider: process.env.MODEL_PROVIDER ?? "deterministic",
     modelName: process.env.MODEL_NAME ?? "deterministic-relay-v1",
   };
@@ -204,6 +246,9 @@ async function main(): Promise<void> {
 
   const summary = summarizeTrials(records);
   console.log(`Babel Relay completed: ${summary.trialCount} trials.`);
+  console.log(
+    `Semantic backend: ${semanticMetadata.backend} (${semanticMetadata.semaVersion}, ${semanticMetadata.canonicalizationVersion})`,
+  );
   console.log(`Result bundle: ${bundle.directory}`);
   for (const condition of summary.conditions) {
     console.log(

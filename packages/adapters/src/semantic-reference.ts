@@ -9,8 +9,16 @@ export interface SemanticReference {
   officialSema: boolean;
 }
 
+export interface SemanticBackendMetadata {
+  backend: string;
+  semaVersion: string;
+  canonicalizationVersion: string;
+  officialSema: boolean;
+}
+
 export interface SemanticReferenceProvider {
   readonly backend: string;
+  metadata(): Promise<SemanticBackendMetadata>;
   reference(
     handle: string,
     definition: Record<string, unknown>,
@@ -23,6 +31,15 @@ export interface SemanticReferenceProvider {
  */
 export class FixtureReferenceProvider implements SemanticReferenceProvider {
   public readonly backend = "fixture-sha256-stable-json-v1";
+
+  public async metadata(): Promise<SemanticBackendMetadata> {
+    return {
+      backend: this.backend,
+      semaVersion: "not-connected",
+      canonicalizationVersion: "fixture-stable-json-v1",
+      officialSema: false,
+    };
+  }
 
   public async reference(
     handle: string,
