@@ -182,11 +182,30 @@ describe("parseAuditDecision", () => {
     expect(parseAuditDecision("ok\nDECISION: PROCEED")).toBe("proceed");
     expect(parseAuditDecision("bad\nDECISION: HALT\n")).toBe("halt");
     expect(parseAuditDecision("no decision line here")).toBe("malformed");
-    expect(parseAuditDecision("DECISION: proceed")).toBe("malformed");
     // The last valid decision line wins.
     expect(parseAuditDecision("DECISION: PROCEED\nDECISION: HALT")).toBe(
       "halt",
     );
+  });
+
+  it("tolerates the markdown and case variants observed in instrumentation (scorer v2)", () => {
+    // Every one of the 71 malformed audits in the 5-repetition Nemo run was a
+    // markdown-emphasis variant of an otherwise-correct verdict.
+    expect(parseAuditDecision("reasoning\n\n**DECISION: PROCEED**")).toBe(
+      "proceed",
+    );
+    expect(parseAuditDecision("reasoning\n\n**Decision:** PROCEED")).toBe(
+      "proceed",
+    );
+    expect(parseAuditDecision("reasoning\n\n**DECISION: HALT**")).toBe("halt");
+    expect(parseAuditDecision("DECISION: proceed")).toBe("proceed");
+    expect(parseAuditDecision("`DECISION: HALT`")).toBe("halt");
+    expect(parseAuditDecision("### Decision: Halt.")).toBe("halt");
+    // A verdict embedded in prose is still not a decision line.
+    expect(
+      parseAuditDecision("The decision: proceed with caution was discussed."),
+    ).toBe("malformed");
+    expect(parseAuditDecision("DECISION: MAYBE")).toBe("malformed");
   });
 });
 
