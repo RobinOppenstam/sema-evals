@@ -31,6 +31,7 @@ function htmlDocument(title: string, body: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%232563eb'/%3E%3Cpath d='M4 11V7m4 4V4m4 7V6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 <title>${escapeHtml(title)}</title>
 <style>${SITE_STYLE}</style>
 </head>
