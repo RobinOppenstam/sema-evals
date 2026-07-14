@@ -11,7 +11,7 @@ _When meaning changes, do agents notice before they act?_
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933.svg?logo=node.js&logoColor=white)](package.json)
 [![Research status](https://img.shields.io/badge/status-foundation_live-5B5BD6.svg)](docs/RESEARCH_PLAN.md)
 
-[Quick start](#quick-start) · [First experiment](#babel-relay) · [Research plan](docs/RESEARCH_PLAN.md) · [Contributing](CONTRIBUTING.md)
+[**Published results**](https://robinoppenstam.github.io/sema-evals/) · [Quick start](#quick-start) · [First experiment](#babel-relay) · [Research plan](docs/RESEARCH_PLAN.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -187,6 +187,9 @@ official-Python clients for reference generation, isolated registry builds,
 resolution, and pattern or vocabulary handshakes.
 
 ## Public reports
+
+Published run reports live at
+**<https://robinoppenstam.github.io/sema-evals/>**.
 
 Result bundles under `results/` are untracked by default. Publishing is a
 deliberate act: a bundle is _promoted_ into a tracked, redacted public
