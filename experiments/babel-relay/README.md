@@ -70,8 +70,10 @@ evidence that Sema improves model performance.
 > prints the trial count, model-call ceiling, and model id before it runs so you
 > see the cost before spending it.
 
-`model-pilot` mode requires `ANTHROPIC_API_KEY`; it fails fast if the key is
-unset. It never runs in CI — the model-relay tests inject fake clients.
+`model-pilot` mode requires the selected provider's API key env var
+(`ANTHROPIC_API_KEY` for anthropic, `CHUTES_API_KEY` for openai-compatible); it
+fails fast if the key is unset. It never runs in CI — the model-relay tests
+inject fake clients and a fake `fetch`.
 
 Run the small instrumentation size first, then scale:
 
@@ -85,13 +87,47 @@ ANTHROPIC_API_KEY=... pnpm experiment:babel -- \
   --mode model-pilot --model claude-sonnet-5 --repetitions 30
 ```
 
+### Run against an OpenAI-compatible endpoint (Chutes)
+
+The `openai-compatible` provider drives the same three boundaries through any
+endpoint that speaks the OpenAI chat-completions protocol — Chutes and other
+decentralized/self-hosted inference services — for cheap exploratory
+cross-family signal. It uses the Node built-in `fetch` (no extra dependency) and
+preserves transcripts, retries, and failures exactly like the Anthropic adapter.
+
+```bash
+# Stage 1 — instrumentation against Chutes (validate mechanics and spend)
+CHUTES_API_KEY=... pnpm experiment:babel -- \
+  --mode model-pilot \
+  --provider openai-compatible \
+  --base-url https://llm.chutes.ai/v1 \
+  --model zai-org/GLM-4.6-FP8 \
+  --repetitions 5
+```
+
+`--base-url` and `--model` are required for `openai-compatible` (there is no
+default model — catalog slugs vary by endpoint), and the run fails fast if
+`CHUTES_API_KEY` (or the env var named by `--api-key-env`) is unset. `--thinking`
+applies only to the anthropic provider and is rejected here. Provenance records
+`modelProvider` as the base-URL host (for example `llm.chutes.ai`) and
+`modelName` as the exact slug. Decentralized serving cannot pin a model version,
+so these runs stay labelled exploratory. See
+[ADR 0007](../../docs/adr/0007-openai-compatible-provider-adapter.md).
+
 Model-pilot flags:
 
-- `--model <id>` (default `claude-sonnet-5`) — a mid-tier default avoids the
-  ceiling effect a frontier model can produce.
-- `--thinking adaptive|none` (default `adaptive`) — use `none` for models such as
-  `claude-haiku-4-5` that do not support adaptive thinking. Pairing
-  `claude-haiku-4-5` with `adaptive` fails fast.
+- `--provider anthropic|openai-compatible` (default `anthropic`).
+- `--base-url <url>` — required for `openai-compatible` (e.g.
+  `https://llm.chutes.ai/v1`); ignored for anthropic.
+- `--api-key-env <name>` — env var holding the API key (default
+  `ANTHROPIC_API_KEY` for anthropic, `CHUTES_API_KEY` for openai-compatible).
+- `--model <id>` (anthropic default `claude-sonnet-5`; required for
+  openai-compatible) — a mid-tier default avoids the ceiling effect a frontier
+  model can produce.
+- `--thinking adaptive|none` (default `adaptive`; anthropic only) — use `none`
+  for models such as `claude-haiku-4-5` that do not support adaptive thinking.
+  Pairing `claude-haiku-4-5` with `adaptive`, or passing `--thinking` with
+  `openai-compatible`, fails fast.
 - `--max-tokens <n>` (default 4096) per hop.
 - `--repetitions <n>` — alias for `--seeds`; the model-pilot default is 5.
 

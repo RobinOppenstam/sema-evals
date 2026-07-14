@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   AnthropicModelAdapter,
   FixtureReferenceProvider,
+  OpenAiCompatibleModelAdapter,
   SemaPythonRegistryClient,
   SemaPythonReferenceProvider,
   type AnthropicThinkingMode,
@@ -45,8 +46,12 @@ const RELAY_BOUNDARIES = [
 const DEFAULT_MODEL = "claude-sonnet-5";
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MODEL_PILOT_REPETITIONS = 5;
+const DEFAULT_ANTHROPIC_KEY_ENV = "ANTHROPIC_API_KEY";
+const DEFAULT_OPENAI_KEY_ENV = "CHUTES_API_KEY";
+const SUGGESTED_CHUTES_BASE_URL = "https://llm.chutes.ai/v1";
 
 type RunMode = "deterministic" | "model-pilot";
+type ModelProvider = "anthropic" | "openai-compatible";
 
 interface CliOptions {
   mode: RunMode;
@@ -57,6 +62,12 @@ interface CliOptions {
   seedCountExplicit: boolean;
   semanticBackend: "fixture" | "sema-python";
   semaPython: string;
+  provider: ModelProvider;
+  baseUrl: string;
+  /** Host derived from `baseUrl`, e.g. `llm.chutes.ai`. Empty for anthropic. */
+  host: string;
+  /** Env var name checked for presence and read by the adapter (never here). */
+  apiKeyEnv: string;
   model: string;
   thinking: AnthropicThinkingMode;
   maxTokens: number;
@@ -74,6 +85,29 @@ export function validateThinkingForModel(
   }
 }
 
+function hostOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    throw new Error(
+      `--base-url must be a valid URL (received "${baseUrl}"). Suggested: ${SUGGESTED_CHUTES_BASE_URL}`,
+    );
+  }
+}
+
+/**
+ * Fails fast before any work when the selected provider's API key env var is
+ * unset. Presence-only: the value is never read beyond truthiness. Exported for
+ * the CLI validation test seam.
+ */
+export function assertProviderApiKey(options: CliOptions): void {
+  if (!process.env[options.apiKeyEnv]) {
+    throw new Error(
+      `model-pilot mode with provider ${options.provider} requires ${options.apiKeyEnv} to be set. Export it before running.`,
+    );
+  }
+}
+
 function usage(): string {
   return [
     "Usage: pnpm experiment:babel -- [options]",
@@ -87,12 +121,19 @@ function usage(): string {
     "  --repetitions <n>   Alias for --seeds (model-pilot default: 5)",
     "  --semantic-backend  fixture or sema-python (default: fixture)",
     "  --sema-python <cmd> Python executable with semahash installed",
-    "  --model <id>        Model id for model-pilot (default: claude-sonnet-5)",
-    "  --thinking <m>      adaptive or none (default: adaptive)",
+    "  --provider <p>      anthropic or openai-compatible (default: anthropic)",
+    "  --base-url <url>    OpenAI-compatible endpoint base URL (required for",
+    `                      openai-compatible; e.g. ${SUGGESTED_CHUTES_BASE_URL})`,
+    "  --api-key-env <n>   Env var holding the API key (default:",
+    "                      ANTHROPIC_API_KEY for anthropic, CHUTES_API_KEY for",
+    "                      openai-compatible)",
+    "  --model <id>        Model id (anthropic default: claude-sonnet-5;",
+    "                      required for openai-compatible)",
+    "  --thinking <m>      adaptive or none (default: adaptive; anthropic only)",
     "  --max-tokens <n>    Max output tokens per hop (default: 4096)",
     "  --help              Show this help",
     "",
-    "model-pilot mode calls the Anthropic API and requires ANTHROPIC_API_KEY.",
+    "model-pilot mode requires the selected provider's API key env var to be set.",
   ].join("\n");
 }
 
@@ -129,10 +170,17 @@ export function parseArgs(args: readonly string[]): CliOptions {
     seedCountExplicit: false,
     semanticBackend: "fixture",
     semaPython: resolveFromRepoRoot(process.env.SEMA_PYTHON ?? "python3"),
+    provider: "anthropic",
+    baseUrl: "",
+    host: "",
+    apiKeyEnv: "",
     model: DEFAULT_MODEL,
     thinking: "adaptive",
     maxTokens: DEFAULT_MAX_TOKENS,
   };
+  let modelExplicit = false;
+  let thinkingExplicit = false;
+  let apiKeyEnvExplicit = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -184,12 +232,38 @@ export function parseArgs(args: readonly string[]): CliOptions {
       options.semaPython = resolveFromRepoRoot(command);
       continue;
     }
+    if (argument === "--provider") {
+      const provider = args[++index];
+      if (provider !== "anthropic" && provider !== "openai-compatible") {
+        throw new Error(`${argument} requires anthropic or openai-compatible.`);
+      }
+      options.provider = provider;
+      continue;
+    }
+    if (argument === "--base-url") {
+      const baseUrl = args[++index];
+      if (!baseUrl) {
+        throw new Error(`${argument} requires a URL.`);
+      }
+      options.baseUrl = baseUrl;
+      continue;
+    }
+    if (argument === "--api-key-env") {
+      const apiKeyEnv = args[++index];
+      if (!apiKeyEnv) {
+        throw new Error(`${argument} requires an env var name.`);
+      }
+      options.apiKeyEnv = apiKeyEnv;
+      apiKeyEnvExplicit = true;
+      continue;
+    }
     if (argument === "--model") {
       const model = args[++index];
       if (!model) {
         throw new Error(`${argument} requires a model id.`);
       }
       options.model = model;
+      modelExplicit = true;
       continue;
     }
     if (argument === "--thinking") {
@@ -198,6 +272,7 @@ export function parseArgs(args: readonly string[]): CliOptions {
         throw new Error(`${argument} requires adaptive or none.`);
       }
       options.thinking = thinking;
+      thinkingExplicit = true;
       continue;
     }
     if (argument === "--max-tokens") {
@@ -210,7 +285,33 @@ export function parseArgs(args: readonly string[]): CliOptions {
   if (options.mode === "model-pilot" && !options.seedCountExplicit) {
     options.seedCount = DEFAULT_MODEL_PILOT_REPETITIONS;
   }
-  validateThinkingForModel(options.model, options.thinking);
+
+  if (options.provider === "openai-compatible") {
+    if (thinkingExplicit) {
+      throw new Error(
+        "--thinking applies only to the anthropic provider. Remove it for openai-compatible.",
+      );
+    }
+    if (!options.baseUrl) {
+      throw new Error(
+        `--base-url is required for provider openai-compatible (e.g. ${SUGGESTED_CHUTES_BASE_URL}).`,
+      );
+    }
+    if (!modelExplicit) {
+      throw new Error(
+        "--model is required for provider openai-compatible; catalog slugs vary by endpoint.",
+      );
+    }
+    options.host = hostOf(options.baseUrl);
+    options.apiKeyEnv = apiKeyEnvExplicit
+      ? options.apiKeyEnv
+      : DEFAULT_OPENAI_KEY_ENV;
+  } else {
+    validateThinkingForModel(options.model, options.thinking);
+    options.apiKeyEnv = apiKeyEnvExplicit
+      ? options.apiKeyEnv
+      : DEFAULT_ANTHROPIC_KEY_ENV;
+  }
 
   return options;
 }
@@ -230,13 +331,23 @@ function createModelAdapters(
   snapshot: PromptSnapshot,
   options: CliOptions,
 ): ModelRelayAdapters {
-  const build = (boundary: RelayBoundary): AnthropicModelAdapter =>
-    new AnthropicModelAdapter({
-      systemPrompt: requirePrompt(snapshot, boundary),
-      model: options.model,
-      maxTokens: options.maxTokens,
-      thinkingMode: options.thinking,
-    });
+  const build = (
+    boundary: RelayBoundary,
+  ): AnthropicModelAdapter | OpenAiCompatibleModelAdapter =>
+    options.provider === "openai-compatible"
+      ? new OpenAiCompatibleModelAdapter({
+          systemPrompt: requirePrompt(snapshot, boundary),
+          baseUrl: options.baseUrl,
+          apiKeyEnvVar: options.apiKeyEnv,
+          model: options.model,
+          maxTokens: options.maxTokens,
+        })
+      : new AnthropicModelAdapter({
+          systemPrompt: requirePrompt(snapshot, boundary),
+          model: options.model,
+          maxTokens: options.maxTokens,
+          thinkingMode: options.thinking,
+        });
   return {
     "spec-to-plan": build("spec-to-plan"),
     "plan-to-implementation": build("plan-to-implementation"),
@@ -292,10 +403,8 @@ async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
   // Fail fast before any work when a model pilot cannot authenticate.
-  if (options.mode === "model-pilot" && !process.env.ANTHROPIC_API_KEY) {
-    throw new Error(
-      "model-pilot mode requires ANTHROPIC_API_KEY to be set. Export it before running.",
-    );
+  if (options.mode === "model-pilot") {
+    assertProviderApiKey(options);
   }
 
   const { fixtureDigest, scenarioSet } = await loadScenarioFile(
@@ -314,8 +423,15 @@ async function main(): Promise<void> {
     const hopCount = RELAY_BOUNDARIES.length;
     console.log("Babel Relay model pilot (exploratory, not confirmatory).");
     console.log(
-      `Model: ${options.model} (thinking=${options.thinking}, max-tokens=${options.maxTokens})`,
+      options.provider === "openai-compatible"
+        ? `Provider: openai-compatible (${options.baseUrl}, host=${options.host})`
+        : "Provider: anthropic",
     );
+    const modelSuffix =
+      options.provider === "openai-compatible"
+        ? `max-tokens=${options.maxTokens}`
+        : `thinking=${options.thinking}, max-tokens=${options.maxTokens}`;
+    console.log(`Model: ${options.model} (${modelSuffix})`);
     console.log(
       `Planned: ${scenarioCount} scenarios x ${conditionCount} conditions x ` +
         `${options.seedCount} repetitions = ${trialCount} trials, ` +
@@ -370,7 +486,9 @@ async function main(): Promise<void> {
         "",
       semanticBackend: semanticMetadata.backend,
       modelProvider: isModelPilot
-        ? "anthropic"
+        ? options.provider === "openai-compatible"
+          ? options.host
+          : "anthropic"
         : (process.env.MODEL_PROVIDER ?? "deterministic"),
       modelName: isModelPilot
         ? options.model

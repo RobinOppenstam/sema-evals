@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { parseArgs, validateThinkingForModel } from "../src/cli.js";
+import {
+  assertProviderApiKey,
+  parseArgs,
+  validateThinkingForModel,
+} from "../src/cli.js";
 
 describe("validateThinkingForModel", () => {
   it("rejects adaptive thinking on claude-haiku-4-5", () => {
@@ -73,5 +77,107 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--thinking", "bogus"])).toThrow(
       /adaptive or none/,
     );
+  });
+
+  it("defaults to the anthropic provider with its key env var", () => {
+    const options = parseArgs([]);
+    expect(options.provider).toBe("anthropic");
+    expect(options.apiKeyEnv).toBe("ANTHROPIC_API_KEY");
+    expect(options.baseUrl).toBe("");
+    expect(options.host).toBe("");
+  });
+});
+
+describe("parseArgs provider selection", () => {
+  const openaiArgs = [
+    "--mode",
+    "model-pilot",
+    "--provider",
+    "openai-compatible",
+    "--base-url",
+    "https://llm.chutes.ai/v1",
+    "--model",
+    "zai-org/GLM-4.6-FP8",
+  ];
+
+  it("accepts a complete openai-compatible invocation", () => {
+    const options = parseArgs(openaiArgs);
+    expect(options.provider).toBe("openai-compatible");
+    expect(options.baseUrl).toBe("https://llm.chutes.ai/v1");
+    expect(options.host).toBe("llm.chutes.ai");
+    expect(options.apiKeyEnv).toBe("CHUTES_API_KEY");
+    expect(options.model).toBe("zai-org/GLM-4.6-FP8");
+  });
+
+  it("honours --api-key-env for openai-compatible", () => {
+    const options = parseArgs([...openaiArgs, "--api-key-env", "MY_KEY"]);
+    expect(options.apiKeyEnv).toBe("MY_KEY");
+  });
+
+  it("requires --base-url for openai-compatible", () => {
+    expect(() =>
+      parseArgs(["--provider", "openai-compatible", "--model", "some/model"]),
+    ).toThrow(/--base-url is required/);
+  });
+
+  it("requires --model for openai-compatible", () => {
+    expect(() =>
+      parseArgs([
+        "--provider",
+        "openai-compatible",
+        "--base-url",
+        "https://llm.chutes.ai/v1",
+      ]),
+    ).toThrow(/--model is required/);
+  });
+
+  it("rejects --thinking with openai-compatible", () => {
+    expect(() => parseArgs([...openaiArgs, "--thinking", "none"])).toThrow(
+      /--thinking applies only to the anthropic provider/,
+    );
+  });
+
+  it("rejects an unknown provider", () => {
+    expect(() => parseArgs(["--provider", "bogus"])).toThrow(
+      /anthropic or openai-compatible/,
+    );
+  });
+});
+
+describe("assertProviderApiKey", () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it("throws when the resolved key env var is unset", () => {
+    delete process.env.CHUTES_API_KEY;
+    const options = parseArgs([
+      "--mode",
+      "model-pilot",
+      "--provider",
+      "openai-compatible",
+      "--base-url",
+      "https://llm.chutes.ai/v1",
+      "--model",
+      "some/model",
+    ]);
+    expect(() => assertProviderApiKey(options)).toThrow(/CHUTES_API_KEY/);
+  });
+
+  it("passes when the resolved key env var is present", () => {
+    process.env.CHUTES_API_KEY = "sk-present";
+    const options = parseArgs([
+      "--mode",
+      "model-pilot",
+      "--provider",
+      "openai-compatible",
+      "--base-url",
+      "https://llm.chutes.ai/v1",
+      "--model",
+      "some/model",
+    ]);
+    expect(() => assertProviderApiKey(options)).not.toThrow();
   });
 });

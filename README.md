@@ -67,14 +67,18 @@ hydrates definitions through `GraphWorkspace`, and records real
 Sema improves model performance.
 
 The first model pilot is now wired in. A `model-pilot` run mode replays the same
-three boundaries through a transcript-preserving Anthropic adapter — one per
+three boundaries through a transcript-preserving model adapter — one per
 boundary, using the frozen, digest-verified prompt snapshots — with objective
 `DECISION: PROCEED` / `DECISION: HALT` parsing rather than an LLM judge,
-per-trial usage aggregated across hops, and preserved failures. It is labelled
-exploratory in its result manifest, requires `ANTHROPIC_API_KEY`, prints its
-spend shape before running, and never runs in CI. No live pilot has been
-executed yet; running it is an operator decision. See
-[the Babel Relay README](experiments/babel-relay/README.md).
+per-trial usage aggregated across hops, and preserved failures. Two provider
+families are supported behind one interface: a first-party Anthropic adapter and
+an `OpenAiCompatibleModelAdapter` that drives any OpenAI-compatible endpoint
+(targets Chutes) over the Node built-in `fetch` for cheap exploratory
+cross-family signal. It is labelled exploratory in its result manifest, requires
+the selected provider's API key, prints its spend shape before running, and never
+runs in CI. No live pilot has been executed yet; running it is an operator
+decision. See [the Babel Relay README](experiments/babel-relay/README.md) and
+[ADR 0007](docs/adr/0007-openai-compatible-provider-adapter.md).
 
 ## Quick start
 
