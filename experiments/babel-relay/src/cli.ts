@@ -1,12 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  AnthropicModelAdapter,
   FixtureReferenceProvider,
   SemaPythonRegistryClient,
   SemaPythonReferenceProvider,
+  type AnthropicThinkingMode,
   type SemanticReferenceProvider,
 } from "@sema-evals/adapters";
 import {
@@ -15,26 +17,61 @@ import {
   PROTOCOL_VERSION,
   executeMatrix,
   fingerprint,
+  loadPromptSnapshot,
   planPairedMatrix,
   sha256Text,
+  type PromptSnapshot,
+  type RelayBoundary,
   type TrialProvenance,
+  type TrialRecord,
 } from "@sema-evals/core";
 import { summarizeTrials, writeResultBundle } from "@sema-evals/reporters";
 
 import { loadScenarioFile } from "./fixtures.js";
+import { runModelRelayTrial, type ModelRelayAdapters } from "./model-relay.js";
 import { prepareSemaRegistryRuntime } from "./registry-runtime.js";
 import { runRelayTrial, type RelaySemanticRuntime } from "./relay.js";
 
 const EXPERIMENT_ID = "babel-relay";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const PROMPTS_DIR = join(REPO_ROOT, "experiments/babel-relay/prompts");
+
+const RELAY_BOUNDARIES = [
+  "spec-to-plan",
+  "plan-to-implementation",
+  "implementation-to-audit",
+] as const satisfies readonly RelayBoundary[];
+
+const DEFAULT_MODEL = "claude-sonnet-5";
+const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MODEL_PILOT_REPETITIONS = 5;
+
+type RunMode = "deterministic" | "model-pilot";
 
 interface CliOptions {
+  mode: RunMode;
   fixturePath: string;
   outputRoot: string;
   orderSeed: number;
   seedCount: number;
+  seedCountExplicit: boolean;
   semanticBackend: "fixture" | "sema-python";
   semaPython: string;
+  model: string;
+  thinking: AnthropicThinkingMode;
+  maxTokens: number;
+}
+
+/** Fail fast when a model cannot serve the requested thinking mode. */
+export function validateThinkingForModel(
+  model: string,
+  thinking: AnthropicThinkingMode,
+): void {
+  if (model === "claude-haiku-4-5" && thinking === "adaptive") {
+    throw new Error(
+      "claude-haiku-4-5 does not support adaptive thinking. Pass --thinking none.",
+    );
+  }
 }
 
 function usage(): string {
@@ -42,13 +79,20 @@ function usage(): string {
     "Usage: pnpm experiment:babel -- [options]",
     "",
     "Options:",
+    "  --mode <m>          deterministic or model-pilot (default: deterministic)",
     "  --fixtures <path>   YAML scenario file",
     "  --output <path>     Result root directory",
     "  --order-seed <n>    Recorded randomization seed (default: 20260714)",
     "  --seeds <n>         Number of paired repetition seeds (default: 1)",
+    "  --repetitions <n>   Alias for --seeds (model-pilot default: 5)",
     "  --semantic-backend  fixture or sema-python (default: fixture)",
     "  --sema-python <cmd> Python executable with semahash installed",
+    "  --model <id>        Model id for model-pilot (default: claude-sonnet-5)",
+    "  --thinking <m>      adaptive or none (default: adaptive)",
+    "  --max-tokens <n>    Max output tokens per hop (default: 4096)",
     "  --help              Show this help",
+    "",
+    "model-pilot mode calls the Anthropic API and requires ANTHROPIC_API_KEY.",
   ].join("\n");
 }
 
@@ -72,8 +116,9 @@ function resolveFromRepoRoot(value: string): string {
   return /[\\/]/.test(value) ? resolve(REPO_ROOT, value) : value;
 }
 
-function parseArgs(args: readonly string[]): CliOptions {
+export function parseArgs(args: readonly string[]): CliOptions {
   const options: CliOptions = {
+    mode: "deterministic",
     fixturePath: join(
       REPO_ROOT,
       "experiments/babel-relay/fixtures/scenarios.yaml",
@@ -81,8 +126,12 @@ function parseArgs(args: readonly string[]): CliOptions {
     outputRoot: join(REPO_ROOT, "results/babel-relay"),
     orderSeed: 20_260_714,
     seedCount: 1,
+    seedCountExplicit: false,
     semanticBackend: "fixture",
     semaPython: resolveFromRepoRoot(process.env.SEMA_PYTHON ?? "python3"),
+    model: DEFAULT_MODEL,
+    thinking: "adaptive",
+    maxTokens: DEFAULT_MAX_TOKENS,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -93,6 +142,14 @@ function parseArgs(args: readonly string[]): CliOptions {
     if (argument === "--help") {
       console.log(usage());
       process.exit(0);
+    }
+    if (argument === "--mode") {
+      const mode = args[++index];
+      if (mode !== "deterministic" && mode !== "model-pilot") {
+        throw new Error(`${argument} requires deterministic or model-pilot.`);
+      }
+      options.mode = mode;
+      continue;
     }
     if (argument === "--fixtures") {
       options.fixturePath = resolve(REPO_ROOT, args[++index] ?? "");
@@ -106,8 +163,9 @@ function parseArgs(args: readonly string[]): CliOptions {
       options.orderSeed = nonnegativeInteger(args[++index], argument);
       continue;
     }
-    if (argument === "--seeds") {
+    if (argument === "--seeds" || argument === "--repetitions") {
       options.seedCount = positiveInteger(args[++index], argument);
+      options.seedCountExplicit = true;
       continue;
     }
     if (argument === "--semantic-backend") {
@@ -126,10 +184,64 @@ function parseArgs(args: readonly string[]): CliOptions {
       options.semaPython = resolveFromRepoRoot(command);
       continue;
     }
+    if (argument === "--model") {
+      const model = args[++index];
+      if (!model) {
+        throw new Error(`${argument} requires a model id.`);
+      }
+      options.model = model;
+      continue;
+    }
+    if (argument === "--thinking") {
+      const thinking = args[++index];
+      if (thinking !== "adaptive" && thinking !== "none") {
+        throw new Error(`${argument} requires adaptive or none.`);
+      }
+      options.thinking = thinking;
+      continue;
+    }
+    if (argument === "--max-tokens") {
+      options.maxTokens = positiveInteger(args[++index], argument);
+      continue;
+    }
     throw new Error(`Unknown argument: ${argument}\n\n${usage()}`);
   }
 
+  if (options.mode === "model-pilot" && !options.seedCountExplicit) {
+    options.seedCount = DEFAULT_MODEL_PILOT_REPETITIONS;
+  }
+  validateThinkingForModel(options.model, options.thinking);
+
   return options;
+}
+
+function requirePrompt(
+  snapshot: PromptSnapshot,
+  boundary: RelayBoundary,
+): string {
+  const prompt = snapshot.prompts[boundary];
+  if (!prompt) {
+    throw new Error(`Prompt snapshot is missing the ${boundary} boundary.`);
+  }
+  return prompt.content;
+}
+
+function createModelAdapters(
+  snapshot: PromptSnapshot,
+  options: CliOptions,
+): ModelRelayAdapters {
+  const build = (boundary: RelayBoundary): AnthropicModelAdapter =>
+    new AnthropicModelAdapter({
+      systemPrompt: requirePrompt(snapshot, boundary),
+      model: options.model,
+      maxTokens: options.maxTokens,
+      thinkingMode: options.thinking,
+    });
+  return {
+    "spec-to-plan": build("spec-to-plan"),
+    "plan-to-implementation": build("plan-to-implementation"),
+    "implementation-to-audit": build("implementation-to-audit"),
+  };
 }
 
 function createReferenceProvider(
@@ -178,9 +290,40 @@ function timestampId(date: Date): string {
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
+
+  // Fail fast before any work when a model pilot cannot authenticate.
+  if (options.mode === "model-pilot" && !process.env.ANTHROPIC_API_KEY) {
+    throw new Error(
+      "model-pilot mode requires ANTHROPIC_API_KEY to be set. Export it before running.",
+    );
+  }
+
   const { fixtureDigest, scenarioSet } = await loadScenarioFile(
     options.fixturePath,
   );
+
+  let promptSnapshot: PromptSnapshot | undefined;
+  let adapters: ModelRelayAdapters | undefined;
+  if (options.mode === "model-pilot") {
+    promptSnapshot = await loadPromptSnapshot(PROMPTS_DIR);
+    adapters = createModelAdapters(promptSnapshot, options);
+
+    const scenarioCount = scenarioSet.scenarios.length;
+    const conditionCount = EXPERIMENT_CONDITIONS.length;
+    const trialCount = scenarioCount * conditionCount * options.seedCount;
+    const hopCount = RELAY_BOUNDARIES.length;
+    console.log("Babel Relay model pilot (exploratory, not confirmatory).");
+    console.log(
+      `Model: ${options.model} (thinking=${options.thinking}, max-tokens=${options.maxTokens})`,
+    );
+    console.log(
+      `Planned: ${scenarioCount} scenarios x ${conditionCount} conditions x ` +
+        `${options.seedCount} repetitions = ${trialCount} trials, ` +
+        `up to ${trialCount * hopCount} model calls (${hopCount} hops each).`,
+    );
+    console.log("Enforced halts skip downstream hops, reducing actual calls.");
+  }
+
   const referenceProvider = createReferenceProvider(options);
   let semanticRuntime: RelaySemanticRuntime | undefined;
   try {
@@ -203,11 +346,15 @@ async function main(): Promise<void> {
       { length: options.seedCount },
       (_, index) => index,
     );
-    const promptDigest = fingerprint({
-      experiment: EXPERIMENT_ID,
-      protocolVersion: PROTOCOL_VERSION,
-      policy: "deterministic-relay-v2-registry-handshake",
-    });
+    const isModelPilot = options.mode === "model-pilot";
+    const promptDigest =
+      isModelPilot && promptSnapshot
+        ? promptSnapshot.promptDigest
+        : fingerprint({
+            experiment: EXPERIMENT_ID,
+            protocolVersion: PROTOCOL_VERSION,
+            policy: "deterministic-relay-v2-registry-handshake",
+          });
     const provenance: TrialProvenance = {
       artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
       protocolVersion: PROTOCOL_VERSION,
@@ -222,8 +369,12 @@ async function main(): Promise<void> {
         process.env.SEMA_VOCABULARY_ROOT ??
         "",
       semanticBackend: semanticMetadata.backend,
-      modelProvider: process.env.MODEL_PROVIDER ?? "deterministic",
-      modelName: process.env.MODEL_NAME ?? "deterministic-relay-v1",
+      modelProvider: isModelPilot
+        ? "anthropic"
+        : (process.env.MODEL_PROVIDER ?? "deterministic"),
+      modelName: isModelPilot
+        ? options.model
+        : (process.env.MODEL_NAME ?? "deterministic-relay-v1"),
     };
 
     await Promise.all(
@@ -249,14 +400,27 @@ async function main(): Promise<void> {
       orderSeed: options.orderSeed,
     });
 
-    const records = await executeMatrix(cells, (cell) =>
-      runRelayTrial(cell, {
+    const records = await executeMatrix<
+      (typeof cells)[number]["scenario"],
+      (typeof cells)[number]["condition"],
+      TrialRecord
+    >(cells, (cell) => {
+      if (isModelPilot && adapters) {
+        return runModelRelayTrial(cell, {
+          experimentId: EXPERIMENT_ID,
+          referenceProvider,
+          ...(semanticRuntime ? { semanticRuntime } : {}),
+          provenance,
+          adapters,
+        });
+      }
+      return runRelayTrial(cell, {
         experimentId: EXPERIMENT_ID,
         referenceProvider,
         ...(semanticRuntime ? { semanticRuntime } : {}),
         provenance,
-      }),
-    );
+      });
+    });
     const createdAt = new Date();
     const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
     const outputDirectory = join(options.outputRoot, runId);
@@ -267,9 +431,10 @@ async function main(): Promise<void> {
         protocolVersion: PROTOCOL_VERSION,
         experimentId: EXPERIMENT_ID,
         runId,
-        mode: "deterministic-harness",
-        evidenceClaim:
-          "Validates condition mechanics, drift scoring, randomization, and artifact reporting only.",
+        mode: isModelPilot ? "model-pilot" : "deterministic-harness",
+        evidenceClaim: isModelPilot
+          ? "Exploratory model pilot. Not preregistered, not confirmatory evidence."
+          : "Validates condition mechanics, drift scoring, randomization, and artifact reporting only.",
         createdAt: createdAt.toISOString(),
         orderSeed: options.orderSeed,
         seeds,
@@ -304,9 +469,16 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
-  const message =
-    error instanceof Error ? (error.stack ?? error.message) : String(error);
-  console.error(message);
-  process.exitCode = 1;
-});
+function isEntryPoint(): boolean {
+  const entry = process.argv[1];
+  return entry !== undefined && import.meta.url === pathToFileURL(entry).href;
+}
+
+if (isEntryPoint()) {
+  main().catch((error: unknown) => {
+    const message =
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+    console.error(message);
+    process.exitCode = 1;
+  });
+}

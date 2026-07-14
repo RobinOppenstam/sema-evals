@@ -17,7 +17,7 @@ import {
 
 import { CONDITION_POLICIES } from "./conditions.js";
 
-const RELAY = [
+export const RELAY = [
   { boundary: "spec-to-plan", sender: "spec-agent", receiver: "planner-agent" },
   {
     boundary: "plan-to-implementation",
@@ -84,7 +84,7 @@ export interface RelaySemanticRuntime {
   cleanup(): Promise<void>;
 }
 
-function wirePayload(
+export function wirePayload(
   condition: ExperimentCondition,
   scenario: RelayScenario,
   definition: Record<string, unknown>,
