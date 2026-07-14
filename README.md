@@ -59,10 +59,12 @@ Every fixture runs through the same five-condition ladder:
 | **Content-addressed + voluntary check** | Drift detection without enforcement    |
 | **Content-addressed + enforced check**  | Fail-closed runtime enforcement        |
 
-The current backend is deterministic. It validates the experiment mechanics,
-objective scorer, paired randomization, and result pipeline. It is **not** an
-empirical claim that Sema improves model performance. Official Sema and LLM
-adapters are the next milestone.
+The default backend uses deterministic fixture references. It validates the
+experiment mechanics, objective scorer, paired randomization, and result
+pipeline. An optional adapter generates references through the official
+`semahash` Python package; neither mode is an empirical claim that Sema improves
+model performance. Model-driven agents and registry handshakes are the next
+milestone.
 
 ## Quick start
 
@@ -81,6 +83,20 @@ Run five paired repetitions with a recorded order seed:
 ```bash
 pnpm experiment:babel -- --seeds 5 --order-seed 20260714
 ```
+
+Use official Sema v0.3 canonicalization from an adjacent upstream checkout:
+
+```bash
+pnpm experiment:babel -- \
+  --semantic-backend sema-python \
+  --sema-python ../sema/.venv/bin/python \
+  --seeds 5
+```
+
+The selected Python interpreter must have `semahash>=0.3.0` installed. Its
+package version and canonicalization version are read from the adapter and
+written into every result manifest. The TypeScript harness does not reimplement
+or approximate Sema hashing.
 
 The command produces a complete, ignored result bundle:
 
@@ -118,7 +134,7 @@ still enters model context. `sema-evals` never treats those as the same saving.
 ```text
 packages/
 ├── core/             versioned schemas, fingerprints, paired matrix runner
-├── adapters/         provider-neutral agent and semantic-reference seams
+├── adapters/         provider-neutral agents + official Sema Python bridge
 └── reporters/        JSONL, JSON, and Markdown result bundles
 
 experiments/
@@ -139,14 +155,14 @@ results/              local generated artifacts, ignored by default
 
 ## Research roadmap
 
-| Phase | Deliverable                                  | Primary endpoint               | Status   |
-| ----- | -------------------------------------------- | ------------------------------ | -------- |
-| 0     | Reproducible evaluator + deterministic relay | Scorer correctness             | **Live** |
-| 1     | Official Sema + model-driven Babel Relay     | Silent-divergence rate         | Next     |
-| 2     | Sema tax and hydration curve                 | Success per total token        | Planned  |
-| 3     | A2A semantic extension                       | Execution under registry drift | Planned  |
-| 4     | `sema-sec` Solidity trials                   | Recall at fixed FP budget      | Planned  |
-| 5     | Historical forecast council                  | Brier score                    | Planned  |
+| Phase | Deliverable                                  | Primary endpoint               | Status          |
+| ----- | -------------------------------------------- | ------------------------------ | --------------- |
+| 0     | Reproducible evaluator + deterministic relay | Scorer correctness             | **Live**        |
+| 1     | Official hashing + model-driven Babel Relay  | Silent-divergence rate         | **In progress** |
+| 2     | Sema tax and hydration curve                 | Success per total token        | Planned         |
+| 3     | A2A semantic extension                       | Execution under registry drift | Planned         |
+| 4     | `sema-sec` Solidity trials                   | Recall at fixed FP budget      | Planned         |
+| 5     | Historical forecast council                  | Brier score                    | Planned         |
 
 The full sequence and exit gates are locked in the
 [research plan](docs/RESEARCH_PLAN.md). Material changes require an architecture
