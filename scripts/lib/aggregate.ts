@@ -49,6 +49,8 @@ export interface ScenarioGridCell {
   scenarioId: string;
   condition: ExperimentCondition;
   outcomes: TrialOutcome[];
+  /** Trial seeds, aligned index-for-index with {@link outcomes}. */
+  seeds: number[];
 }
 
 export interface SiteAggregate {
@@ -120,14 +122,18 @@ export function aggregateTrials(
   const grid: ScenarioGridCell[] = [];
   for (const scenarioId of scenarioIds) {
     for (const condition of presentConditions) {
-      const outcomes = records
+      const cellRecords = records
         .filter(
           (record) =>
             record.scenarioId === scenarioId && record.condition === condition,
         )
-        .sort((a, b) => a.seed - b.seed)
-        .map(classifyOutcome);
-      grid.push({ scenarioId, condition, outcomes });
+        .sort((a, b) => a.seed - b.seed);
+      grid.push({
+        scenarioId,
+        condition,
+        outcomes: cellRecords.map(classifyOutcome),
+        seeds: cellRecords.map((record) => record.seed),
+      });
     }
   }
 

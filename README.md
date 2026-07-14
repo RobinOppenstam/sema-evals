@@ -76,8 +76,9 @@ an `OpenAiCompatibleModelAdapter` that drives any OpenAI-compatible endpoint
 (targets Chutes) over the Node built-in `fetch` for cheap exploratory
 cross-family signal. It is labelled exploratory in its result manifest, requires
 the selected provider's API key, prints its spend shape before running, and never
-runs in CI. No live pilot has been executed yet; running it is an operator
-decision. See [the Babel Relay README](experiments/babel-relay/README.md) and
+runs in CI. The first exploratory pilots have been run and promoted to the
+[published results site](https://robinoppenstam.github.io/sema-evals/); running
+a pilot is always a deliberate operator decision. See [the Babel Relay README](experiments/babel-relay/README.md) and
 [ADR 0007](docs/adr/0007-openai-compatible-provider-adapter.md).
 
 ## Quick start
