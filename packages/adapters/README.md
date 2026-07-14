@@ -49,6 +49,53 @@ Frozen prompt snapshots are loaded with `loadPromptSnapshot` from
 `@sema-evals/core`, which recomputes each file's SHA-256, fails closed on drift,
 and exposes the combined `promptDigest` recorded in trial provenance.
 
+## OpenAI-compatible model adapter
+
+`OpenAiCompatibleModelAdapter` implements the same
+`ModelAgentAdapter<ModelPromptInput, ModelCompletion>` interface and preserves
+the same guarantees as the Anthropic adapter — recorded (not silent) retries on
+429/5xx/connection errors, refusals/truncations/errors returned as preserved
+failures, no sampling parameters — but speaks the OpenAI chat-completions
+protocol over the Node built-in `fetch` (no extra npm dependency). It targets
+Chutes and works for any OpenAI-compatible endpoint.
+
+```ts
+import { OpenAiCompatibleModelAdapter } from "@sema-evals/adapters";
+
+const adapter = new OpenAiCompatibleModelAdapter({
+  systemPrompt: frozenSnapshot,
+  baseUrl: "https://llm.chutes.ai/v1",
+  apiKeyEnvVar: "CHUTES_API_KEY", // default; read lazily at first invoke
+  model: "zai-org/GLM-4.6-FP8", // required — catalog slugs vary by endpoint
+  maxTokens: 4096,
+});
+
+const response = await adapter.invoke({
+  messages: [{ role: "user", content: taskPayload }],
+});
+```
+
+Additional properties beyond the shared guarantees:
+
+- **`finish_reason` mapping.** `stop` → completed, `length` → truncated,
+  `content_filter` → refused; any other value is preserved verbatim as the stop
+  reason (completing when text is present, erroring on empty content).
+- **Usage mapping.** `prompt_tokens`/`completion_tokens` →
+  `inputTokens`/`outputTokens`, `prompt_tokens_details.cached_tokens` →
+  `cachedInputTokensRead` (0 when absent), and
+  `completion_tokens_details.reasoning_tokens` → `reasoningTokens` (null when
+  absent). Malformed or missing fields degrade to zeros/nulls and never throw.
+- **Key hygiene.** The API key is read lazily from the environment and used only
+  in the `Authorization` header on the wire; it is never logged or stored, and
+  recorded request metadata redacts the header to `Bearer [REDACTED]`. Preserved
+  HTTP/malformed bodies are capped at 64 KB with truncation noted.
+- **Injectable `fetchFn`.** Unit tests pass a fake `fetch`, so CI never touches
+  the network.
+
+Provenance records `modelProvider` as the base-URL host (for example
+`llm.chutes.ai`) and `modelName` as the exact slug. See
+[ADR 0007](../../docs/adr/0007-openai-compatible-provider-adapter.md).
+
 ## Official Sema registry client
 
 `SemaPythonRegistryClient` delegates registry creation, resolution, vocabulary
