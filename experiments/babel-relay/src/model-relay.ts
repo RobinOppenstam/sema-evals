@@ -466,7 +466,11 @@ export async function runModelRelayTrial(
       elapsedMs,
     },
     provenance: options.provenance,
-    usage: aggregateUsage(hopUsages),
-    transcript: concatenateTranscripts(hopTranscripts),
+    // An enforced halt at the first boundary runs zero model hops. Such a
+    // trial has no usage or transcript; `attempts: 0` would also violate the
+    // artifact schema's `attempts >= 1` invariant at bundle-write time.
+    usage: hopUsages.length > 0 ? aggregateUsage(hopUsages) : null,
+    transcript:
+      hopTranscripts.length > 0 ? concatenateTranscripts(hopTranscripts) : null,
   };
 }

@@ -311,6 +311,31 @@ describe("runModelRelayTrial scoring", () => {
     expect(trialRecordSchema.safeParse(record).success).toBe(true);
   });
 
+  it("stays schema-valid when enforcement halts before any model call", async () => {
+    const specFake = vi.fn(passthrough("plan"));
+    const implFake = vi.fn(passthrough("impl"));
+    const auditFake = vi.fn(proceedAudit());
+    const { record } = await runOne(
+      scenario({ drift: true, boundary: "spec-to-plan" }),
+      "addressed-enforced",
+      {
+        "spec-to-plan": specFake,
+        "plan-to-implementation": implFake,
+        "implementation-to-audit": auditFake,
+      },
+    );
+
+    expect(record.actualAction).toBe("halt");
+    expect(record.metrics.correctHalt).toBe(true);
+    expect(record.metrics.detectionBoundary).toBe("spec-to-plan");
+    expect(specFake).not.toHaveBeenCalled();
+    expect(implFake).not.toHaveBeenCalled();
+    expect(auditFake).not.toHaveBeenCalled();
+    expect(record.usage).toBeNull();
+    expect(record.transcript).toBeNull();
+    expect(trialRecordSchema.safeParse(record).success).toBe(true);
+  });
+
   it("preserves a malformed audit output as a failure with the transcript", async () => {
     const { record } = await runOne(scenario({ drift: false }), "equal-prose", {
       "spec-to-plan": passthrough("plan"),
