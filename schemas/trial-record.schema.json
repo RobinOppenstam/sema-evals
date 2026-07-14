@@ -235,6 +235,149 @@
             "modelName"
           ],
           "additionalProperties": false
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "inputTokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cachedInputTokensRead": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cachedInputTokensWritten": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "reasoningTokens": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "outputTokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "attempts": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "retries": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "errors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "latencyMs": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "stopReason": {
+                  "type": ["string", "null"]
+                },
+                "costUsd": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "inputTokens",
+                "cachedInputTokensRead",
+                "cachedInputTokensWritten",
+                "reasoningTokens",
+                "outputTokens",
+                "attempts",
+                "retries",
+                "errors",
+                "latencyMs",
+                "stopReason",
+                "costUsd"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transcript": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "entries": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "index": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "attempt": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": ["system", "user", "assistant", "error"]
+                      },
+                      "content": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "text": {
+                              "type": ["string", "null"]
+                            },
+                            "toolName": {
+                              "type": ["string", "null"]
+                            },
+                            "toolInput": {}
+                          },
+                          "required": ["type", "text", "toolName"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "raw": {}
+                    },
+                    "required": ["index", "attempt", "role", "content"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["entries"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -250,7 +393,9 @@
         "actualAction",
         "events",
         "metrics",
-        "provenance"
+        "provenance",
+        "usage",
+        "transcript"
       ],
       "additionalProperties": false
     }

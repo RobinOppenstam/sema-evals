@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const PROTOCOL_VERSION = "0.2.0";
-export const ARTIFACT_SCHEMA_VERSION = "0.2.0";
+export const PROTOCOL_VERSION = "0.3.0";
+export const ARTIFACT_SCHEMA_VERSION = "0.3.0";
 
 export const EXPERIMENT_CONDITIONS = [
   "baseline",
@@ -97,6 +97,39 @@ export const trialMetricsSchema = z.object({
   elapsedMs: z.number().nonnegative(),
 });
 
+export const usageTelemetrySchema = z.object({
+  inputTokens: z.number().int().nonnegative(),
+  cachedInputTokensRead: z.number().int().nonnegative(),
+  cachedInputTokensWritten: z.number().int().nonnegative(),
+  reasoningTokens: z.number().int().nonnegative().nullable(),
+  outputTokens: z.number().int().nonnegative(),
+  attempts: z.number().int().min(1),
+  retries: z.number().int().nonnegative(),
+  errors: z.array(z.string()),
+  latencyMs: z.number().nonnegative(),
+  stopReason: z.string().nullable(),
+  costUsd: z.number().nonnegative().nullable(),
+});
+
+export const transcriptBlockSchema = z.object({
+  type: z.string().min(1),
+  text: z.string().nullable(),
+  toolName: z.string().nullable(),
+  toolInput: z.unknown(),
+});
+
+export const transcriptEntrySchema = z.object({
+  index: z.number().int().nonnegative(),
+  attempt: z.number().int().nonnegative(),
+  role: z.enum(["system", "user", "assistant", "error"]),
+  content: z.array(transcriptBlockSchema),
+  raw: z.unknown(),
+});
+
+export const transcriptSchema = z.object({
+  entries: z.array(transcriptEntrySchema),
+});
+
 export const trialProvenanceSchema = z.object({
   artifactSchemaVersion: z.string().min(1),
   protocolVersion: z.string().min(1),
@@ -126,6 +159,8 @@ export const trialRecordSchema = z.object({
   events: z.array(trialEventSchema),
   metrics: trialMetricsSchema,
   provenance: trialProvenanceSchema,
+  usage: usageTelemetrySchema.nullable(),
+  transcript: transcriptSchema.nullable(),
 });
 
 export const resultManifestSchema = z.object({
@@ -150,6 +185,10 @@ export type RelayBoundary = z.infer<typeof relayBoundarySchema>;
 export type RelayScenario = z.infer<typeof relayScenarioSchema>;
 export type TrialEvent = z.infer<typeof trialEventSchema>;
 export type TrialMetrics = z.infer<typeof trialMetricsSchema>;
+export type UsageTelemetry = z.infer<typeof usageTelemetrySchema>;
+export type TranscriptBlock = z.infer<typeof transcriptBlockSchema>;
+export type TranscriptEntry = z.infer<typeof transcriptEntrySchema>;
+export type Transcript = z.infer<typeof transcriptSchema>;
 export type TrialProvenance = z.infer<typeof trialProvenanceSchema>;
 export type TrialRecord = z.infer<typeof trialRecordSchema>;
 export type ResultManifest = z.infer<typeof resultManifestSchema>;
