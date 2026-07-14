@@ -93,7 +93,7 @@ body {
   line-height: 1.55;
   -webkit-text-size-adjust: 100%;
 }
-main { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+main { max-width: 1120px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
 h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 0.5rem; }
 h2 { font-size: 1.2rem; margin: 2.25rem 0 0.75rem; }
 h3 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
@@ -129,11 +129,17 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .banner-deterministic-harness { border-left-color: var(--muted); }
 .banner-confirmatory { border-left-color: var(--ok); }
 .banner .claim { font-weight: 600; margin: 0.35rem 0 0; }
-.table-wrap { overflow-x: auto; margin: 0.5rem 0 1rem; }
-table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+/* overflow-x:auto is a graceful fallback: it only paints a scrollbar when the
+   table genuinely cannot fit, which the wrapping/sizing rules below prevent at
+   desktop widths. scrollbar-width:thin keeps it unobtrusive on narrow screens. */
+.table-wrap { overflow-x: auto; margin: 0.5rem 0 1rem; scrollbar-width: thin; }
+table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num { white-space: nowrap; }
+/* Long codes (hashes, condition ids, model names) break instead of forcing width. */
+td code { overflow-wrap: anywhere; }
 tbody tr:hover { background: var(--panel); }
 th[role="button"] { cursor: pointer; user-select: none; }
 th[role="button"]::after { content: " \\2195"; color: var(--muted); font-size: 0.8em; }
@@ -144,10 +150,14 @@ th[role="button"]::after { content: " \\2195"; color: var(--muted); font-size: 0
 .bar-fill-success { fill: var(--ok); }
 .chart-label { fill: var(--fg); font-size: 11px; }
 .chart-value { fill: var(--muted); font-size: 11px; }
-.grid-wrap { overflow-x: auto; }
-.grid { border-collapse: collapse; font-size: 0.85rem; }
-.grid th, .grid td { border: 1px solid var(--line); padding: 0.3rem 0.5rem; white-space: nowrap; }
-.glyphs { letter-spacing: 0.12em; font-size: 0.95rem; }
+.grid-wrap { overflow-x: auto; scrollbar-width: thin; }
+/* Fixed layout + wrapping glyph cells keep the matrix within the container even
+   with many seeds per cell, instead of growing unboundedly to the right. */
+.grid { border-collapse: collapse; font-size: 0.85rem; width: 100%; table-layout: fixed; }
+.grid th, .grid td { border: 1px solid var(--line); padding: 0.3rem 0.4rem; vertical-align: top; overflow-wrap: anywhere; }
+.grid th:first-child, .grid td:first-child { width: 7rem; }
+.grid td.glyphs { white-space: normal; }
+.glyphs { letter-spacing: 0.08em; font-size: 0.95rem; line-height: 1.5; }
 .g-success { color: var(--ok); }
 .g-failure { color: var(--muted); }
 .g-silent-divergence { color: var(--bad); }
