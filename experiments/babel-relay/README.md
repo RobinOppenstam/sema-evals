@@ -39,7 +39,7 @@ Resolution and handshake calls are prepared before the randomized trial loop.
 That makes this a correctness PoC, not a handshake-latency benchmark; event
 telemetry labels the execution mode explicitly.
 
-## Run
+## Run (deterministic harness)
 
 ```bash
 pnpm experiment:babel
@@ -51,12 +51,55 @@ pnpm experiment:babel -- \
   --seeds 5
 ```
 
+## Run (model pilot)
+
+The `model-pilot` mode replays the same three boundaries through real Anthropic
+model calls, using the frozen, digest-verified prompt snapshots under
+`prompts/`. The audit agent must end with a strict final line — `DECISION:
+PROCEED` or `DECISION: HALT` — which the harness parses objectively; malformed
+audit output is preserved as a failure, never dropped or retried for content.
+
+This mode is exploratory. Its result manifest is labelled "Exploratory model
+pilot. Not preregistered, not confirmatory evidence." It is never confirmatory
+evidence that Sema improves model performance.
+
+> **Spend shape.** Each trial makes up to three model calls (one per boundary;
+> enforced halts skip downstream calls). Total calls scale as
+> scenarios × conditions × repetitions × 3. With six scenarios, five conditions,
+> and five repetitions that is 150 trials and up to 450 model calls. The CLI
+> prints the trial count, model-call ceiling, and model id before it runs so you
+> see the cost before spending it.
+
+`model-pilot` mode requires `ANTHROPIC_API_KEY`; it fails fast if the key is
+unset. It never runs in CI — the model-relay tests inject fake clients.
+
+Run the small instrumentation size first, then scale:
+
+```bash
+# Stage 1 — instrumentation (validate mechanics and spend at five repetitions)
+ANTHROPIC_API_KEY=... pnpm experiment:babel -- \
+  --mode model-pilot --model claude-sonnet-5 --repetitions 5
+
+# Stage 2 — first pilot (at least 30 repetitions per the research plan)
+ANTHROPIC_API_KEY=... pnpm experiment:babel -- \
+  --mode model-pilot --model claude-sonnet-5 --repetitions 30
+```
+
+Model-pilot flags:
+
+- `--model <id>` (default `claude-sonnet-5`) — a mid-tier default avoids the
+  ceiling effect a frontier model can produce.
+- `--thinking adaptive|none` (default `adaptive`) — use `none` for models such as
+  `claude-haiku-4-5` that do not support adaptive thinking. Pairing
+  `claude-haiku-4-5` with `adaptive` fails fast.
+- `--max-tokens <n>` (default 4096) per hop.
+- `--repetitions <n>` — alias for `--seeds`; the model-pilot default is 5.
+
+The semantic backend flags (`--semantic-backend`, `--sema-python`) compose with
+`model-pilot` exactly as they do with the deterministic harness.
+
 ## Next adapters
 
-1. Transcript-preserving model adapter with JSON-schema validation.
-2. Repair-capable handshake adapter.
-3. Persistent sidecar for cold/warm registry latency measurement.
-4. A2A transport adapter.
-
-No model pilot begins until the registry resolver and equal-information prompt
-snapshots are present in the result manifest.
+1. Repair-capable handshake adapter.
+2. Persistent sidecar for cold/warm registry latency measurement.
+3. A2A transport adapter.

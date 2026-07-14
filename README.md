@@ -66,11 +66,15 @@ hydrates definitions through `GraphWorkspace`, and records real
 `PROCEED`/`HALT` handshake payloads. Neither mode is an empirical claim that
 Sema improves model performance.
 
-The infrastructure for the first model pilot is now in place: a
-transcript-preserving Anthropic adapter that records every attempt, usage
-telemetry, and preserved failures, plus frozen, digest-verified prompt
-snapshots. Wiring these into a model-pilot run mode is the next milestone; no
-live model has been run yet.
+The first model pilot is now wired in. A `model-pilot` run mode replays the same
+three boundaries through a transcript-preserving Anthropic adapter — one per
+boundary, using the frozen, digest-verified prompt snapshots — with objective
+`DECISION: PROCEED` / `DECISION: HALT` parsing rather than an LLM judge,
+per-trial usage aggregated across hops, and preserved failures. It is labelled
+exploratory in its result manifest, requires `ANTHROPIC_API_KEY`, prints its
+spend shape before running, and never runs in CI. No live pilot has been
+executed yet; running it is an operator decision. See
+[the Babel Relay README](experiments/babel-relay/README.md).
 
 ## Quick start
 
