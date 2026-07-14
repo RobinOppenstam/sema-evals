@@ -1,0 +1,36 @@
+{
+  "name": "sema-evals",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open, causal evaluations for content-addressed semantics and multi-agent coordination.",
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm --filter './packages/**' run build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "experiment:babel": "pnpm build && pnpm --filter @sema-evals/babel-relay run start",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "schemas:generate": "tsx scripts/generate-schemas.ts",
+    "test": "pnpm build && vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@types/node": "^24.0.15",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4",
+    "zod-to-json-schema": "^3.24.6"
+  }
+}

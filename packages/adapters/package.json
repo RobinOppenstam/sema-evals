@@ -1,0 +1,25 @@
+{
+  "name": "@sema-evals/adapters",
+  "version": "0.1.0",
+  "description": "Provider-neutral agent and semantic-reference adapters for sema-evals.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --sourcemap"
+  },
+  "dependencies": {
+    "@sema-evals/core": "workspace:*"
+  }
+}

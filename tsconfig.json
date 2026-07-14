@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "allowJs": false,
+    "baseUrl": ".",
+    "declaration": true,
+    "esModuleInterop": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@sema-evals/adapters": ["packages/adapters/src/index.ts"],
+      "@sema-evals/core": ["packages/core/src/index.ts"],
+      "@sema-evals/reporters": ["packages/reporters/src/index.ts"]
+    },
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2023",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "eslint.config.js",
+    "vitest.config.ts",
+    "packages/**/*.ts",
+    "experiments/**/*.ts",
+    "scripts/**/*.ts"
+  ]
+}

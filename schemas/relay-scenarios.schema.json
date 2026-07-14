@@ -1,0 +1,106 @@
+{
+  "$ref": "#/definitions/RelayScenarioSet",
+  "definitions": {
+    "RelayScenarioSet": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "0.1.0"
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "contract": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Za-z0-9]*$"
+                  },
+                  "opaqueRef": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "canonicalDefinition": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "mutatedDefinition": {
+                    "$ref": "#/definitions/RelayScenarioSet/properties/scenarios/items/properties/contract/properties/canonicalDefinition"
+                  }
+                },
+                "required": [
+                  "handle",
+                  "opaqueRef",
+                  "canonicalDefinition",
+                  "mutatedDefinition"
+                ],
+                "additionalProperties": false
+              },
+              "mutation": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "boundary": {
+                        "type": "string",
+                        "enum": [
+                          "spec-to-plan",
+                          "plan-to-implementation",
+                          "implementation-to-audit"
+                        ]
+                      },
+                      "fieldPath": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "before": {},
+                      "after": {}
+                    },
+                    "required": ["boundary", "fieldPath"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "expectedAction": {
+                "type": "string",
+                "enum": ["proceed", "halt"]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "description",
+              "contract",
+              "mutation",
+              "expectedAction"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["schemaVersion", "scenarios"],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

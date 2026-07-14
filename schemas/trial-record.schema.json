@@ -1,0 +1,259 @@
+{
+  "$ref": "#/definitions/TrialRecord",
+  "definitions": {
+    "TrialRecord": {
+      "type": "object",
+      "properties": {
+        "trialId": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "experimentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scenarioId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "condition": {
+          "type": "string",
+          "enum": [
+            "baseline",
+            "equal-prose",
+            "opaque-resolver",
+            "addressed-voluntary",
+            "addressed-enforced"
+          ]
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "executionIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expectedAction": {
+          "type": "string",
+          "enum": ["proceed", "halt"]
+        },
+        "actualAction": {
+          "type": "string",
+          "enum": ["proceed", "halt"]
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sequence": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "message",
+                  "mutation",
+                  "hydration",
+                  "verification",
+                  "halt",
+                  "completion"
+                ]
+              },
+              "boundary": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "spec-to-plan",
+                      "plan-to-implementation",
+                      "implementation-to-audit"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "agent": {
+                "type": "string",
+                "minLength": 1
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": ["sequence", "type", "boundary", "agent", "details"],
+            "additionalProperties": false
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "driftInjected": {
+              "type": "boolean"
+            },
+            "driftDetected": {
+              "type": "boolean"
+            },
+            "halted": {
+              "type": "boolean"
+            },
+            "silentDivergence": {
+              "type": "boolean"
+            },
+            "correctHalt": {
+              "type": "boolean"
+            },
+            "falseHalt": {
+              "type": "boolean"
+            },
+            "taskSuccess": {
+              "type": "boolean"
+            },
+            "detectionBoundary": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/TrialRecord/properties/events/items/properties/boundary/anyOf/0"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "wireBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "hydrationBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "totalSemanticBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "elapsedMs": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "driftInjected",
+            "driftDetected",
+            "halted",
+            "silentDivergence",
+            "correctHalt",
+            "falseHalt",
+            "taskSuccess",
+            "detectionBoundary",
+            "wireBytes",
+            "hydrationBytes",
+            "totalSemanticBytes",
+            "elapsedMs"
+          ],
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "artifactSchemaVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "protocolVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "fixtureDigest": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "implementationCommit": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dependencyLockDigest": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "promptDigest": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "semaVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "canonicalizationVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "vocabularyRoot": {
+              "type": "string"
+            },
+            "semanticBackend": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modelProvider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modelName": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "artifactSchemaVersion",
+            "protocolVersion",
+            "fixtureDigest",
+            "implementationCommit",
+            "dependencyLockDigest",
+            "promptDigest",
+            "semaVersion",
+            "canonicalizationVersion",
+            "vocabularyRoot",
+            "semanticBackend",
+            "modelProvider",
+            "modelName"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "trialId",
+        "experimentId",
+        "scenarioId",
+        "condition",
+        "seed",
+        "executionIndex",
+        "startedAt",
+        "completedAt",
+        "expectedAction",
+        "actualAction",
+        "events",
+        "metrics",
+        "provenance"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

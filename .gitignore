@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Generated experiment artifacts are reproducible and intentionally untracked.
+results/*
+!results/README.md
+!results/babel-relay/
+results/babel-relay/*
+!results/babel-relay/.gitkeep

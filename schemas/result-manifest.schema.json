@@ -1,0 +1,165 @@
+{
+  "$ref": "#/definitions/ResultManifest",
+  "definitions": {
+    "ResultManifest": {
+      "type": "object",
+      "properties": {
+        "artifactSchemaVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocolVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "experimentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["deterministic-harness", "model-pilot", "confirmatory"]
+        },
+        "evidenceClaim": {
+          "type": "string",
+          "minLength": 1
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "orderSeed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seeds": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 1
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "baseline",
+              "equal-prose",
+              "opaque-resolver",
+              "addressed-voluntary",
+              "addressed-enforced"
+            ]
+          },
+          "minItems": 1
+        },
+        "scenarioCount": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "trialCount": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "fixtureDigest": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "artifactSchemaVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "protocolVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "fixtureDigest": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "implementationCommit": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dependencyLockDigest": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "promptDigest": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "semaVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "canonicalizationVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "vocabularyRoot": {
+              "type": "string"
+            },
+            "semanticBackend": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modelProvider": {
+              "type": "string",
+              "minLength": 1
+            },
+            "modelName": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "artifactSchemaVersion",
+            "protocolVersion",
+            "fixtureDigest",
+            "implementationCommit",
+            "dependencyLockDigest",
+            "promptDigest",
+            "semaVersion",
+            "canonicalizationVersion",
+            "vocabularyRoot",
+            "semanticBackend",
+            "modelProvider",
+            "modelName"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "artifactSchemaVersion",
+        "protocolVersion",
+        "experimentId",
+        "runId",
+        "mode",
+        "evidenceClaim",
+        "createdAt",
+        "orderSeed",
+        "seeds",
+        "conditions",
+        "scenarioCount",
+        "trialCount",
+        "fixtureDigest",
+        "provenance"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
