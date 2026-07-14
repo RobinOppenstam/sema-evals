@@ -64,7 +64,13 @@ experiment mechanics, objective scorer, paired randomization, and result
 pipeline. The optional official backend now mints isolated Sema vocabularies,
 hydrates definitions through `GraphWorkspace`, and records real
 `PROCEED`/`HALT` handshake payloads. Neither mode is an empirical claim that
-Sema improves model performance. Model-driven agents are the next milestone.
+Sema improves model performance.
+
+The infrastructure for the first model pilot is now in place: a
+transcript-preserving Anthropic adapter that records every attempt, usage
+telemetry, and preserved failures, plus frozen, digest-verified prompt
+snapshots. Wiring these into a model-pilot run mode is the next milestone; no
+live model has been run yet.
 
 ## Quick start
 
@@ -140,12 +146,13 @@ still enters model context. `sema-evals` never treats those as the same saving.
 
 ```text
 packages/
-├── core/             versioned schemas, fingerprints, paired matrix runner
-├── adapters/         provider-neutral agents + official Sema Python bridge
+├── core/             versioned schemas, fingerprints, matrix runner, prompt loader
+├── adapters/         provider-neutral agents, transcript-preserving model adapter, Sema Python bridge
 └── reporters/        JSONL, JSON, and Markdown result bundles
 
 experiments/
 ├── babel-relay/      runnable controlled semantic-drift experiment
+│   └── prompts/      frozen, digest-verified prompt snapshots for the model pilot
 ├── sema-tax/         pattern-count and hydration break-even curve
 ├── security/         mutation-backed smart-contract evaluation
 ├── forecasting/      historical five-agent forecast council

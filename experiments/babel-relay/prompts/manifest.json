@@ -1,0 +1,17 @@
+{
+  "snapshotVersion": "2026-07-14",
+  "prompts": {
+    "spec-to-plan": {
+      "file": "spec-to-plan.md",
+      "sha256": "0a2bc6473202b5a052a8219bcf5e298279b27f5c8ef443fb8aa5c2bf80fabb5a"
+    },
+    "plan-to-implementation": {
+      "file": "plan-to-implementation.md",
+      "sha256": "f449cf7d955cce43f4e7be9e280123cfef975984ed74f79e7419213117441368"
+    },
+    "implementation-to-audit": {
+      "file": "implementation-to-audit.md",
+      "sha256": "e6c6e79b264438473c85324a10462c0009da566f9c8fb9a46f1748a2591f8546"
+    }
+  }
+}

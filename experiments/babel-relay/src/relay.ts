@@ -332,5 +332,7 @@ export async function runRelayTrial(
       elapsedMs,
     },
     provenance: options.provenance,
+    usage: null,
+    transcript: null,
   };
 }

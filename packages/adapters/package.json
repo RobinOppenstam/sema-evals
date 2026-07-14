@@ -20,6 +20,7 @@
     "build": "tsup src/index.ts --format esm --dts --clean --sourcemap"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "@sema-evals/core": "workspace:*"
   }
 }
