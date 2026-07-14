@@ -88,6 +88,34 @@ describe("parseArgs", () => {
   });
 });
 
+describe("parseArgs concurrency", () => {
+  it("defaults concurrency to 1", () => {
+    expect(parseArgs([]).concurrency).toBe(1);
+  });
+
+  it("reads a valid --concurrency value", () => {
+    expect(parseArgs(["--concurrency", "8"]).concurrency).toBe(8);
+    expect(parseArgs(["--concurrency", "32"]).concurrency).toBe(32);
+    expect(parseArgs(["--concurrency", "1"]).concurrency).toBe(1);
+  });
+
+  it("rejects a below-minimum, above-maximum, or non-integer value", () => {
+    expect(() => parseArgs(["--concurrency", "0"])).toThrow(/between 1 and 32/);
+    expect(() => parseArgs(["--concurrency", "33"])).toThrow(
+      /between 1 and 32/,
+    );
+    expect(() => parseArgs(["--concurrency", "-4"])).toThrow(
+      /between 1 and 32/,
+    );
+    expect(() => parseArgs(["--concurrency", "2.5"])).toThrow(
+      /between 1 and 32/,
+    );
+    expect(() => parseArgs(["--concurrency", "abc"])).toThrow(
+      /between 1 and 32/,
+    );
+  });
+});
+
 describe("parseArgs provider selection", () => {
   const openaiArgs = [
     "--mode",

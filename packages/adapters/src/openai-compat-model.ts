@@ -19,6 +19,9 @@ const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MAX_RETRIES = 4;
 const DEFAULT_BACKOFF_BASE_MS = 500;
 const MAX_BACKOFF_MS = 8_000;
+/** Per-attempt wall-clock ceiling. A stalled provider instance would otherwise
+ * hang a run forever; the abort surfaces as a retryable connection error. */
+const DEFAULT_TIMEOUT_MS = 120_000;
 
 /** Preserved provider bodies are capped so a pathological response cannot bloat
  * a result bundle. Truncation is recorded so the record stays honest. */
@@ -83,6 +86,9 @@ export interface OpenAiFetchInit {
   method: string;
   headers: Record<string, string>;
   body: string;
+  /** Abort signal carrying the per-attempt timeout. The Node built-in `fetch`
+   * honors it; a test fake may observe it (to reject on abort) or ignore it. */
+  signal?: AbortSignal;
 }
 
 /** Injectable fetch so unit tests never touch the network. */
@@ -105,6 +111,10 @@ export interface OpenAiCompatibleModelAdapterConfig {
   /** Adapter-level bounded retries on 429/5xx/connection failures only. */
   maxRetries?: number;
   backoffBaseMs?: number;
+  /** Per-attempt request timeout in milliseconds. A timeout aborts the attempt
+   * and is recorded as a retryable connection-class error. Defaults to
+   * 120_000. */
+  timeoutMs?: number;
   /** Injectable fetch so tests never touch the network. */
   fetchFn?: OpenAiFetchFn;
   /** Injectable sleep so tests do not wait on real backoff. */
@@ -242,6 +252,7 @@ export class OpenAiCompatibleModelAdapter implements ModelAgentAdapter<
   public readonly model: string;
   public readonly maxTokens: number;
   public readonly maxRetries: number;
+  public readonly timeoutMs: number;
 
   private readonly endpoint: string;
   private readonly backoffBaseMs: number;
@@ -262,6 +273,7 @@ export class OpenAiCompatibleModelAdapter implements ModelAgentAdapter<
     this.model = config.model;
     this.maxTokens = config.maxTokens ?? DEFAULT_MAX_TOKENS;
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.backoffBaseMs = config.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS;
     this.fetchFn = config.fetchFn ?? defaultFetch;
     this.sleep = config.sleep ?? realSleep;
@@ -398,10 +410,12 @@ export class OpenAiCompatibleModelAdapter implements ModelAgentAdapter<
           Authorization: `Bearer ${apiKey}`,
         },
         body,
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
       responseText = await httpResponse.text();
     } catch (error) {
-      // A fetch/read rejection is a connection error: retryable.
+      // A fetch/read rejection — including a timeout abort — is a connection
+      // error: retryable under the bounded-retry policy.
       const message = errorMessage(error);
       return {
         retryable: true,

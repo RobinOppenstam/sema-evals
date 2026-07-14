@@ -49,6 +49,7 @@ const DEFAULT_MODEL_PILOT_REPETITIONS = 5;
 const DEFAULT_ANTHROPIC_KEY_ENV = "ANTHROPIC_API_KEY";
 const DEFAULT_OPENAI_KEY_ENV = "CHUTES_API_KEY";
 const SUGGESTED_CHUTES_BASE_URL = "https://llm.chutes.ai/v1";
+const MAX_CONCURRENCY = 32;
 
 type RunMode = "deterministic" | "model-pilot";
 type ModelProvider = "anthropic" | "openai-compatible";
@@ -71,6 +72,9 @@ interface CliOptions {
   model: string;
   thinking: AnthropicThinkingMode;
   maxTokens: number;
+  /** Trials in flight at once. Only meaningful in model-pilot mode; a value
+   * above 1 is ignored (with a note) in deterministic mode. */
+  concurrency: number;
 }
 
 /** Fail fast when a model cannot serve the requested thinking mode. */
@@ -131,6 +135,8 @@ function usage(): string {
     "                      required for openai-compatible)",
     "  --thinking <m>      adaptive or none (default: adaptive; anthropic only)",
     "  --max-tokens <n>    Max output tokens per hop (default: 4096)",
+    `  --concurrency <n>   Trials in flight at once (default: 1, max: ${MAX_CONCURRENCY};`,
+    "                      model-pilot only; ignored in deterministic mode)",
     "  --help              Show this help",
     "",
     "model-pilot mode requires the selected provider's API key env var to be set.",
@@ -149,6 +155,19 @@ function nonnegativeInteger(value: string | undefined, flag: string): number {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 0) {
     throw new Error(`${flag} requires a nonnegative integer.`);
+  }
+  return parsed;
+}
+
+function boundedInteger(
+  value: string | undefined,
+  flag: string,
+  min: number,
+  max: number,
+): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${flag} requires an integer between ${min} and ${max}.`);
   }
   return parsed;
 }
@@ -177,6 +196,7 @@ export function parseArgs(args: readonly string[]): CliOptions {
     model: DEFAULT_MODEL,
     thinking: "adaptive",
     maxTokens: DEFAULT_MAX_TOKENS,
+    concurrency: 1,
   };
   let modelExplicit = false;
   let thinkingExplicit = false;
@@ -277,6 +297,15 @@ export function parseArgs(args: readonly string[]): CliOptions {
     }
     if (argument === "--max-tokens") {
       options.maxTokens = positiveInteger(args[++index], argument);
+      continue;
+    }
+    if (argument === "--concurrency") {
+      options.concurrency = boundedInteger(
+        args[++index],
+        argument,
+        1,
+        MAX_CONCURRENCY,
+      );
       continue;
     }
     throw new Error(`Unknown argument: ${argument}\n\n${usage()}`);
@@ -399,12 +428,43 @@ function timestampId(date: Date): string {
   return date.toISOString().replaceAll(/[-:.]/g, "");
 }
 
+/**
+ * One human-readable progress line per completed trial, written to stderr so
+ * stdout stays reserved for the machine-parseable summary. `calls` counts the
+ * provider attempts recorded across the trial's model hops (retries included);
+ * a trial that halted before any model hop has no usage and reports zero.
+ */
+function trialProgressLine(
+  record: TrialRecord,
+  done: number,
+  total: number,
+): string {
+  const elapsed = (record.metrics.elapsedMs / 1000).toFixed(1);
+  const calls = record.usage?.attempts ?? 0;
+  const outcome = record.metrics.taskSuccess ? "taskSuccess" : "fail";
+  return (
+    `trial ${done}/${total} ${record.scenarioId} ${record.condition} ` +
+    `seed=${record.seed} -> ${record.actualAction} [${outcome}] ` +
+    `(${elapsed}s, ${calls} calls)`
+  );
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
   // Fail fast before any work when a model pilot cannot authenticate.
   if (options.mode === "model-pilot") {
     assertProviderApiKey(options);
+  }
+
+  // Concurrency only helps when trials wait on a network provider. Deterministic
+  // runs are local and CPU-bound; run them sequentially and note the override.
+  let concurrency = options.concurrency;
+  if (options.mode !== "model-pilot" && concurrency > 1) {
+    console.error(
+      `Note: --concurrency ${concurrency} is ignored in deterministic mode; running sequentially.`,
+    );
+    concurrency = 1;
   }
 
   const { fixtureDigest, scenarioSet } = await loadScenarioFile(
@@ -438,6 +498,11 @@ async function main(): Promise<void> {
         `up to ${trialCount * hopCount} model calls (${hopCount} hops each).`,
     );
     console.log("Enforced halts skip downstream hops, reducing actual calls.");
+    console.log(
+      concurrency > 1
+        ? `Concurrency: up to ${concurrency} trials in flight (started in planned order).`
+        : "Concurrency: 1 (sequential).",
+    );
   }
 
   const referenceProvider = createReferenceProvider(options);
@@ -518,27 +583,46 @@ async function main(): Promise<void> {
       orderSeed: options.orderSeed,
     });
 
+    const total = cells.length;
+    let completed = 0;
+    if (isModelPilot) {
+      console.error(`Running ${total} trials, concurrency ${concurrency}...`);
+    }
     const records = await executeMatrix<
       (typeof cells)[number]["scenario"],
       (typeof cells)[number]["condition"],
       TrialRecord
-    >(cells, (cell) => {
-      if (isModelPilot && adapters) {
-        return runModelRelayTrial(cell, {
+    >(
+      cells,
+      (cell) => {
+        if (isModelPilot && adapters) {
+          return runModelRelayTrial(cell, {
+            experimentId: EXPERIMENT_ID,
+            referenceProvider,
+            ...(semanticRuntime ? { semanticRuntime } : {}),
+            provenance,
+            adapters,
+          });
+        }
+        return runRelayTrial(cell, {
           experimentId: EXPERIMENT_ID,
           referenceProvider,
           ...(semanticRuntime ? { semanticRuntime } : {}),
           provenance,
-          adapters,
         });
-      }
-      return runRelayTrial(cell, {
-        experimentId: EXPERIMENT_ID,
-        referenceProvider,
-        ...(semanticRuntime ? { semanticRuntime } : {}),
-        provenance,
-      });
-    });
+      },
+      {
+        concurrency,
+        ...(isModelPilot
+          ? {
+              onComplete: (record: TrialRecord): void => {
+                completed += 1;
+                console.error(trialProgressLine(record, completed, total));
+              },
+            }
+          : {}),
+      },
+    );
     const createdAt = new Date();
     const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
     const outputDirectory = join(options.outputRoot, runId);

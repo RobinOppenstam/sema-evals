@@ -102,8 +102,20 @@ CHUTES_API_KEY=... pnpm experiment:babel -- \
   --provider openai-compatible \
   --base-url https://llm.chutes.ai/v1 \
   --model zai-org/GLM-4.6-FP8 \
-  --repetitions 5
+  --repetitions 5 \
+  --concurrency 8
 ```
+
+Decentralized endpoints spend most of a call queued before generation starts
+(roughly 36s of a ~95s call in the first Chutes pilot), so trials are heavily
+network-bound. `--concurrency 8` overlaps that queue latency across trials and
+cuts a large run's wall-clock time by close to an order of magnitude without
+changing what is measured: trials are still STARTED in the planned,
+seed-randomized order, at most N run at once, and each record timestamps its own
+execution window. Records are written in planned order regardless of completion
+order. In model-pilot mode the CLI streams one progress line per completed trial
+to stderr (stdout stays reserved for the summary, so piping is unaffected). See
+[ADR 0008](../../docs/adr/0008-concurrent-execution-and-timeouts.md).
 
 `--base-url` and `--model` are required for `openai-compatible` (there is no
 default model — catalog slugs vary by endpoint), and the run fails fast if
@@ -130,6 +142,11 @@ Model-pilot flags:
   `openai-compatible`, fails fast.
 - `--max-tokens <n>` (default 4096) per hop.
 - `--repetitions <n>` — alias for `--seeds`; the model-pilot default is 5.
+- `--concurrency <n>` (default 1, max 32) — trials in flight at once. Only
+  meaningful in model-pilot mode (network-bound); a value above 1 is ignored
+  with a note in deterministic mode. Suggested `--concurrency 8` for Chutes.
+  Each adapter also enforces a per-request timeout (openai-compatible default
+  120s, anthropic default 600s), recorded as a retryable connection error.
 
 The semantic backend flags (`--semantic-backend`, `--sema-python`) compose with
 `model-pilot` exactly as they do with the deterministic harness.

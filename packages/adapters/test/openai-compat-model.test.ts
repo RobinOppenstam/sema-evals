@@ -397,6 +397,86 @@ describe("OpenAiCompatibleModelAdapter key redaction", () => {
   });
 });
 
+describe("OpenAiCompatibleModelAdapter timeout", () => {
+  it("aborts a stalled request, records each attempt, retries, and preserves the failure", async () => {
+    const seenSignals: (AbortSignal | undefined)[] = [];
+    let calls = 0;
+    const fetchFn = (
+      _url: string,
+      init: OpenAiFetchInit,
+    ): Promise<OpenAiFetchResponse> => {
+      calls += 1;
+      seenSignals.push(init.signal);
+      // Never resolves on its own: only the timeout abort settles it.
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          reject(init.signal?.reason ?? new Error("aborted"));
+        });
+      });
+    };
+    const adapter = new OpenAiCompatibleModelAdapter({
+      systemPrompt: SYSTEM_PROMPT,
+      baseUrl: BASE_URL,
+      model: "test-model",
+      fetchFn,
+      sleep: async () => {},
+      backoffBaseMs: 1,
+      maxRetries: 2,
+      timeoutMs: 5,
+    });
+
+    const response = await adapter.invoke(input);
+
+    expect(calls).toBe(3); // initial attempt plus two bounded retries
+    expect(seenSignals).toHaveLength(3);
+    expect(seenSignals.every((signal) => signal instanceof AbortSignal)).toBe(
+      true,
+    );
+    expect(response.output).toEqual({
+      status: "error",
+      text: "",
+      stopReason: null,
+    });
+    expect(response.usage.attempts).toBe(3);
+    expect(response.usage.retries).toBe(2);
+    const errorEntries = response.transcript.entries.filter(
+      (entry) => entry.role === "error",
+    );
+    expect(errorEntries).toHaveLength(3);
+    // A timeout abort is preserved as a retryable connection-class error.
+    expect(errorEntries[0]?.raw).toMatchObject({ kind: "connection" });
+  });
+
+  it("passes the timeout signal on a successful request", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const fetchFn = async (
+      _url: string,
+      init: OpenAiFetchInit,
+    ): Promise<OpenAiFetchResponse> => {
+      capturedSignal = init.signal;
+      return jsonResponse(200, completion("ok"));
+    };
+    await new OpenAiCompatibleModelAdapter({
+      systemPrompt: SYSTEM_PROMPT,
+      baseUrl: BASE_URL,
+      model: "test-model",
+      fetchFn,
+      timeoutMs: 60_000,
+    }).invoke(input);
+
+    expect(capturedSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("defaults timeoutMs to 120000", () => {
+    const adapter = new OpenAiCompatibleModelAdapter({
+      systemPrompt: SYSTEM_PROMPT,
+      baseUrl: BASE_URL,
+      model: "m",
+    });
+    expect(adapter.timeoutMs).toBe(120_000);
+  });
+});
+
 describe("isRetryableHttpStatus", () => {
   it("retries 429 and 5xx, not other client errors", () => {
     expect(isRetryableHttpStatus(429)).toBe(true);
