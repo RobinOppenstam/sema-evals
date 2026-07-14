@@ -61,10 +61,10 @@ Every fixture runs through the same five-condition ladder:
 
 The default backend uses deterministic fixture references. It validates the
 experiment mechanics, objective scorer, paired randomization, and result
-pipeline. An optional adapter generates references through the official
-`semahash` Python package; neither mode is an empirical claim that Sema improves
-model performance. Model-driven agents and registry handshakes are the next
-milestone.
+pipeline. The optional official backend now mints isolated Sema vocabularies,
+hydrates definitions through `GraphWorkspace`, and records real
+`PROCEED`/`HALT` handshake payloads. Neither mode is an empirical claim that
+Sema improves model performance. Model-driven agents are the next milestone.
 
 ## Quick start
 
@@ -97,7 +97,13 @@ The selected Python interpreter must have `semahash>=0.3.0,<0.4.0` installed.
 The adapter deliberately fails closed outside the audited 0.3.x line rather
 than guessing which canonicalization a future release uses. Its package and
 canonicalization versions are written into every result manifest. The
-TypeScript harness does not reimplement or approximate Sema hashing.
+TypeScript harness does not reimplement or approximate Sema hashing, registry
+resolution, vocabulary roots, or handshake verdicts.
+
+Official runs create temporary private registries with explicit absolute paths.
+They never change `~/.config/sema/active_db`, and they remove the registries
+after the result bundle is written. Registry setup and Python startup happen in
+preflight, so current `elapsedMs` values are not handshake-latency measurements.
 
 The command produces a complete, ignored result bundle:
 
@@ -154,16 +160,20 @@ schemas/              generated public JSON Schemas
 results/              local generated artifacts, ignored by default
 ```
 
+The reusable [adapter package](packages/adapters/README.md) exposes typed
+official-Python clients for reference generation, isolated registry builds,
+resolution, and pattern or vocabulary handshakes.
+
 ## Research roadmap
 
-| Phase | Deliverable                                  | Primary endpoint               | Status          |
-| ----- | -------------------------------------------- | ------------------------------ | --------------- |
-| 0     | Reproducible evaluator + deterministic relay | Scorer correctness             | **Live**        |
-| 1     | Official hashing + model-driven Babel Relay  | Silent-divergence rate         | **In progress** |
-| 2     | Sema tax and hydration curve                 | Success per total token        | Planned         |
-| 3     | A2A semantic extension                       | Execution under registry drift | Planned         |
-| 4     | `sema-sec` Solidity trials                   | Recall at fixed FP budget      | Planned         |
-| 5     | Historical forecast council                  | Brier score                    | Planned         |
+| Phase | Deliverable                                   | Primary endpoint               | Status          |
+| ----- | --------------------------------------------- | ------------------------------ | --------------- |
+| 0     | Reproducible evaluator + deterministic relay  | Scorer correctness             | **Live**        |
+| 1     | Registry handshake + model-driven Babel Relay | Silent-divergence rate         | **In progress** |
+| 2     | Sema tax and hydration curve                  | Success per total token        | Planned         |
+| 3     | A2A semantic extension                        | Execution under registry drift | Planned         |
+| 4     | `sema-sec` Solidity trials                    | Recall at fixed FP budget      | Planned         |
+| 5     | Historical forecast council                   | Brier score                    | Planned         |
 
 The full sequence and exit gates are locked in the
 [research plan](docs/RESEARCH_PLAN.md). Material changes require an architecture
@@ -205,7 +215,7 @@ contributions include:
 
 - a new Babel Relay mutation plus a clean control;
 - an objective scorer invariant;
-- an official Sema resolver adapter;
+- a persistent Sema sidecar with explicit cold/warm latency telemetry;
 - a provider adapter that preserves raw responses and usage telemetry;
 - cross-language canonicalization test vectors;
 - reproducible analysis or visualization of an existing result bundle.

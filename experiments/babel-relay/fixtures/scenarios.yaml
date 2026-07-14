@@ -13,10 +13,22 @@ scenarios:
           - A payment of exactly 100000000 base units is accepted.
           - A payment below 100000000 base units is rejected.
         parameters:
-          minimum_base_units: 100000000
-          comparison: greater-than-or-equal
+          - name: minimum_base_units
+            type: integer
+            range: [100000000]
+            value: 100000000
+            description: Minimum accepted payment in token base units.
+          - name: comparison
+            type: enum
+            range: [greater-than-or-equal, greater-than]
+            value: greater-than-or-equal
+            description: Comparator applied at the payment boundary.
         failure_modes:
           - Replacing the inclusive comparison with a strict comparison rejects the boundary value.
+        _meta: &protocol_meta
+          path: [Society, Protocols]
+          ring: 2
+          tier: 3
       mutatedDefinition:
         mechanism: Compare the integer payment amount with the configured minimum before accepting the task.
         gloss: A strict minimum payment threshold in token base units.
@@ -24,13 +36,22 @@ scenarios:
           - A payment must exceed 100000000 base units to be accepted.
           - A payment at or below 100000000 base units is rejected.
         parameters:
-          minimum_base_units: 100000000
-          comparison: greater-than
+          - name: minimum_base_units
+            type: integer
+            range: [100000000]
+            value: 100000000
+            description: Minimum accepted payment in token base units.
+          - name: comparison
+            type: enum
+            range: [greater-than-or-equal, greater-than]
+            value: greater-than
+            description: Comparator applied at the payment boundary.
         failure_modes:
           - Treating the threshold as inclusive accepts the boundary value.
+        _meta: *protocol_meta
     mutation:
       boundary: spec-to-plan
-      fieldPath: parameters.comparison
+      fieldPath: parameters[1].value
       before: greater-than-or-equal
       after: greater-than
     expectedAction: halt
@@ -48,10 +69,19 @@ scenarios:
           - An observation aged exactly 30 seconds is stale.
           - An observation aged less than 30 seconds may be used.
         parameters:
-          maximum_age_seconds: 30
-          comparison: less-than
+          - name: maximum_age_seconds
+            type: integer
+            range: [30]
+            value: 30
+            description: Maximum oracle observation age in seconds.
+          - name: comparison
+            type: enum
+            range: [less-than, less-than-or-equal]
+            value: less-than
+            description: Comparator applied to the observation age.
         failure_modes:
           - An inclusive comparison accepts data at the prohibited boundary.
+        _meta: *protocol_meta
       mutatedDefinition:
         mechanism: Subtract the observation timestamp from evaluation time and compare the age with the freshness limit.
         gloss: An inclusive upper bound for accepted oracle age.
@@ -59,13 +89,22 @@ scenarios:
           - An observation aged exactly 30 seconds remains fresh.
           - An observation aged at most 30 seconds may be used.
         parameters:
-          maximum_age_seconds: 30
-          comparison: less-than-or-equal
+          - name: maximum_age_seconds
+            type: integer
+            range: [30]
+            value: 30
+            description: Maximum oracle observation age in seconds.
+          - name: comparison
+            type: enum
+            range: [less-than, less-than-or-equal]
+            value: less-than-or-equal
+            description: Comparator applied to the observation age.
         failure_modes:
           - An exclusive comparison rejects data at the permitted boundary.
+        _meta: *protocol_meta
     mutation:
       boundary: plan-to-implementation
-      fieldPath: parameters.comparison
+      fieldPath: parameters[1].value
       before: less-than
       after: less-than-or-equal
     expectedAction: halt
@@ -83,9 +122,14 @@ scenarios:
           - One USDC equals 1000000 base units.
           - Conversion never assumes an eighteen-decimal token domain.
         parameters:
-          decimals: 6
+          - name: decimals
+            type: integer
+            range: [6, 18]
+            value: 6
+            description: Fixed-point decimal domain used for conversion.
         failure_modes:
           - Using eighteen decimals authorizes an amount one trillion times too large.
+        _meta: *protocol_meta
       mutatedDefinition:
         mechanism: Convert human USDC amounts into integer base units using an eighteen-decimal domain.
         gloss: Eighteen-decimal fixed-point conversion for quoted amounts.
@@ -93,12 +137,17 @@ scenarios:
           - One quoted unit equals 1000000000000000000 base units.
           - Conversion follows the common eighteen-decimal token convention.
         parameters:
-          decimals: 18
+          - name: decimals
+            type: integer
+            range: [6, 18]
+            value: 18
+            description: Fixed-point decimal domain used for conversion.
         failure_modes:
           - Using six decimals authorizes a much smaller base-unit amount.
+        _meta: *protocol_meta
     mutation:
       boundary: implementation-to-audit
-      fieldPath: parameters.decimals
+      fieldPath: parameters[0].value
       before: 6
       after: 18
     expectedAction: halt
@@ -116,10 +165,19 @@ scenarios:
           - The total attempt count never exceeds two.
           - The retry creates no additional payment.
         parameters:
-          retries_after_initial: 1
-          retry_billed: false
+          - name: retries_after_initial
+            type: integer
+            range: [0, 1, 2]
+            value: 1
+            description: Retry count permitted after the initial request.
+          - name: retry_billed
+            type: boolean
+            range: [false, true]
+            value: false
+            description: Whether a retry creates a second payment.
         failure_modes:
           - A second retry can duplicate a side effect or exceed the payment authorization.
+        _meta: *protocol_meta
       mutatedDefinition:
         mechanism: Permit up to two unbilled retries after the initial timed-out request, then halt.
         gloss: Up to two retries after the initial attempt.
@@ -127,13 +185,22 @@ scenarios:
           - The total attempt count never exceeds three.
           - Retries create no additional payment.
         parameters:
-          retries_after_initial: 2
-          retry_billed: false
+          - name: retries_after_initial
+            type: integer
+            range: [0, 1, 2]
+            value: 2
+            description: Retry count permitted after the initial request.
+          - name: retry_billed
+            type: boolean
+            range: [false, true]
+            value: false
+            description: Whether a retry creates a second payment.
         failure_modes:
           - A third retry can duplicate a side effect or exceed the payment authorization.
+        _meta: *protocol_meta
     mutation:
       boundary: plan-to-implementation
-      fieldPath: parameters.retries_after_initial
+      fieldPath: parameters[0].value
       before: 1
       after: 2
     expectedAction: halt
@@ -151,9 +218,14 @@ scenarios:
           - A refund never goes to the task creator unless the creator was also the payer.
           - The refund amount cannot exceed the remaining escrow.
         parameters:
-          recipient: original-payer
+          - name: recipient
+            type: enum
+            range: [original-payer, task-creator, caller]
+            value: original-payer
+            description: Address role that receives remaining escrow.
         failure_modes:
           - Refunding the caller permits an intermediary to capture the escrow.
+        _meta: *protocol_meta
       mutatedDefinition: *refund_definition
     mutation: null
     expectedAction: proceed
@@ -171,11 +243,24 @@ scenarios:
           - Duplicate signatures from one key count once.
           - Non-member signatures do not count toward quorum.
         parameters:
-          threshold: 2
-          council_size: 3
-          distinct: true
+          - name: threshold
+            type: integer
+            range: [1, 2, 3]
+            value: 2
+            description: Number of authorized signatures required.
+          - name: council_size
+            type: integer
+            range: [3]
+            value: 3
+            description: Number of configured council members.
+          - name: distinct
+            type: boolean
+            range: [false, true]
+            value: true
+            description: Whether duplicate signer identities are rejected.
         failure_modes:
           - Counting duplicate signatures lets one key satisfy the threshold.
+        _meta: *protocol_meta
       mutatedDefinition: *signer_definition
     mutation: null
     expectedAction: proceed

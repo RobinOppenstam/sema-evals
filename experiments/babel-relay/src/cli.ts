@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   FixtureReferenceProvider,
+  SemaPythonRegistryClient,
   SemaPythonReferenceProvider,
   type SemanticReferenceProvider,
 } from "@sema-evals/adapters";
@@ -21,7 +22,8 @@ import {
 import { summarizeTrials, writeResultBundle } from "@sema-evals/reporters";
 
 import { loadScenarioFile } from "./fixtures.js";
-import { runRelayTrial } from "./relay.js";
+import { prepareSemaRegistryRuntime } from "./registry-runtime.js";
+import { runRelayTrial, type RelaySemanticRuntime } from "./relay.js";
 
 const EXPERIMENT_ID = "babel-relay";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -180,81 +182,125 @@ async function main(): Promise<void> {
     options.fixturePath,
   );
   const referenceProvider = createReferenceProvider(options);
-  const semanticMetadata = await referenceProvider.metadata();
-  const seeds = Array.from({ length: options.seedCount }, (_, index) => index);
-  const promptDigest = fingerprint({
-    experiment: EXPERIMENT_ID,
-    protocolVersion: PROTOCOL_VERSION,
-    policy: "deterministic-relay-v1",
-  });
-  const provenance: TrialProvenance = {
-    artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
-    protocolVersion: PROTOCOL_VERSION,
-    fixtureDigest,
-    implementationCommit: gitRevision(),
-    dependencyLockDigest: await fileDigest(join(REPO_ROOT, "pnpm-lock.yaml")),
-    promptDigest,
-    semaVersion: semanticMetadata.semaVersion,
-    canonicalizationVersion: semanticMetadata.canonicalizationVersion,
-    vocabularyRoot: process.env.SEMA_VOCABULARY_ROOT ?? "",
-    semanticBackend: semanticMetadata.backend,
-    modelProvider: process.env.MODEL_PROVIDER ?? "deterministic",
-    modelName: process.env.MODEL_NAME ?? "deterministic-relay-v1",
-  };
-
-  const cells = planPairedMatrix({
-    experimentId: EXPERIMENT_ID,
-    protocolVersion: PROTOCOL_VERSION,
-    scenarios: scenarioSet.scenarios,
-    scenarioId: (scenario) => scenario.id,
-    conditions: EXPERIMENT_CONDITIONS,
-    seeds,
-    orderSeed: options.orderSeed,
-  });
-
-  const records = await executeMatrix(cells, (cell) =>
-    runRelayTrial(cell, {
-      experimentId: EXPERIMENT_ID,
-      referenceProvider,
-      provenance,
-    }),
-  );
-  const createdAt = new Date();
-  const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
-  const outputDirectory = join(options.outputRoot, runId);
-  const bundle = await writeResultBundle(
-    outputDirectory,
-    {
+  let semanticRuntime: RelaySemanticRuntime | undefined;
+  try {
+    const registryClient =
+      options.semanticBackend === "sema-python"
+        ? new SemaPythonRegistryClient({
+            pythonCommand: options.semaPython,
+          })
+        : undefined;
+    if (registryClient) {
+      semanticRuntime = await prepareSemaRegistryRuntime(
+        scenarioSet.scenarios,
+        registryClient,
+      );
+    }
+    const semanticMetadata = registryClient
+      ? await registryClient.metadata()
+      : await referenceProvider.metadata();
+    const seeds = Array.from(
+      { length: options.seedCount },
+      (_, index) => index,
+    );
+    const promptDigest = fingerprint({
+      experiment: EXPERIMENT_ID,
+      protocolVersion: PROTOCOL_VERSION,
+      policy: "deterministic-relay-v2-registry-handshake",
+    });
+    const provenance: TrialProvenance = {
       artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
       protocolVersion: PROTOCOL_VERSION,
-      experimentId: EXPERIMENT_ID,
-      runId,
-      mode: "deterministic-harness",
-      evidenceClaim:
-        "Validates condition mechanics, drift scoring, randomization, and artifact reporting only.",
-      createdAt: createdAt.toISOString(),
-      orderSeed: options.orderSeed,
-      seeds,
-      conditions: [...EXPERIMENT_CONDITIONS],
-      scenarioCount: scenarioSet.scenarios.length,
-      trialCount: records.length,
       fixtureDigest,
-      provenance,
-    },
-    records,
-  );
+      implementationCommit: gitRevision(),
+      dependencyLockDigest: await fileDigest(join(REPO_ROOT, "pnpm-lock.yaml")),
+      promptDigest,
+      semaVersion: semanticMetadata.semaVersion,
+      canonicalizationVersion: semanticMetadata.canonicalizationVersion,
+      vocabularyRoot:
+        semanticRuntime?.canonicalVocabularyRoot ??
+        process.env.SEMA_VOCABULARY_ROOT ??
+        "",
+      semanticBackend: semanticMetadata.backend,
+      modelProvider: process.env.MODEL_PROVIDER ?? "deterministic",
+      modelName: process.env.MODEL_NAME ?? "deterministic-relay-v1",
+    };
 
-  const summary = summarizeTrials(records);
-  console.log(`Babel Relay completed: ${summary.trialCount} trials.`);
-  console.log(
-    `Semantic backend: ${semanticMetadata.backend} (${semanticMetadata.semaVersion}, ${semanticMetadata.canonicalizationVersion})`,
-  );
-  console.log(`Result bundle: ${bundle.directory}`);
-  for (const condition of summary.conditions) {
-    console.log(
-      `${condition.condition.padEnd(20)} success=${(condition.taskSuccessRate * 100).toFixed(1)}% ` +
-        `silent-drift=${(condition.silentDivergenceRate * 100).toFixed(1)}%`,
+    await Promise.all(
+      scenarioSet.scenarios.flatMap((scenario) => [
+        referenceProvider.reference(
+          scenario.contract.handle,
+          scenario.contract.canonicalDefinition,
+        ),
+        referenceProvider.reference(
+          scenario.contract.handle,
+          scenario.contract.mutatedDefinition,
+        ),
+      ]),
     );
+
+    const cells = planPairedMatrix({
+      experimentId: EXPERIMENT_ID,
+      protocolVersion: PROTOCOL_VERSION,
+      scenarios: scenarioSet.scenarios,
+      scenarioId: (scenario) => scenario.id,
+      conditions: EXPERIMENT_CONDITIONS,
+      seeds,
+      orderSeed: options.orderSeed,
+    });
+
+    const records = await executeMatrix(cells, (cell) =>
+      runRelayTrial(cell, {
+        experimentId: EXPERIMENT_ID,
+        referenceProvider,
+        ...(semanticRuntime ? { semanticRuntime } : {}),
+        provenance,
+      }),
+    );
+    const createdAt = new Date();
+    const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
+    const outputDirectory = join(options.outputRoot, runId);
+    const bundle = await writeResultBundle(
+      outputDirectory,
+      {
+        artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
+        protocolVersion: PROTOCOL_VERSION,
+        experimentId: EXPERIMENT_ID,
+        runId,
+        mode: "deterministic-harness",
+        evidenceClaim:
+          "Validates condition mechanics, drift scoring, randomization, and artifact reporting only.",
+        createdAt: createdAt.toISOString(),
+        orderSeed: options.orderSeed,
+        seeds,
+        conditions: [...EXPERIMENT_CONDITIONS],
+        scenarioCount: scenarioSet.scenarios.length,
+        trialCount: records.length,
+        fixtureDigest,
+        provenance,
+      },
+      records,
+    );
+
+    const summary = summarizeTrials(records);
+    console.log(`Babel Relay completed: ${summary.trialCount} trials.`);
+    console.log(
+      `Semantic backend: ${semanticMetadata.backend} (${semanticMetadata.semaVersion}, ${semanticMetadata.canonicalizationVersion})`,
+    );
+    if (semanticRuntime) {
+      console.log(
+        `Canonical vocabulary root: ${semanticRuntime.canonicalVocabularyRoot}`,
+      );
+    }
+    console.log(`Result bundle: ${bundle.directory}`);
+    for (const condition of summary.conditions) {
+      console.log(
+        `${condition.condition.padEnd(20)} success=${(condition.taskSuccessRate * 100).toFixed(1)}% ` +
+          `silent-drift=${(condition.silentDivergenceRate * 100).toFixed(1)}%`,
+      );
+    }
+  } finally {
+    await semanticRuntime?.cleanup();
   }
 }
 

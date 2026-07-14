@@ -4,6 +4,7 @@ import {
   type SemanticReferenceProvider,
 } from "@sema-evals/adapters";
 import {
+  fingerprint,
   utf8Bytes,
   type ExperimentCondition,
   type MatrixCell,
@@ -47,7 +48,40 @@ interface RelayAgentOutput {
 export interface RelayTrialOptions {
   experimentId: string;
   referenceProvider: SemanticReferenceProvider;
+  semanticRuntime?: RelaySemanticRuntime;
   provenance: TrialProvenance;
+}
+
+export interface RelayHydrationResult {
+  definition: Record<string, unknown>;
+  observedReference: string;
+  workspaceRoot: string;
+  resolver: string;
+}
+
+export interface RelayHandshakeResult {
+  verdict: "PROVIDE_HASH" | "PROCEED" | "HALT";
+  observedReference: string;
+  workspaceRoot: string;
+  reason?: string;
+  details: Record<string, unknown>;
+}
+
+export interface RelaySemanticRuntime {
+  readonly backend: string;
+  readonly canonicalVocabularyRoot: string;
+  hydrate(
+    scenarioId: string,
+    handle: string,
+    drifted: boolean,
+  ): Promise<RelayHydrationResult>;
+  handshake(
+    scenarioId: string,
+    handle: string,
+    expectedDigest: string,
+    drifted: boolean,
+  ): Promise<RelayHandshakeResult>;
+  cleanup(): Promise<void>;
 }
 
 function wirePayload(
@@ -144,7 +178,31 @@ export async function runRelayTrial(
     });
 
     if (policy.hydratesDefinition) {
-      const hopHydrationBytes = utf8Bytes(currentDefinition);
+      const hydration = options.semanticRuntime
+        ? await options.semanticRuntime.hydrate(
+            cell.scenarioId,
+            cell.scenario.contract.handle,
+            driftInjected,
+          )
+        : {
+            definition: currentDefinition,
+            observedReference: driftInjected
+              ? mutatedReference.full
+              : canonicalReference.full,
+            workspaceRoot: options.provenance.vocabularyRoot,
+            resolver:
+              policy.transport === "opaque-reference"
+                ? "opaque-fixture-resolver"
+                : options.referenceProvider.backend,
+          };
+      if (
+        fingerprint(hydration.definition) !== fingerprint(currentDefinition)
+      ) {
+        throw new Error(
+          `${cell.scenarioId}: registry hydration violated information parity.`,
+        );
+      }
+      const hopHydrationBytes = utf8Bytes(hydration.definition);
       hydrationBytes += hopHydrationBytes;
       events.push({
         sequence: sequence++,
@@ -153,19 +211,36 @@ export async function runRelayTrial(
         agent: hop.receiver,
         details: {
           hydrationBytes: hopHydrationBytes,
-          resolver:
-            policy.transport === "opaque-reference"
-              ? "opaque-fixture-resolver"
-              : options.referenceProvider.backend,
+          resolver: hydration.resolver,
+          resolutionExecution: options.semanticRuntime
+            ? "prepared-official-workspace-preflight"
+            : "in-trial-fixture-resolution",
+          observedReference: hydration.observedReference,
+          workspaceRoot: hydration.workspaceRoot,
         },
       });
     }
 
     if (policy.verifiesReference) {
+      const handshake = options.semanticRuntime
+        ? await options.semanticRuntime.handshake(
+            cell.scenarioId,
+            cell.scenario.contract.handle,
+            canonicalReference.digest,
+            driftInjected,
+          )
+        : undefined;
+      if (handshake?.verdict === "PROVIDE_HASH") {
+        throw new Error(
+          `${cell.scenarioId}: verification runtime did not compare the provided hash.`,
+        );
+      }
       const observedReference = driftInjected
         ? mutatedReference
         : canonicalReference;
-      const matched = referencesMatch(canonicalReference, observedReference);
+      const matched = handshake
+        ? handshake.verdict === "PROCEED"
+        : referencesMatch(canonicalReference, observedReference);
       events.push({
         sequence: sequence++,
         type: "verification",
@@ -173,9 +248,20 @@ export async function runRelayTrial(
         agent: hop.receiver,
         details: {
           expected: canonicalReference.full,
-          observed: observedReference.full,
+          observed: handshake?.observedReference ?? observedReference.full,
           matched,
           enforced: policy.enforcesMismatch,
+          verdict: handshake?.verdict ?? (matched ? "PROCEED" : "HALT"),
+          verifier:
+            options.semanticRuntime?.backend ??
+            options.referenceProvider.backend,
+          verificationExecution: options.semanticRuntime
+            ? "prepared-official-workspace-preflight"
+            : "in-trial-reference-comparison",
+          workspaceRoot:
+            handshake?.workspaceRoot ?? options.provenance.vocabularyRoot,
+          ...(handshake?.reason ? { reason: handshake.reason } : {}),
+          ...(handshake ? { officialHandshake: handshake.details } : {}),
         },
       });
 
@@ -235,7 +321,7 @@ export async function runRelayTrial(
       driftInjected,
       driftDetected,
       halted,
-      silentDivergence: driftInjected && !halted,
+      silentDivergence: driftInjected && !driftDetected,
       correctHalt: halted && expectedHalt,
       falseHalt: halted && !expectedHalt,
       taskSuccess: actualAction === cell.scenario.expectedAction,

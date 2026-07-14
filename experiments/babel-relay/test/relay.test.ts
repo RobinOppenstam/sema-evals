@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { FixtureReferenceProvider } from "@sema-evals/adapters";
+import {
+  FixtureReferenceProvider,
+  type SemanticReferenceProvider,
+} from "@sema-evals/adapters";
 import {
   ARTIFACT_SCHEMA_VERSION,
   EXPERIMENT_CONDITIONS,
@@ -11,7 +14,7 @@ import {
 } from "@sema-evals/core";
 import { summarizeTrials } from "@sema-evals/reporters";
 
-import { runRelayTrial } from "../src/relay.js";
+import { runRelayTrial, type RelaySemanticRuntime } from "../src/relay.js";
 
 const provenance: TrialProvenance = {
   artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
@@ -91,6 +94,9 @@ describe("Babel Relay scoring", () => {
       true,
     );
     expect(byCondition["addressed-voluntary"]?.metrics.halted).toBe(false);
+    expect(byCondition["addressed-voluntary"]?.metrics.silentDivergence).toBe(
+      false,
+    );
     expect(byCondition["addressed-enforced"]?.metrics.driftDetected).toBe(true);
     expect(byCondition["addressed-enforced"]?.metrics.halted).toBe(true);
     expect(byCondition["addressed-enforced"]?.metrics.taskSuccess).toBe(true);
@@ -118,5 +124,102 @@ describe("Babel Relay scoring", () => {
       summary.conditions.find((entry) => entry.condition === "opaque-resolver")
         ?.silentDivergenceRate,
     ).toBe(1);
+    expect(
+      summary.conditions.find(
+        (entry) => entry.condition === "addressed-voluntary",
+      )?.silentDivergenceRate,
+    ).toBe(0);
+  });
+
+  it("uses an official runtime verdict instead of recomputing handshake policy", async () => {
+    const entry = scenario(true);
+    const [cell] = planPairedMatrix({
+      experimentId: "babel-relay-runtime-test",
+      protocolVersion: PROTOCOL_VERSION,
+      scenarios: [entry],
+      scenarioId: (value) => value.id,
+      conditions: ["addressed-enforced"] as const,
+      seeds: [0],
+      orderSeed: 1,
+    });
+    if (!cell) {
+      throw new Error("Expected one runtime test cell.");
+    }
+    const digest = "d".repeat(64);
+    const referenceProvider: SemanticReferenceProvider = {
+      backend: "constant-reference-test",
+      async metadata() {
+        return {
+          backend: this.backend,
+          semaVersion: "test",
+          canonicalizationVersion: "test",
+          officialSema: false,
+        };
+      },
+      async reference(handle) {
+        return {
+          handle,
+          display: `${handle}#dddd`,
+          full: `fixture:${handle}#sha256:${digest}`,
+          digest,
+          backend: this.backend,
+          officialSema: false,
+        };
+      },
+    };
+    const semanticRuntime: RelaySemanticRuntime = {
+      backend: "official-workspace-test",
+      canonicalVocabularyRoot: "e".repeat(64),
+      async hydrate(_scenarioId, _handle, drifted) {
+        return {
+          definition: drifted
+            ? entry.contract.mutatedDefinition
+            : entry.contract.canonicalDefinition,
+          observedReference: `sema:BoundaryRule#mh:SHA-256:${(drifted
+            ? "f"
+            : "d"
+          ).repeat(64)}`,
+          workspaceRoot: (drifted ? "f" : "e").repeat(64),
+          resolver: this.backend,
+        };
+      },
+      async handshake(_scenarioId, _handle, _expectedDigest, drifted) {
+        return drifted
+          ? {
+              verdict: "HALT",
+              observedReference: `sema:BoundaryRule#mh:SHA-256:${"f".repeat(64)}`,
+              workspaceRoot: "f".repeat(64),
+              reason: "SEMANTIC DRIFT DETECTED",
+              details: { verdict: "HALT", canonical_hash: "ffff" },
+            }
+          : {
+              verdict: "PROCEED",
+              observedReference: `sema:BoundaryRule#mh:SHA-256:${"d".repeat(64)}`,
+              workspaceRoot: "e".repeat(64),
+              details: { verdict: "PROCEED" },
+            };
+      },
+      async cleanup() {},
+    };
+
+    const record = await runRelayTrial(cell, {
+      experimentId: "babel-relay-runtime-test",
+      referenceProvider,
+      semanticRuntime,
+      provenance,
+    });
+    const verification = record.events.find(
+      (event) =>
+        event.type === "verification" && event.details.verdict === "HALT",
+    );
+
+    expect(record.actualAction).toBe("halt");
+    expect(record.metrics.driftDetected).toBe(true);
+    expect(verification?.details).toMatchObject({
+      verifier: "official-workspace-test",
+      verdict: "HALT",
+      reason: "SEMANTIC DRIFT DETECTED",
+      officialHandshake: { verdict: "HALT", canonical_hash: "ffff" },
+    });
   });
 });
