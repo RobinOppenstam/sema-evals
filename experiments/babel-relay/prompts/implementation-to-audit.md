@@ -18,4 +18,14 @@ Requirements:
   `halt` when the implementation and the definition diverge, and name the field
   that diverged.
 
-Return your decision (`proceed` or `halt`) and the evidence for it.
+State your reasoning and the evidence for your decision first. Then end your
+response with a single final line in exactly one of these two forms, uppercase,
+with nothing after it:
+
+```
+DECISION: PROCEED
+DECISION: HALT
+```
+
+Use `DECISION: PROCEED` only when the implementation matches the resolved
+definition. Use `DECISION: HALT` when they diverge.
