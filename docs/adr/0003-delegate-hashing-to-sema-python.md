@@ -6,8 +6,8 @@
 ## Decision
 
 Generate official Sema references by invoking `sema.core.hashing` from an
-installed `semahash>=0.3.0` Python interpreter. Keep the fixture digest provider
-for fast evaluator tests, but label it non-official in every artifact.
+installed `semahash>=0.3.0,<0.4.0` Python interpreter. Keep the fixture digest
+provider for fast evaluator tests, but label it non-official in every artifact.
 
 Do not independently implement canonicalization v2 in TypeScript as part of the
 experiment harness.
@@ -22,7 +22,9 @@ provider-neutral without changing the algorithm being evaluated.
 
 ## Consequences
 
-- Official-backend runs require Python and `semahash>=0.3.0`.
+- Official-backend runs require Python and `semahash>=0.3.0,<0.4.0`.
+- Unknown Sema release lines fail closed until their canonicalization mapping is
+  explicitly reviewed.
 - The bridge is time-limited, output-limited, schema-checked, and cache-backed.
 - Package and canonicalization versions are recorded in result provenance.
 - A future native TypeScript implementation must begin as a differential

@@ -25,8 +25,9 @@ fixture-generated references and proves that:
 This behavior is constructed and must not be presented as evidence about
 language models. Fixture references use a clearly labelled local digest
 backend. An optional backend delegates reference generation to the official
-`semahash>=0.3.0` Python package so canonicalization is never reimplemented in
-the TypeScript evaluator.
+`semahash>=0.3.0,<0.4.0` Python package so canonicalization is never
+reimplemented in the TypeScript evaluator. Unknown package lines fail closed
+until their canonicalization behavior is reviewed.
 
 ## Run
 

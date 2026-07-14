@@ -86,8 +86,8 @@ function requiredString(
   return candidate;
 }
 
-function assertSupportedSemaVersion(version: string): void {
-  const match = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec(version);
+function canonicalizationForSemaVersion(version: string): "v2" {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[+.-].*)?$/.exec(version);
   if (!match) {
     throw new SemaPythonBridgeError(
       `Sema bridge returned an invalid package version: ${version}.`,
@@ -95,11 +95,12 @@ function assertSupportedSemaVersion(version: string): void {
   }
   const major = Number(match[1]);
   const minor = Number(match[2]);
-  if (major === 0 && minor < 3) {
+  if (major !== 0 || minor !== 3) {
     throw new SemaPythonBridgeError(
-      `semahash ${version} predates canonicalization v2; install semahash>=0.3.0.`,
+      `This adapter supports the audited semahash 0.3.x line; received ${version}.`,
     );
   }
+  return "v2";
 }
 
 export const runPythonJson: PythonJsonRunner = (
@@ -115,6 +116,7 @@ export const runPythonJson: PythonJsonRunner = (
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let outputBytes = 0;
+    let errorBytes = 0;
     let settled = false;
 
     const finish = (callback: () => void) => {
@@ -139,7 +141,7 @@ export const runPythonJson: PythonJsonRunner = (
 
     child.stdout.on("data", (chunk: Buffer) => {
       outputBytes += chunk.length;
-      if (outputBytes > MAX_BRIDGE_OUTPUT_BYTES) {
+      if (outputBytes + errorBytes > MAX_BRIDGE_OUTPUT_BYTES) {
         child.kill("SIGKILL");
         finish(() =>
           reject(
@@ -154,6 +156,18 @@ export const runPythonJson: PythonJsonRunner = (
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
+      errorBytes += chunk.length;
+      if (outputBytes + errorBytes > MAX_BRIDGE_OUTPUT_BYTES) {
+        child.kill("SIGKILL");
+        finish(() =>
+          reject(
+            new SemaPythonBridgeError(
+              "Sema Python bridge exceeded its output limit.",
+            ),
+          ),
+        );
+        return;
+      }
       stderr.push(chunk);
     });
 
@@ -173,7 +187,7 @@ export const runPythonJson: PythonJsonRunner = (
         if (code !== 0) {
           const installHint =
             /PackageNotFoundError|No module named ['"]sema/.test(errorOutput)
-              ? ` Install semahash>=0.3.0 in ${pythonCommand} or pass --sema-python explicitly.`
+              ? ` Install semahash>=0.3.0,<0.4.0 in ${pythonCommand} or pass --sema-python explicitly.`
               : "";
           reject(
             new SemaPythonBridgeError(
@@ -229,9 +243,14 @@ export class SemaPythonReferenceProvider implements SemanticReferenceProvider {
     this.runner = options.runner ?? runPythonJson;
   }
 
-  public metadata(): Promise<SemanticBackendMetadata> {
-    this.metadataPromise ??= this.loadMetadata();
-    return this.metadataPromise;
+  public async metadata(): Promise<SemanticBackendMetadata> {
+    try {
+      this.metadataPromise ??= this.loadMetadata();
+      return await this.metadataPromise;
+    } catch (error) {
+      this.metadataPromise = undefined;
+      throw error;
+    }
   }
 
   public reference(
@@ -273,15 +292,22 @@ export class SemaPythonReferenceProvider implements SemanticReferenceProvider {
       "sema_version",
       "Sema metadata bridge",
     );
-    assertSupportedSemaVersion(semaVersion);
+    const expectedCanonicalization =
+      canonicalizationForSemaVersion(semaVersion);
+    const reportedCanonicalization = requiredString(
+      response,
+      "canonicalization_version",
+      "Sema metadata bridge",
+    );
+    if (reportedCanonicalization !== expectedCanonicalization) {
+      throw new SemaPythonBridgeError(
+        `semahash ${semaVersion} should use ${expectedCanonicalization}, but the bridge reported ${reportedCanonicalization}.`,
+      );
+    }
     return {
       backend: requiredString(response, "backend", "Sema metadata bridge"),
       semaVersion,
-      canonicalizationVersion: requiredString(
-        response,
-        "canonicalization_version",
-        "Sema metadata bridge",
-      ),
+      canonicalizationVersion: expectedCanonicalization,
       officialSema: true,
     };
   }
@@ -290,6 +316,7 @@ export class SemaPythonReferenceProvider implements SemanticReferenceProvider {
     handle: string,
     definition: Record<string, unknown>,
   ): Promise<SemanticReference> {
+    const metadata = await this.metadata();
     const response = asRecord(
       await this.runner(
         this.pythonCommand,
@@ -303,7 +330,12 @@ export class SemaPythonReferenceProvider implements SemanticReferenceProvider {
       "sema_version",
       "Sema hash bridge",
     );
-    assertSupportedSemaVersion(semaVersion);
+    canonicalizationForSemaVersion(semaVersion);
+    if (semaVersion !== metadata.semaVersion) {
+      throw new SemaPythonBridgeError(
+        `Sema package version changed during the run: ${metadata.semaVersion} -> ${semaVersion}.`,
+      );
+    }
     const digest = requiredString(response, "hash", "Sema hash bridge");
     if (!/^[a-f0-9]{64}$/.test(digest)) {
       throw new SemaPythonBridgeError(

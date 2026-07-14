@@ -93,10 +93,11 @@ pnpm experiment:babel -- \
   --seeds 5
 ```
 
-The selected Python interpreter must have `semahash>=0.3.0` installed. Its
-package version and canonicalization version are read from the adapter and
-written into every result manifest. The TypeScript harness does not reimplement
-or approximate Sema hashing.
+The selected Python interpreter must have `semahash>=0.3.0,<0.4.0` installed.
+The adapter deliberately fails closed outside the audited 0.3.x line rather
+than guessing which canonicalization a future release uses. Its package and
+canonicalization versions are written into every result manifest. The
+TypeScript harness does not reimplement or approximate Sema hashing.
 
 The command produces a complete, ignored result bundle:
 

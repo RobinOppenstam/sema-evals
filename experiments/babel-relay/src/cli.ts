@@ -66,6 +66,10 @@ function nonnegativeInteger(value: string | undefined, flag: string): number {
   return parsed;
 }
 
+function resolveFromRepoRoot(value: string): string {
+  return /[\\/]/.test(value) ? resolve(REPO_ROOT, value) : value;
+}
+
 function parseArgs(args: readonly string[]): CliOptions {
   const options: CliOptions = {
     fixturePath: join(
@@ -76,7 +80,7 @@ function parseArgs(args: readonly string[]): CliOptions {
     orderSeed: 20_260_714,
     seedCount: 1,
     semanticBackend: "fixture",
-    semaPython: process.env.SEMA_PYTHON ?? "python3",
+    semaPython: resolveFromRepoRoot(process.env.SEMA_PYTHON ?? "python3"),
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -89,11 +93,11 @@ function parseArgs(args: readonly string[]): CliOptions {
       process.exit(0);
     }
     if (argument === "--fixtures") {
-      options.fixturePath = resolve(args[++index] ?? "");
+      options.fixturePath = resolve(REPO_ROOT, args[++index] ?? "");
       continue;
     }
     if (argument === "--output") {
-      options.outputRoot = resolve(args[++index] ?? "");
+      options.outputRoot = resolve(REPO_ROOT, args[++index] ?? "");
       continue;
     }
     if (argument === "--order-seed") {
@@ -117,9 +121,7 @@ function parseArgs(args: readonly string[]): CliOptions {
       if (!command) {
         throw new Error(`${argument} requires a Python executable.`);
       }
-      options.semaPython = command.includes("/")
-        ? resolve(REPO_ROOT, command)
-        : command;
+      options.semaPython = resolveFromRepoRoot(command);
       continue;
     }
     throw new Error(`Unknown argument: ${argument}\n\n${usage()}`);
