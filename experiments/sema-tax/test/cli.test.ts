@@ -88,6 +88,36 @@ describe("parseArgs", () => {
   });
 });
 
+describe("parseArgs arm selection", () => {
+  it("defaults to the default arm and its base fixture", () => {
+    const options = parseArgs([]);
+    expect(options.arm).toBe("default");
+    expect(options.fixturePath).toMatch(/worksheets\.yaml$/);
+  });
+
+  it("selects the size-reuse arm and its dedicated fixture", () => {
+    const options = parseArgs(["--arm", "size-reuse"]);
+    expect(options.arm).toBe("size-reuse");
+    expect(options.fixturePath).toMatch(/worksheets-size-reuse\.yaml$/);
+  });
+
+  it("honours an explicit --fixtures over the arm default", () => {
+    const options = parseArgs([
+      "--arm",
+      "size-reuse",
+      "--fixtures",
+      "experiments/sema-tax/fixtures/custom.yaml",
+    ]);
+    expect(options.fixturePath).toMatch(/custom\.yaml$/);
+  });
+
+  it("rejects an unknown arm", () => {
+    expect(() => parseArgs(["--arm", "bogus"])).toThrow(
+      /default or size-reuse/,
+    );
+  });
+});
+
 describe("parseArgs concurrency", () => {
   it("defaults concurrency to 1", () => {
     expect(parseArgs([]).concurrency).toBe(1);
