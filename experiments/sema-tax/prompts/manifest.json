@@ -1,0 +1,9 @@
+{
+  "snapshotVersion": "2026-07-15",
+  "prompts": {
+    "worksheet-solver": {
+      "file": "worksheet-solver.md",
+      "sha256": "2109dcadbc57c5eb1faeb166103d3cc1f4dd091840ac21168781c58c2e7f1a7f"
+    }
+  }
+}
