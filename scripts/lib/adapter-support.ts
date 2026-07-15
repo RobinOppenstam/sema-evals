@@ -23,6 +23,30 @@ export function assertSummaryFaithful(
   );
 }
 
+/**
+ * Fail the build if a recomputed confirmatory analysis disagrees with an
+ * analysis JSON shipped in the bundle. Same discipline as
+ * {@link assertSummaryFaithful}: the site never trusts a stored analysis — the
+ * hypothesis intervals and verdict are recomputed from the public trials, and a
+ * shipped analysis is only ever a cross-check. A disagreement means the published
+ * trials and the published analysis describe different data, which must never
+ * ship, so this throws rather than warns.
+ */
+export function assertAnalysisFaithful(
+  experimentId: string,
+  runId: string,
+  warnings: readonly string[],
+): void {
+  if (warnings.length === 0) {
+    return;
+  }
+  const detail = warnings.map((warning) => `  - ${warning}`).join("\n");
+  throw new Error(
+    `[build-site] ${experimentId}/${runId}: analysis.json disagrees with the analysis ` +
+      `recomputed from trials.public.jsonl:\n${detail}`,
+  );
+}
+
 /** A rendered run page plus the metadata build-site needs to write its files. */
 export interface RunFile {
   runId: string;
