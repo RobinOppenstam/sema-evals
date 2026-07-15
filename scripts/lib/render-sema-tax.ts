@@ -15,19 +15,16 @@ import type {
   SemaTaxSummary,
 } from "../../experiments/sema-tax/src/summary.js";
 
+import { getExplainer } from "../site-content/explainers.js";
+
 import {
   badge,
   escapeHtml,
   explainerBlock,
-  page,
   provenanceList,
+  renderExperimentCard,
   renderInterpretation,
 } from "./render.js";
-
-/** DOM id of the experiment's index section, used as the back-link anchor. */
-function experimentAnchor(experimentId: string): string {
-  return `exp-${experimentId}`;
-}
 
 /** Deterministic date: derived from the manifest, never from the clock. */
 function runDate(createdAt: string): string {
@@ -126,7 +123,7 @@ export function renderSemaTaxRunPage(run: SemaTaxRunView): string {
   const about = explainerBlock(m.experimentId)
     ? `<p class="lede">The Sema tax curve prices what an agent pays &mdash; in tokens, bytes, and
 cost &mdash; to carry an increasing number of semantic patterns, and what that overhead buys in task
-quality. <a class="about-link" href="../index.html#${escapeHtml(experimentAnchor(m.experimentId))}">About this experiment</a></p>`
+quality. <a class="about-link" href="../index.html">About this experiment</a></p>`
     : "";
 
   const banner = `<div class="banner banner-${m.mode}">
@@ -140,8 +137,8 @@ hydration bytes, while a provider may cache prompt prefixes automatically across
 0011). The controlled cache effect is hydration bytes; read cached-token figures as description,
 not manipulation.</p>`;
 
-  const body = `
-<p class="crumbs"><a href="../index.html">&larr; All reports</a></p>
+  return `
+<p class="crumbs"><a href="../index.html">&larr; ${escapeHtml(m.experimentId)}</a></p>
 <h1>${escapeHtml(m.experimentId)}</h1>
 <p class="meta"><code>${escapeHtml(m.runId)}</code> &middot; ${escapeHtml(runDate(m.createdAt))} &middot; ${m.trialCount} trials across ${m.scenarioCount} scenarios</p>
 ${about}
@@ -160,12 +157,10 @@ ${conditionTable(run.summary)}
 <p class="note">The public derivative strips raw provider payloads and caps transcript
 text. Full raw bundles are retained locally only.</p>
 ${SORT_SCRIPT}`;
-
-  return page(body, "../index.html");
 }
 
 // -------------------------------------------------------------------------
-// Index section
+// Experiment page + overview card
 // -------------------------------------------------------------------------
 
 /** Highest mean worksheet score among the full-coverage (16-pattern) arms. */
@@ -189,6 +184,49 @@ function scorePerKRange(summary: SemaTaxSummary): [number, number] | null {
   return [Math.min(...values), Math.max(...values)];
 }
 
+/**
+ * The sema-tax overview card: shared facts plus a headline drawn from the latest
+ * run — best full-coverage score and the score-per-1k-token range.
+ */
+export function renderSemaTaxCard(
+  experimentId: string,
+  runs: readonly SemaTaxRunView[],
+): string {
+  const explainer = getExplainer(experimentId);
+  const sorted = runs
+    .slice()
+    .sort((a, b) => b.manifest.createdAt.localeCompare(a.manifest.createdAt));
+  const latest = sorted[0];
+  let headlineHtml = "&mdash;";
+  if (latest !== undefined) {
+    const best = bestFullCoverageScore(latest.summary);
+    const range = scorePerKRange(latest.summary);
+    const bestText = best === null ? "&mdash;" : dec(best, 3);
+    const rangeText =
+      range === null
+        ? "&mdash;"
+        : `${dec(range[0], 4)}&ndash;${dec(range[1], 4)}`;
+    headlineHtml = `Latest &mdash; best full-coverage score <span class="tnum">${bestText}</span>, score/1k tok <span class="tnum">${rangeText}</span>`;
+  }
+  return renderExperimentCard({
+    experimentId,
+    lede: explainer?.lede ?? experimentId,
+    runCount: runs.length,
+    latestDate:
+      latest === undefined ? "&mdash;" : runDate(latest.manifest.createdAt),
+    models: [
+      ...new Set(runs.map((run) => run.manifest.provenance.modelName)),
+    ].sort(),
+    headlineHtml,
+  });
+}
+
+/**
+ * The per-experiment page body for sema-tax: the experiment name as the page
+ * heading, explainer, coverage-gated interpretation, and the tax-curve run list.
+ * Build-site wraps this in the page chrome and writes it to
+ * `<experimentId>/index.html`.
+ */
 export function renderSemaTaxSection(
   experimentId: string,
   runs: readonly SemaTaxRunView[],
@@ -218,7 +256,7 @@ export function renderSemaTaxSection(
     })
     .join("\n");
 
-  return `<h2 id="${escapeHtml(experimentAnchor(experimentId))}">${escapeHtml(experimentId)}</h2>
+  return `<h1>${escapeHtml(experimentId)}</h1>
 ${explainerBlock(experimentId)}
 ${renderInterpretation(experimentId, promotedRunIds)}
 <div class="table-wrap"><table class="runlist">

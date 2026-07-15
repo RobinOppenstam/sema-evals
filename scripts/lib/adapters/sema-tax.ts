@@ -26,6 +26,7 @@ import {
 } from "../adapter-support.js";
 import { buildPublicTrialsJsonl } from "../public-derivative.js";
 import {
+  renderSemaTaxCard,
   renderSemaTaxRunPage,
   renderSemaTaxSection,
   type SemaTaxRunView,
@@ -97,13 +98,14 @@ export const semaTaxAdapter: ExperimentAdapter = {
       runs.push({
         runId,
         createdAt: view.manifest.createdAt,
-        runPage: renderSemaTaxRunPage(view),
+        runBody: renderSemaTaxRunPage(view),
       });
     }
     return {
       experimentId: EXPERIMENT_ID,
       runs,
-      indexSection: renderSemaTaxSection(EXPERIMENT_ID, views),
+      experimentBody: renderSemaTaxSection(EXPERIMENT_ID, views),
+      overviewCard: renderSemaTaxCard(EXPERIMENT_ID, views),
     };
   },
 };

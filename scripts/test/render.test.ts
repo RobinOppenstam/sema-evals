@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { ResultManifest } from "../../packages/core/src/schemas.js";
 import { aggregateTrials } from "../lib/aggregate.js";
-import { renderIndex, renderRunPage, type RunView } from "../lib/render.js";
+import {
+  renderBabelRelaySection,
+  renderRunPage,
+  type RunView,
+} from "../lib/render.js";
 import { getExplainer } from "../site-content/explainers.js";
 import { makeTrial } from "./fixtures.js";
 
@@ -55,14 +59,17 @@ function makeRunView(manifest: ResultManifest): RunView {
   return { manifest, aggregate, dataDir: manifest.runId };
 }
 
-describe("experiment explainers on the index", () => {
-  it("renders the babel-relay explainer under its section heading", () => {
-    const html = renderIndex([makeRunView(makeManifest())]);
+describe("experiment explainers on the experiment page", () => {
+  it("renders the babel-relay explainer under its page heading", () => {
+    const html = renderBabelRelaySection("babel-relay", [
+      makeRunView(makeManifest()),
+    ]);
     const explainer = getExplainer("babel-relay");
     expect(explainer).toBeDefined();
 
-    // Anchored heading, lede, "how to read" body, and the conditions list.
-    expect(html).toContain('<h2 id="exp-babel-relay">babel-relay</h2>');
+    // The experiment name is the page heading (h1, no section anchor), followed
+    // by the lede, "how to read" body, and the conditions list.
+    expect(html).toContain("<h1>babel-relay</h1>");
     expect(html).toContain('<div class="explainer">');
     expect(html).toContain(explainer!.lede);
     expect(html).toContain("How to read the results");
@@ -84,11 +91,11 @@ describe("experiment explainers on the index", () => {
       experimentId: "unknown-experiment",
       conditions: ["equal-prose"],
     });
-    const html = renderIndex([makeRunView(manifest)]);
+    const html = renderBabelRelaySection("unknown-experiment", [
+      makeRunView(manifest),
+    ]);
     expect(getExplainer("unknown-experiment")).toBeUndefined();
-    expect(html).toContain(
-      '<h2 id="exp-unknown-experiment">unknown-experiment</h2>',
-    );
+    expect(html).toContain("<h1>unknown-experiment</h1>");
     expect(html).not.toContain('<div class="explainer">');
   });
 });
@@ -99,7 +106,7 @@ describe("experiment lede on run pages", () => {
     const explainer = getExplainer("babel-relay");
     expect(html).toContain(explainer!.lede);
     expect(html).toContain(
-      '<a class="about-link" href="../index.html#exp-babel-relay">About this experiment</a>',
+      '<a class="about-link" href="../index.html">About this experiment</a>',
     );
     // Run pages stay focused: no full explainer block or conditions list.
     expect(html).not.toContain('<div class="explainer">');
@@ -117,7 +124,9 @@ describe("experiment lede on run pages", () => {
 describe("determinism", () => {
   it("renders byte-identical output across repeated calls", () => {
     const run = makeRunView(makeManifest());
-    expect(renderIndex([run])).toEqual(renderIndex([run]));
+    expect(renderBabelRelaySection("babel-relay", [run])).toEqual(
+      renderBabelRelaySection("babel-relay", [run]),
+    );
     expect(renderRunPage(run)).toEqual(renderRunPage(run));
   });
 });
