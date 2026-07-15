@@ -27,16 +27,22 @@ export function assertSummaryFaithful(
 export interface RunFile {
   runId: string;
   createdAt: string;
-  /** Rendered run-page body (from `page()`); build-site wraps it in `<head>`. */
-  runPage: string;
+  /** Rendered run-page body; build-site wraps it in the page chrome + `<head>`. */
+  runBody: string;
 }
 
 /** Everything an adapter produces for one experiment's promoted runs. */
 export interface LoadedExperiment {
   experimentId: string;
   runs: RunFile[];
-  /** The index section: `<h2>` heading through the run-list table and note. */
-  indexSection: string;
+  /**
+   * The per-experiment page body: `<h1>` heading through the run-list table and
+   * note. Build-site wraps it in the page chrome and writes it to
+   * `<experimentId>/index.html`.
+   */
+  experimentBody: string;
+  /** The compact overview card for this experiment (rendered on the overview). */
+  overviewCard: string;
 }
 
 /** Minimal manifest shape the promote path needs, common to every experiment. */

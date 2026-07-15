@@ -14,11 +14,6 @@ import type {
   TrialOutcome,
 } from "./aggregate.js";
 
-/** DOM id of an experiment's index section, used as the back-link anchor. */
-function experimentAnchor(experimentId: string): string {
-  return `exp-${experimentId}`;
-}
-
 export interface RunView {
   manifest: ResultManifest;
   aggregate: SiteAggregate;
@@ -161,20 +156,19 @@ body {
 }
 main { max-width: 1120px; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; }
 
-/* Page furniture: typographic wordmark only, hairline-separated. */
-.site-head, .site-foot {
+/* Page furniture: typographic wordmark plus a slim horizontal nav, hairline-
+   separated. The nav sits under the wordmark row and shares the header rule. */
+.site-head {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.site-head-row {
   display: flex;
   align-items: baseline;
   gap: 0.75rem 1rem;
   flex-wrap: wrap;
-}
-.site-head {
-  padding-top: 1.25rem;
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid var(--line);
 }
 .wordmark {
   font-family: var(--mono);
@@ -186,16 +180,77 @@ main { max-width: 1120px; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; }
 }
 .wordmark::before { content: "▚ "; color: var(--muted); }
 .site-tag { color: var(--muted); font-size: var(--fs-xs); letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* Site nav: text links in the editorial register, no pills or buttons. The
+   current page is bold ink with a hairline underline; others are muted. */
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.25rem;
+  margin-top: 0.65rem;
+  font-size: var(--fs-sm);
+}
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  padding-bottom: 1px;
+  border-bottom: 1px solid transparent;
+}
+.site-nav a:hover { color: var(--accent); border-bottom-color: currentColor; }
+.site-nav a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--text-2);
+}
+.site-nav a[aria-current="page"]:hover { color: var(--text); }
+
 .site-foot {
-  padding-top: 1.25rem;
-  padding-bottom: 2.5rem;
-  margin-top: 1rem;
+  max-width: 1120px;
+  margin: 1rem auto 0;
+  padding: 1.25rem 1.5rem 2.5rem;
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--fs-sm);
-  display: block;
 }
 .site-foot p { max-width: var(--measure); margin: 0; }
+
+/* Overview cards: one compact card per experiment-with-runs, existing tokens
+   only. Each card's heading links to that experiment's page. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 1rem;
+  margin: 1.75rem 0 1rem;
+}
+.card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 1rem 1.1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+}
+.card h2 {
+  border-top: none;
+  padding-top: 0;
+  margin: 0 0 0.25rem;
+  font-size: var(--fs-2);
+}
+.card h2 a { color: var(--text); text-decoration: none; }
+.card h2 a:hover { color: var(--accent); }
+.card .card-lede { color: var(--text-2); font-size: var(--fs-sm); margin: 0 0 0.7rem; max-width: none; }
+.card dl.card-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 0.75rem; margin: 0 0 0.7rem; font-size: var(--fs-sm); }
+.card dl.card-facts dt { color: var(--muted); }
+.card dl.card-facts dd { margin: 0; color: var(--text-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.card .card-headline {
+  margin: auto 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.card .card-headline .tnum { font-variant-numeric: tabular-nums; }
 
 h1 {
   font-size: var(--fs-4);
@@ -454,16 +509,57 @@ th[role="button"]::after { content: " \\2195"; color: var(--axis); font-size: 0.
 }
 `;
 
-function siteHeader(homeHref: string): string {
-  return `<header class="site-head"><a class="wordmark" href="${homeHref}">sema-evals</a><span class="site-tag">Independent evaluations</span></header>`;
+/** Which nav entry is the current page (drives `aria-current="page"`). */
+export type NavCurrent =
+  | { readonly kind: "overview" }
+  | { readonly kind: "experiment"; readonly id: string };
+
+/**
+ * Everything the shared page chrome (header nav + wordmark home link) needs. The
+ * builder computes this per page: `base` is the relative prefix from the page to
+ * the dist root ("" at root, "../" one level down, "../../" for run pages), and
+ * `experiments` is the nav list — experiment ids with promoted runs, in order.
+ */
+export interface PageChrome {
+  readonly base: string;
+  readonly experiments: readonly string[];
+  readonly current: NavCurrent;
+}
+
+/** The slim horizontal experiment nav: static text links, current-page marked. */
+function siteNav(chrome: PageChrome): string {
+  const link = (href: string, label: string, current: boolean): string => {
+    const aria = current ? ' aria-current="page"' : "";
+    return `<a href="${href}"${aria}>${escapeHtml(label)}</a>`;
+  };
+  const items = [
+    link(
+      `${chrome.base}index.html`,
+      "Overview",
+      chrome.current.kind === "overview",
+    ),
+    ...chrome.experiments.map((id) =>
+      link(
+        `${chrome.base}${escapeHtml(id)}/index.html`,
+        id,
+        chrome.current.kind === "experiment" && chrome.current.id === id,
+      ),
+    ),
+  ];
+  return `<nav class="site-nav" aria-label="Experiments">${items.join("")}</nav>`;
+}
+
+function siteHeader(chrome: PageChrome): string {
+  return `<header class="site-head"><div class="site-head-row"><a class="wordmark" href="${chrome.base}index.html">sema-evals</a><span class="site-tag">Independent evaluations</span></div>${siteNav(chrome)}</header>`;
 }
 
 function siteFooter(): string {
   return `<footer class="site-foot"><p>Generated from committed result artifacts by <code>pnpm site:build</code>. Every aggregate is recomputed from the public trial derivative at build time, not read from a stored summary. <a href="${STANDARD_URL}">Experiment standard</a> &middot; <a href="${REPO_URL}">Source</a></p></footer>`;
 }
 
-export function page(body: string, homeHref: string): string {
-  return `${siteHeader(homeHref)}<main>${body}</main>${siteFooter()}`;
+/** Wrap a rendered page body in the shared header (with nav) and footer. */
+export function page(body: string, chrome: PageChrome): string {
+  return `${siteHeader(chrome)}<main>${body}</main>${siteFooter()}`;
 }
 
 // The <head>/<body> skeleton is supplied by the build script; render functions
@@ -896,10 +992,10 @@ ${paragraphs}
 }
 
 // -------------------------------------------------------------------------
-// Index page
+// Overview page
 // -------------------------------------------------------------------------
 
-const INDEX_HEADER = `
+const OVERVIEW_HEADER = `
 <h1>sema-evals</h1>
 <p class="lede">Open, causal evaluations for content-addressed semantics and multi-agent
 coordination. Each report is generated directly from a committed result artifact &mdash; a run
@@ -915,26 +1011,99 @@ confirmatory. Only a <b>confirmatory</b> run tests a preregistered hypothesis.</
 <a href="${STANDARD_URL}">Experiment standard</a></p>`;
 
 /**
- * The index shell: the shared page header plus the per-experiment section
- * fragments (each produced by that experiment's site adapter), in the order
- * given. An empty list renders the "no runs promoted yet" state. Build-site
- * composes the sections; this keeps the header/empty-state logic in one place.
+ * The overview page body: the shared intro (title, mission, links) plus a
+ * compact card per experiment-with-runs, in the order given. An empty list
+ * renders the "no runs promoted yet" state. Build-site wraps this in the page
+ * chrome; this keeps the intro/empty-state logic in one place.
  */
-export function renderIndexShell(sectionHtmls: readonly string[]): string {
-  if (sectionHtmls.length === 0) {
-    return page(
-      `${INDEX_HEADER}<p class="lede">No runs have been promoted yet. Promote one with
-<code>pnpm report:promote -- &lt;bundle-dir&gt;</code>.</p>`,
-      "index.html",
-    );
+export function renderOverviewBody(cardHtmls: readonly string[]): string {
+  if (cardHtmls.length === 0) {
+    return `${OVERVIEW_HEADER}<p class="lede">No runs have been promoted yet. Promote one with
+<code>pnpm report:promote -- &lt;bundle-dir&gt;</code>.</p>`;
   }
-  return page(`${INDEX_HEADER}${sectionHtmls.join("\n")}`, "index.html");
+  return `${OVERVIEW_HEADER}<div class="cards">${cardHtmls.join("\n")}</div>`;
+}
+
+/** Distinct model names across a set of runs, sorted for deterministic order. */
+function distinctModels(modelNames: readonly string[]): string[] {
+  return [...new Set(modelNames)].sort();
+}
+
+/** The fields every overview card shows; the headline stat is per-experiment. */
+export interface OverviewCard {
+  readonly experimentId: string;
+  readonly lede: string;
+  readonly runCount: number;
+  readonly latestDate: string;
+  readonly models: readonly string[];
+  /** Experiment-specific headline stat line, already HTML-safe. */
+  readonly headlineHtml: string;
 }
 
 /**
- * The index section for a babel-relay experiment: heading anchor, explainer,
- * computed findings panel, coverage-gated interpretation, and the relay run
- * list (silent-divergence columns). Byte-identical to the pre-adapter output.
+ * One compact overview card: experiment name (linking to its page), lede,
+ * run count, latest run date, model list, and the experiment's headline stat.
+ * Cards live only on the overview page, so links are relative to the dist root.
+ */
+export function renderExperimentCard(card: OverviewCard): string {
+  const models =
+    card.models.length === 0
+      ? "&mdash;"
+      : card.models
+          .map((name) => `<code>${escapeHtml(shortModel(name))}</code>`)
+          .join(", ");
+  return `<article class="card">
+<h2><a href="${escapeHtml(card.experimentId)}/index.html">${escapeHtml(card.experimentId)}</a></h2>
+<p class="card-lede">${escapeHtml(card.lede)}</p>
+<dl class="card-facts">
+<dt>Runs</dt><dd>${card.runCount}</dd>
+<dt>Latest</dt><dd>${escapeHtml(card.latestDate)}</dd>
+<dt>Models</dt><dd>${models}</dd>
+</dl>
+<p class="card-headline">${card.headlineHtml}</p>
+</article>`;
+}
+
+/**
+ * The babel-relay overview card: shared facts plus a headline drawn from the
+ * latest run's enforced arm — silent divergence and task success.
+ */
+export function renderBabelRelayCard(
+  experimentId: string,
+  runs: readonly RunView[],
+): string {
+  const explainer = getExplainer(experimentId);
+  const sorted = runs
+    .slice()
+    .sort((a, b) => b.manifest.createdAt.localeCompare(a.manifest.createdAt));
+  const latest = sorted[0];
+  let headlineHtml = "&mdash;";
+  if (latest !== undefined) {
+    const enforced = conditionByName(latest.aggregate, "addressed-enforced");
+    if (enforced !== undefined) {
+      headlineHtml = `Latest <code>addressed-enforced</code> &mdash; silent divergence <span class="tnum">${percent(enforced.silentDivergenceRate)}</span>, task success <span class="tnum">${percent(enforced.taskSuccessRate)}</span>`;
+    }
+  }
+  return renderExperimentCard({
+    experimentId,
+    lede: explainer?.lede ?? experimentId,
+    runCount: runs.length,
+    latestDate:
+      latest === undefined
+        ? "&mdash;"
+        : conditionDate(latest.manifest.createdAt),
+    models: distinctModels(
+      runs.map((run) => run.manifest.provenance.modelName),
+    ),
+    headlineHtml,
+  });
+}
+
+/**
+ * The per-experiment page body for a babel-relay experiment: the experiment
+ * name as the page heading, explainer, computed findings panel, coverage-gated
+ * interpretation, and the relay run list (silent-divergence columns). Build-site
+ * wraps this in the page chrome and writes it to `<experimentId>/index.html`.
  */
 export function renderBabelRelaySection(
   experimentId: string,
@@ -958,7 +1127,7 @@ export function renderBabelRelaySection(
     })
     .join("\n");
 
-  return `<h2 id="${escapeHtml(experimentAnchor(experimentId))}">${escapeHtml(experimentId)}</h2>
+  return `<h1>${escapeHtml(experimentId)}</h1>
 ${explainerBlock(experimentId)}
 ${renderFindingsPanel(experimentId, experimentRuns)}
 ${renderInterpretation(experimentId, promotedRunIds)}
@@ -974,25 +1143,6 @@ ${renderInterpretation(experimentId, promotedRunIds)}
 </table></div>
 <p class="note">Silent divergence is the share of drift trials where injected drift went
 undetected and the relay proceeded &mdash; lower is better.</p>`;
-}
-
-/**
- * Render the full index for a homogeneous set of babel-relay runs. Retained for
- * tests and as the babel section source of truth; build-site drives the index
- * through the adapter registry and {@link renderIndexShell} instead.
- */
-export function renderIndex(runs: readonly RunView[]): string {
-  const byExperiment = new Map<string, RunView[]>();
-  for (const run of runs) {
-    const list = byExperiment.get(run.manifest.experimentId) ?? [];
-    list.push(run);
-    byExperiment.set(run.manifest.experimentId, list);
-  }
-  const experiments = [...byExperiment.keys()].sort();
-  const sections = experiments.map((experimentId) =>
-    renderBabelRelaySection(experimentId, byExperiment.get(experimentId) ?? []),
-  );
-  return renderIndexShell(sections);
 }
 
 // -------------------------------------------------------------------------
@@ -1273,7 +1423,7 @@ export function renderRunPage(run: RunView): string {
     explainer === undefined
       ? ""
       : `<p class="lede">${escapeHtml(explainer.lede)}
-<a class="about-link" href="../index.html#${escapeHtml(experimentAnchor(m.experimentId))}">About this experiment</a></p>`;
+<a class="about-link" href="../index.html">About this experiment</a></p>`;
 
   const banner = `<div class="banner banner-${m.mode}">
 <div>${badge(m.mode)}</div>
@@ -1302,8 +1452,8 @@ export function renderRunPage(run: RunView): string {
 (${equalProse.silentDivergences}/${equalProse.driftTrials}).</p>`;
   }
 
-  const body = `
-<p class="crumbs"><a href="../index.html">&larr; All reports</a></p>
+  return `
+<p class="crumbs"><a href="../index.html">&larr; ${escapeHtml(m.experimentId)}</a></p>
 <h1>${escapeHtml(m.experimentId)}</h1>
 <p class="meta"><code>${escapeHtml(m.runId)}</code> &middot; ${escapeHtml(conditionDate(m.createdAt))} &middot; ${m.trialCount} trials across ${m.scenarioCount} scenarios</p>
 ${about}
@@ -1328,6 +1478,4 @@ ${scenarioGrid(run.aggregate)}
 <p class="note">The public derivative strips raw provider payloads and caps transcript
 text. Full raw bundles are retained locally only.</p>
 ${SORT_SCRIPT}`;
-
-  return page(body, "../index.html");
 }

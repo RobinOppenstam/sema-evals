@@ -30,6 +30,7 @@ import {
 } from "../adapter-support.js";
 import { buildPublicTrialsJsonl } from "../public-derivative.js";
 import {
+  renderBabelRelayCard,
   renderBabelRelaySection,
   renderRunPage,
   type RunView,
@@ -94,13 +95,14 @@ export const babelRelayAdapter: ExperimentAdapter = {
       runs.push({
         runId,
         createdAt: manifest.createdAt,
-        runPage: renderRunPage(view),
+        runBody: renderRunPage(view),
       });
     }
     return {
       experimentId: EXPERIMENT_ID,
       runs,
-      indexSection: renderBabelRelaySection(EXPERIMENT_ID, views),
+      experimentBody: renderBabelRelaySection(EXPERIMENT_ID, views),
+      overviewCard: renderBabelRelayCard(EXPERIMENT_ID, views),
     };
   },
 };

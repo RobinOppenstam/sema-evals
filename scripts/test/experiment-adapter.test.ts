@@ -8,9 +8,9 @@ import {
 } from "../lib/experiment-adapter.js";
 import { aggregateTrials } from "../lib/aggregate.js";
 import {
+  renderBabelRelayCard,
   renderBabelRelaySection,
-  renderIndex,
-  renderIndexShell,
+  renderOverviewBody,
   type RunView,
 } from "../lib/render.js";
 import { makeTrial } from "./fixtures.js";
@@ -81,14 +81,14 @@ describe("experiment-adapter registry", () => {
   });
 });
 
-describe("babel-relay index rendering is unchanged by the refactor", () => {
-  it("renderIndex equals the shell composed from the babel section", () => {
-    const run = makeBabelRunView();
-    // The adapter path builds the index as shell([section, ...]); the retained
-    // renderIndex must produce byte-identical HTML for the same babel runs.
-    expect(renderIndex([run])).toEqual(
-      renderIndexShell([renderBabelRelaySection("babel-relay", [run])]),
-    );
+describe("babel-relay per-experiment page rendering", () => {
+  it("renders a self-contained experiment page body headed by the experiment name", () => {
+    const html = renderBabelRelaySection("babel-relay", [makeBabelRunView()]);
+    // The section is now the per-experiment page body: h1 heading, explainer,
+    // and the run list — not an h2 section spliced into a combined index.
+    expect(html).toContain("<h1>babel-relay</h1>");
+    expect(html).toContain('<table class="runlist">');
+    expect(html).not.toContain("<h2 id=");
   });
 
   it("keeps the relay-specific run-list columns", () => {
@@ -96,5 +96,35 @@ describe("babel-relay index rendering is unchanged by the refactor", () => {
     expect(html).toContain("Silent div.<br>enforced");
     expect(html).toContain("Silent div.<br>equal-prose");
     expect(html).not.toContain("Best full-");
+  });
+});
+
+describe("overview cards", () => {
+  it("renders a compact babel-relay card linking to its experiment page", () => {
+    const html = renderBabelRelayCard("babel-relay", [makeBabelRunView()]);
+    // Card heading links to the per-experiment page; lede and facts are present.
+    expect(html).toContain(
+      '<h2><a href="babel-relay/index.html">babel-relay</a></h2>',
+    );
+    expect(html).toContain('<p class="card-lede">');
+    expect(html).toContain("<dt>Runs</dt><dd>1</dd>");
+    expect(html).toContain("<dt>Latest</dt>");
+    // The card always carries a headline slot (the enforced-arm figure when
+    // present; the real-data integration test exercises the populated headline).
+    expect(html).toContain('<p class="card-headline">');
+  });
+
+  it("composes the overview body from the intro plus a cards grid", () => {
+    const card = renderBabelRelayCard("babel-relay", [makeBabelRunView()]);
+    const body = renderOverviewBody([card]);
+    expect(body).toContain("<h1>sema-evals</h1>");
+    expect(body).toContain('<div class="cards">');
+    expect(body).toContain(card);
+  });
+
+  it("renders the empty state when no experiments have runs", () => {
+    const body = renderOverviewBody([]);
+    expect(body).toContain("No runs have been promoted yet");
+    expect(body).not.toContain('<div class="cards">');
   });
 });
