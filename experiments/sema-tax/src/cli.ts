@@ -35,6 +35,27 @@ import {
   semaTaxTrialRecordSchema,
   type SemaTaxTrialRecord,
 } from "./schemas.js";
+import {
+  buildSizeReuseConditions,
+  parseSizeReuseCondition,
+} from "./size-reuse/conditions.js";
+import {
+  runModelSizeReuseTrial,
+  runSimulatedSizeReuseTrial,
+} from "./size-reuse/executor.js";
+import { loadSizeReuseFixtureFile } from "./size-reuse/fixtures.js";
+import {
+  SEMA_TAX_REUSE_FACTORS,
+  SEMA_TAX_SIZE_REUSE_PATTERN_COUNT,
+  SEMA_TAX_SIZE_TIERS,
+  semaTaxSizeReuseResultManifestSchema,
+  semaTaxSizeReuseTrialRecordSchema,
+  type SemaTaxSizeReuseTrialRecord,
+} from "./size-reuse/schemas.js";
+import {
+  sizeReuseSummaryMarkdown,
+  summarizeSizeReuse,
+} from "./size-reuse/summary.js";
 import { semaTaxSummaryMarkdown, summarizeSemaTax } from "./summary.js";
 import { runSimulatedTaxTrial } from "./tax.js";
 
@@ -53,8 +74,15 @@ const MAX_CONCURRENCY = 32;
 
 type RunMode = "deterministic" | "model-pilot";
 type ModelProvider = "anthropic" | "openai-compatible";
+type ExperimentArm = "default" | "size-reuse";
+
+const DEFAULT_FIXTURE_RELATIVE =
+  "experiments/sema-tax/fixtures/worksheets.yaml";
+const SIZE_REUSE_FIXTURE_RELATIVE =
+  "experiments/sema-tax/fixtures/worksheets-size-reuse.yaml";
 
 interface CliOptions {
+  arm: ExperimentArm;
   mode: RunMode;
   fixturePath: string;
   outputRoot: string;
@@ -112,8 +140,10 @@ function usage(): string {
     "Usage: pnpm experiment:sema-tax -- [options]",
     "",
     "Options:",
+    "  --arm <a>           default (31-condition tax curve) or size-reuse",
+    "                      (ADR 0013: 27-condition size x reuse grid at p8 cold)",
     "  --mode <m>          deterministic or model-pilot (default: deterministic)",
-    "  --fixtures <path>   YAML worksheet fixture file",
+    "  --fixtures <path>   YAML worksheet fixture file (arm-specific default)",
     "  --output <path>     Result root directory",
     "  --order-seed <n>    Recorded randomization seed (default: 20260714)",
     "  --seeds <n>         Number of paired repetition seeds (default: 1)",
@@ -173,11 +203,9 @@ function resolveFromRepoRoot(value: string): string {
 
 export function parseArgs(args: readonly string[]): CliOptions {
   const options: CliOptions = {
+    arm: "default",
     mode: "deterministic",
-    fixturePath: join(
-      REPO_ROOT,
-      "experiments/sema-tax/fixtures/worksheets.yaml",
-    ),
+    fixturePath: join(REPO_ROOT, DEFAULT_FIXTURE_RELATIVE),
     outputRoot: join(REPO_ROOT, "results/sema-tax"),
     orderSeed: 20_260_714,
     seedCount: 1,
@@ -196,6 +224,7 @@ export function parseArgs(args: readonly string[]): CliOptions {
   let modelExplicit = false;
   let thinkingExplicit = false;
   let apiKeyEnvExplicit = false;
+  let fixtureExplicit = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -205,6 +234,14 @@ export function parseArgs(args: readonly string[]): CliOptions {
     if (argument === "--help") {
       console.log(usage());
       process.exit(0);
+    }
+    if (argument === "--arm") {
+      const arm = args[++index];
+      if (arm !== "default" && arm !== "size-reuse") {
+        throw new Error(`${argument} requires default or size-reuse.`);
+      }
+      options.arm = arm;
+      continue;
     }
     if (argument === "--mode") {
       const mode = args[++index];
@@ -216,6 +253,7 @@ export function parseArgs(args: readonly string[]): CliOptions {
     }
     if (argument === "--fixtures") {
       options.fixturePath = resolve(REPO_ROOT, args[++index] ?? "");
+      fixtureExplicit = true;
       continue;
     }
     if (argument === "--output") {
@@ -308,6 +346,12 @@ export function parseArgs(args: readonly string[]): CliOptions {
 
   if (options.mode === "model-pilot" && !options.seedCountExplicit) {
     options.seedCount = DEFAULT_MODEL_PILOT_REPETITIONS;
+  }
+
+  // The size/reuse arm ships its own fixture catalog; use it unless the caller
+  // named a fixture explicitly.
+  if (options.arm === "size-reuse" && !fixtureExplicit) {
+    options.fixturePath = join(REPO_ROOT, SIZE_REUSE_FIXTURE_RELATIVE);
   }
 
   if (options.provider === "openai-compatible") {
@@ -429,11 +473,185 @@ function trialProgressLine(
   );
 }
 
+/**
+ * Runs the size/reuse follow-up arm (ADR 0013): a 27-condition grid crossing
+ * three definition size tiers with three reuse factors and three delivery arms,
+ * at the fixed p8 cold pattern count. Each trial is R sequential worksheet
+ * messages in one conversation. Structurally parallels {@link main}'s default
+ * arm but uses the size/reuse fixtures, conditions, executors, schemas, and
+ * summary, and writes a bundle with its own distinct fixture digest.
+ */
+async function runSizeReuseArm(options: CliOptions): Promise<void> {
+  let concurrency = options.concurrency;
+  if (options.mode !== "model-pilot" && concurrency > 1) {
+    console.error(
+      `Note: --concurrency ${concurrency} is ignored in deterministic mode; running sequentially.`,
+    );
+    concurrency = 1;
+  }
+
+  const { fixtureDigest, fixtureSet, patternsByHandle } =
+    await loadSizeReuseFixtureFile(options.fixturePath);
+  const conditions = buildSizeReuseConditions();
+
+  let promptSnapshot: PromptSnapshot | undefined;
+  let adapter: ModelAgentAdapter<ModelPromptInput, ModelCompletion> | undefined;
+  const isModelPilot = options.mode === "model-pilot";
+  if (isModelPilot) {
+    promptSnapshot = await loadPromptSnapshot(PROMPTS_DIR);
+    adapter = createModelAdapter(promptSnapshot, options);
+    const scenarioCount = fixtureSet.scenarios.length;
+    const trialCount = scenarioCount * conditions.length * options.seedCount;
+    // Each condition's R sequential messages; summed over the grid per block.
+    const messagesPerBlock = conditions.reduce(
+      (total, condition) => total + parseSizeReuseCondition(condition).reuse,
+      0,
+    );
+    const messageCount = scenarioCount * options.seedCount * messagesPerBlock;
+    console.log(
+      "Sema tax size/reuse arm model pilot (exploratory, not confirmatory).",
+    );
+    console.log(
+      `Planned: ${scenarioCount} scenarios x ${conditions.length} conditions x ` +
+        `${options.seedCount} repetitions = ${trialCount} trials ` +
+        `(each an R-message conversation; ~${messageCount} model calls).`,
+    );
+  }
+
+  const referenceProvider = createReferenceProvider(options);
+  const semanticMetadata = await referenceProvider.metadata();
+  const seeds = Array.from({ length: options.seedCount }, (_, index) => index);
+
+  const promptDigest =
+    isModelPilot && promptSnapshot
+      ? promptSnapshot.promptDigest
+      : fingerprint({
+          experiment: EXPERIMENT_ID,
+          protocolVersion: PROTOCOL_VERSION,
+          policy: "deterministic-sema-tax-size-reuse-simulator-v1",
+        });
+
+  const provenance: TrialProvenance = {
+    artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
+    protocolVersion: PROTOCOL_VERSION,
+    fixtureDigest,
+    implementationCommit: gitRevision(),
+    dependencyLockDigest: await fileDigest(join(REPO_ROOT, "pnpm-lock.yaml")),
+    promptDigest,
+    semaVersion: semanticMetadata.semaVersion,
+    canonicalizationVersion: semanticMetadata.canonicalizationVersion,
+    vocabularyRoot: process.env.SEMA_VOCABULARY_ROOT ?? "",
+    semanticBackend: semanticMetadata.backend,
+    modelProvider: isModelPilot
+      ? options.provider === "openai-compatible"
+        ? options.host
+        : "anthropic"
+      : (process.env.MODEL_PROVIDER ?? "deterministic"),
+    modelName: isModelPilot
+      ? options.model
+      : (process.env.MODEL_NAME ?? "sema-tax-simulator-v1"),
+  };
+
+  const cells = planPairedMatrix({
+    experimentId: EXPERIMENT_ID,
+    protocolVersion: PROTOCOL_VERSION,
+    scenarios: fixtureSet.scenarios,
+    scenarioId: (scenario) => scenario.id,
+    conditions,
+    seeds,
+    orderSeed: options.orderSeed,
+  });
+
+  const records = await executeMatrix<
+    (typeof cells)[number]["scenario"],
+    (typeof cells)[number]["condition"],
+    SemaTaxSizeReuseTrialRecord
+  >(
+    cells,
+    (cell) => {
+      if (isModelPilot && adapter) {
+        return runModelSizeReuseTrial(cell, {
+          experimentId: EXPERIMENT_ID,
+          referenceProvider,
+          patternsByHandle,
+          provenance,
+          adapter,
+        });
+      }
+      return runSimulatedSizeReuseTrial(cell, {
+        experimentId: EXPERIMENT_ID,
+        referenceProvider,
+        patternsByHandle,
+        provenance,
+      });
+    },
+    { concurrency },
+  );
+
+  const createdAt = new Date();
+  const runId = `${timestampId(createdAt)}-size-reuse-order-${options.orderSeed}`;
+  const outputDirectory = join(options.outputRoot, runId);
+  const bundle = await writeResultBundleWith(
+    outputDirectory,
+    {
+      artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
+      protocolVersion: PROTOCOL_VERSION,
+      experimentId: EXPERIMENT_ID,
+      runId,
+      arm: "size-reuse" as const,
+      mode: isModelPilot ? "model-pilot" : "deterministic-harness",
+      evidenceClaim: isModelPilot
+        ? "Exploratory model pilot of the size/reuse arm (ADR 0013). Not preregistered, not confirmatory evidence. Provider cached-token telemetry is observational only (ADR 0011); the reported tokens are a growing multi-turn conversation."
+        : "Validates the size/reuse condition grid, per-message and cumulative byte/token accounting, one-time resolver hydration, the size-tier byte bands, scoring, randomization, and reporting only. Deterministic outcomes and token prices are scripted; the token model attributes each definition ingestion once per wire delivery (see ADR 0013).",
+      createdAt: createdAt.toISOString(),
+      orderSeed: options.orderSeed,
+      seeds,
+      conditions,
+      patternCount: SEMA_TAX_SIZE_REUSE_PATTERN_COUNT,
+      sizes: [...SEMA_TAX_SIZE_TIERS],
+      reuseFactors: [...SEMA_TAX_REUSE_FACTORS],
+      scenarioCount: fixtureSet.scenarios.length,
+      trialCount: records.length,
+      fixtureDigest,
+      provenance,
+    },
+    records,
+    {
+      manifestSchema: semaTaxSizeReuseResultManifestSchema,
+      recordSchema: semaTaxSizeReuseTrialRecordSchema,
+      summarize: summarizeSizeReuse,
+      renderMarkdown: sizeReuseSummaryMarkdown,
+    },
+  );
+
+  const summary = summarizeSizeReuse(records);
+  console.log(
+    `Sema tax size/reuse arm completed: ${summary.trialCount} trials.`,
+  );
+  console.log(
+    `Semantic backend: ${semanticMetadata.backend} (${semanticMetadata.semaVersion}, ${semanticMetadata.canonicalizationVersion})`,
+  );
+  console.log(`Result bundle: ${bundle.directory}`);
+  for (const condition of summary.conditions) {
+    console.log(
+      `${condition.condition.padEnd(28)} score=${condition.meanScore.toFixed(3)} ` +
+        `semB=${condition.meanTotalSemanticBytes.toFixed(0)} ` +
+        `tok=${condition.meanTotalModelTokens.toFixed(0)} ` +
+        `score/1kB=${condition.scorePerKSemanticByte.toFixed(4)}`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
   if (options.mode === "model-pilot") {
     assertProviderApiKey(options);
+  }
+
+  if (options.arm === "size-reuse") {
+    await runSizeReuseArm(options);
+    return;
   }
 
   let concurrency = options.concurrency;

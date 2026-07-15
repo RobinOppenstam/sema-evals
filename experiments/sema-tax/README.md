@@ -120,6 +120,37 @@ CI.
 The semantic backend flags (`--semantic-backend`, `--sema-python`) compose with
 either mode, exactly as in the Babel Relay.
 
+## The size/reuse arm (`--arm size-reuse`)
+
+A follow-up arm that tests the published prediction — _the addressing tax shrinks
+as definitions grow or are reused_ — by adding two orthogonal axes at the fixed
+`p8` cold point. Design: [ADR 0013](../../docs/adr/0013-sema-tax-size-reuse-arm.md).
+
+- **Definition size** `{small, medium, large}` — the same scoreable core carries
+  realistic auxiliary specification content sized to canonical byte bands (medium
+  900–1200 B, large 3500–4500 B). The scorer never reads the auxiliary fields, so
+  difficulty and ground truth are constant across tiers while bytes vary ~40×.
+- **Reuse R** `{1, 3, 9}` — a trial is R sequential worksheet messages in one
+  conversation. Prose re-ships the definitions every message; the resolver arms
+  ship compact references every message but hydrate once. Wire scales with R;
+  hydration does not.
+- **Delivery** `{prose, opaque, content}`, cold only. `3 × 3 × 3 = 27` conditions.
+
+`p8-small-r1-{delivery}-cold` is byte-parity with the base `p8-{delivery}-cold`
+cell. Endpoints are score per total semantic byte **and** per total model token,
+as a function of size × R per delivery; `summary.md` includes a **crossover
+surface** table (prose vs content, per size × R).
+
+```bash
+pnpm experiment:sema-tax -- --arm size-reuse
+```
+
+The arm ships its own fixture catalog (`fixtures/worksheets-size-reuse.yaml`) and
+writes a bundle with a distinct fixture digest. Model-pilot is wired (the R
+messages form a real growing conversation) but is exploratory; the deterministic
+token model attributes each definition ingestion once per wire delivery (see ADR
+0013), while the semantic-byte channel is the controlled, exact measurement.
+
 ## Result bundle
 
 Each run writes `manifest.json`, `trials.jsonl`, `summary.json`, and
