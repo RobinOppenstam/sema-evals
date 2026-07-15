@@ -3,6 +3,10 @@ import type {
   ResultManifest,
 } from "../../packages/core/src/schemas.js";
 import { getExplainer } from "../site-content/explainers.js";
+import {
+  getInterpretation,
+  uncoveredRunIds,
+} from "../site-content/interpretations.js";
 import type {
   ConditionAggregate,
   SiteAggregate,
@@ -83,6 +87,10 @@ const STYLE = `
   --detect: #1c5cab;
   --warn: #9a5a00;
   --danger: #c0272b;
+  /* Two categorical series hues for the findings dumbbell (validated against
+     the data-viz palette checks in both light and dark; see PR notes). */
+  --series-a: #2a78d6;
+  --series-b: #c77f00;
   --badge-harness-fg: #52514e;
   --badge-harness-bg: #f2f1ec;
   --badge-harness-bd: rgba(11, 11, 11, 0.16);
@@ -122,6 +130,10 @@ const STYLE = `
     --detect: #6da7ec;
     --warn: #e0a24a;
     --danger: #e66767;
+    /* Same two series hues: both clear the dark-mode lightness band, chroma
+       floor, CVD separation and 3:1 contrast on the dark surface. */
+    --series-a: #2a78d6;
+    --series-b: #c77f00;
     --badge-harness-fg: #c3c2b7;
     --badge-harness-bg: #232320;
     --badge-harness-bd: rgba(255, 255, 255, 0.18);
@@ -359,6 +371,48 @@ th[role="button"]::after { content: " \\2195"; color: var(--axis); font-size: 0.
 .bar-divergence { fill: var(--danger); }
 .bar-success { fill: var(--success); }
 
+/* Findings dumbbell. Two categorical series (the two models) carry the only
+   colour; the connector, grid and zero line are recessive ink, and every label
+   uses a text token — never a series hue. The zero line is deliberately a step
+   heavier than the hairline grid because Lookup and Detection straddle it. */
+.dumbbell-connector { stroke: var(--axis); stroke-width: 2; }
+.chart-zero { stroke: var(--text-2); stroke-width: 1.5; }
+.dumbbell-dot { stroke: var(--bg); stroke-width: 2; }
+.dumbbell-a { fill: var(--series-a); }
+.dumbbell-b { fill: var(--series-b); }
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  margin: 0.5rem 0 0.25rem;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.chart-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.chart-legend .swatch { width: 0.7rem; height: 0.7rem; border-radius: 50%; display: inline-block; }
+.chart-legend .swatch-a { background: var(--series-a); }
+.chart-legend .swatch-b { background: var(--series-b); }
+
+/* Findings panel: computed, from the same recompute path as everything else. */
+.findings { margin: 0.75rem 0 1.5rem; }
+.findings h3 { margin-top: 0; }
+.findings .effects td.eff { font-variant-numeric: tabular-nums; }
+
+/* Interpretation note: the editorial reading, held in the small-print register
+   and boxed like a banner so it never reads as a computed figure. */
+.interpretation {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0.85rem 1rem 0.95rem;
+  margin: 1.25rem 0 1.5rem;
+  max-width: none;
+}
+.interpretation h3 { margin: 0 0 0.35rem; font-size: var(--fs-1); }
+.interpretation .asof { color: var(--muted); font-weight: 600; letter-spacing: 0.01em; }
+.interpretation p { color: var(--text-2); font-size: var(--fs-sm); margin: 0.5rem 0 0; max-width: var(--measure); }
+
 /* Per-scenario glyph grid. Fixed layout + wrapping cells keep the matrix inside
    the container regardless of how many seeds land in a cell. */
 .grid-wrap { overflow-x: auto; scrollbar-width: thin; margin: 0.25rem 0 0.5rem; }
@@ -395,7 +449,7 @@ th[role="button"]::after { content: " \\2195"; color: var(--axis); font-size: 0.
   h2 { border-top-color: #cccccc; }
   tbody tr:hover { background: transparent; }
   .banner, .grid, table { break-inside: avoid; }
-  .chart { break-inside: avoid; }
+  .chart, .interpretation { break-inside: avoid; }
 }
 `;
 
@@ -472,6 +526,375 @@ ${body}
 }
 
 // -------------------------------------------------------------------------
+// Findings panel (computed effect sizes + dumbbell)
+//
+// Every number here is derived from the same recomputed per-condition aggregate
+// that drives the rest of the site — never a stored summary. Effects are
+// differences in task-success rate, expressed in percentage points.
+// -------------------------------------------------------------------------
+
+/** The four decomposition effects plus the addressed-arm safety figures. */
+export interface RunFindings {
+  /** equal-prose − baseline (value of content alone), null if a condition is absent. */
+  content: number | null;
+  /** opaque-resolver − equal-prose (value of compact lookup). */
+  lookup: number | null;
+  /** addressed-voluntary − equal-prose (value of detection alone). */
+  detection: number | null;
+  /** addressed-enforced − addressed-voluntary (value of enforcement). */
+  enforcement: number | null;
+  /** Silent divergences summed across both addressed arms. */
+  addressedSilentDivergences: number;
+  /** Drift trials summed across both addressed arms (the divergence denominator). */
+  addressedDriftTrials: number;
+  /** False halts in the enforced arm, or null when that arm is absent. */
+  enforcedFalseHalts: number | null;
+  /** Trials in the enforced arm (the false-halt denominator), or null when absent. */
+  enforcedTrials: number | null;
+}
+
+function taskSuccessRate(
+  aggregate: SiteAggregate,
+  condition: ExperimentCondition,
+): number | undefined {
+  return conditionByName(aggregate, condition)?.taskSuccessRate;
+}
+
+/** Effect in percentage points, or null when either condition is missing. */
+function effectPp(
+  aggregate: SiteAggregate,
+  minuend: ExperimentCondition,
+  subtrahend: ExperimentCondition,
+): number | null {
+  const a = taskSuccessRate(aggregate, minuend);
+  const b = taskSuccessRate(aggregate, subtrahend);
+  if (a === undefined || b === undefined) {
+    return null;
+  }
+  return (a - b) * 100;
+}
+
+/** Recompute the four decomposition effects and addressed-arm safety figures. */
+export function computeRunFindings(aggregate: SiteAggregate): RunFindings {
+  const voluntary = conditionByName(aggregate, "addressed-voluntary");
+  const enforced = conditionByName(aggregate, "addressed-enforced");
+  const addressedArms = [voluntary, enforced].filter(
+    (c): c is ConditionAggregate => c !== undefined,
+  );
+  return {
+    content: effectPp(aggregate, "equal-prose", "baseline"),
+    lookup: effectPp(aggregate, "opaque-resolver", "equal-prose"),
+    detection: effectPp(aggregate, "addressed-voluntary", "equal-prose"),
+    enforcement: effectPp(
+      aggregate,
+      "addressed-enforced",
+      "addressed-voluntary",
+    ),
+    addressedSilentDivergences: addressedArms.reduce(
+      (sum, c) => sum + c.silentDivergences,
+      0,
+    ),
+    addressedDriftTrials: addressedArms.reduce(
+      (sum, c) => sum + c.driftTrials,
+      0,
+    ),
+    enforcedFalseHalts: enforced?.falseHalts ?? null,
+    enforcedTrials: enforced?.trials ?? null,
+  };
+}
+
+/** Signed percentage-point label at fixed precision, e.g. "+18.3" / "-2.2". */
+function formatPp(value: number | null): string {
+  if (value === null) {
+    return "&mdash;";
+  }
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(1)}`;
+}
+
+/** Short model identifier for labels: the segment after the provider slash. */
+function shortModel(modelName: string): string {
+  const slash = modelName.lastIndexOf("/");
+  return slash === -1 ? modelName : modelName.slice(slash + 1);
+}
+
+/**
+ * The largest promoted model-pilot run per model, one per distinct model name,
+ * ordered by model name so hue assignment and legend order are deterministic.
+ */
+export function selectLargestPilotRunPerModel(
+  runs: readonly RunView[],
+): RunView[] {
+  const bestByModel = new Map<string, RunView>();
+  for (const run of runs) {
+    if (run.manifest.mode !== "model-pilot") {
+      continue;
+    }
+    const model = run.manifest.provenance.modelName;
+    const current = bestByModel.get(model);
+    if (
+      current === undefined ||
+      run.manifest.trialCount > current.manifest.trialCount
+    ) {
+      bestByModel.set(model, run);
+    }
+  }
+  return [...bestByModel.values()].sort((a, b) =>
+    a.manifest.provenance.modelName.localeCompare(
+      b.manifest.provenance.modelName,
+    ),
+  );
+}
+
+function effectsTable(pilots: readonly RunView[]): string {
+  const rows = pilots
+    .slice()
+    .sort((a, b) => {
+      const byModel = a.manifest.provenance.modelName.localeCompare(
+        b.manifest.provenance.modelName,
+      );
+      return byModel !== 0
+        ? byModel
+        : a.manifest.trialCount - b.manifest.trialCount;
+    })
+    .map((run) => {
+      const f = computeRunFindings(run.aggregate);
+      const addressedRate = rateText(
+        f.addressedSilentDivergences,
+        f.addressedDriftTrials,
+      );
+      const falseHalt =
+        f.enforcedFalseHalts === null || f.enforcedTrials === null
+          ? "&mdash;"
+          : rateText(f.enforcedFalseHalts, f.enforcedTrials);
+      return `<tr>
+<td><code>${escapeHtml(shortModel(run.manifest.provenance.modelName))}</code></td>
+<td class="num">${run.manifest.trialCount}</td>
+<td class="num eff">${formatPp(f.content)}</td>
+<td class="num eff">${formatPp(f.lookup)}</td>
+<td class="num eff">${formatPp(f.detection)}</td>
+<td class="num eff">${formatPp(f.enforcement)}</td>
+<td class="num">${addressedRate}</td>
+<td class="num">${falseHalt}</td>
+</tr>`;
+    })
+    .join("\n");
+  return `<div class="table-wrap"><table class="effects">
+<thead><tr>
+<th>Model</th>
+<th class="num">Trials</th>
+<th class="num">Content<br>(pp)</th>
+<th class="num">Lookup<br>(pp)</th>
+<th class="num">Detection<br>alone (pp)</th>
+<th class="num">Enforce&shy;ment<br>(pp)</th>
+<th class="num">Addressed<br>silent div.</th>
+<th class="num">Enforced<br>false halt</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>`;
+}
+
+/** "n/d (pct)" with the count leading, echoing the run-page count/rate style. */
+function rateText(numerator: number, denominator: number): string {
+  const r = denominator === 0 ? 0 : numerator / denominator;
+  return `${numerator}/${denominator} <span class="muted">(${percent(r)})</span>`;
+}
+
+interface DumbbellRow {
+  label: string;
+  a: number;
+  b: number;
+}
+
+interface DumbbellSeries {
+  label: string;
+  cls: "a" | "b";
+}
+
+// Dumbbell chart: one row per effect, two dots per row (one per model) joined by
+// a thin connector. One horizontal axis in percentage points with an emphasised
+// zero line. Geometry is emitted at fixed precision so rebuilds stay
+// byte-identical; there is no JS/hover layer — direct value labels at every dot
+// are the documented static-chart compensation.
+function dumbbellChart(
+  rows: readonly DumbbellRow[],
+  seriesA: DumbbellSeries,
+  seriesB: DumbbellSeries,
+): string {
+  const values = rows.flatMap((row) => [row.a, row.b]);
+  const domMin = Math.floor(Math.min(0, ...values) / 10) * 10;
+  const domMax = Math.ceil(Math.max(0, ...values) / 10) * 10;
+  const span = domMax - domMin;
+
+  const top = 16;
+  const rowH = 42;
+  const labelEnd = 132;
+  const plotX = 150;
+  const plotW = 500;
+  const width = 760;
+  const plotBottom = top + rows.length * rowH;
+  const height = plotBottom + 30;
+  const x = (value: number): number =>
+    plotX + ((value - domMin) / span) * plotW;
+
+  const ticks: number[] = [];
+  for (let t = domMin; t <= domMax; t += 10) {
+    ticks.push(t);
+  }
+  const gridlines = ticks
+    .map((t) => {
+      const gx = x(t);
+      const cls = t === 0 ? "chart-zero" : "chart-grid";
+      return `<line class="${cls}" x1="${fmt(gx)}" y1="${top}" x2="${fmt(gx)}" y2="${plotBottom}"></line>`;
+    })
+    .join("");
+  const tickLabels = ticks
+    .map((t) => {
+      const gx = x(t);
+      return `<text class="chart-tick" x="${fmt(gx)}" y="${plotBottom + 16}" text-anchor="middle">${t}</text>`;
+    })
+    .join("");
+
+  const marks = rows
+    .map((row, index) => {
+      const y = top + index * rowH + rowH / 2;
+      const xa = x(row.a);
+      const xb = x(row.b);
+      const c1 = Math.min(xa, xb);
+      const c2 = Math.max(xa, xb);
+      const connector = `<line class="dumbbell-connector" x1="${fmt(c1)}" y1="${fmt(y)}" x2="${fmt(c2)}" y2="${fmt(y)}"></line>`;
+      const dotA = `<circle class="dumbbell-dot dumbbell-${seriesA.cls}" cx="${fmt(xa)}" cy="${fmt(y)}" r="5"></circle>`;
+      const dotB = `<circle class="dumbbell-dot dumbbell-${seriesB.cls}" cx="${fmt(xb)}" cy="${fmt(y)}" r="5"></circle>`;
+      // Each value label rides its dot on the outward side, so a close pair
+      // (Detection, Lookup) never collides — the labels diverge, not stack.
+      const aLeft = xa <= xb;
+      const labelA = valueLabel(row.a, xa, y, aLeft);
+      const labelB = valueLabel(row.b, xb, y, !aLeft);
+      const name = `<text class="chart-label" x="${labelEnd}" y="${fmt(y + 4)}" text-anchor="end">${escapeHtml(row.label)}</text>`;
+      return `<g>${name}${connector}${dotA}${dotB}${labelA}${labelB}</g>`;
+    })
+    .join("\n");
+
+  const legend = `<div class="chart-legend">
+<span><span class="swatch swatch-${seriesA.cls}"></span>${escapeHtml(seriesA.label)}</span>
+<span><span class="swatch swatch-${seriesB.cls}"></span>${escapeHtml(seriesB.label)}</span>
+</div>`;
+
+  return `${legend}<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Effect sizes in percentage points of task success, two models per effect" preserveAspectRatio="xMinYMin meet">
+<g>${gridlines}${tickLabels}</g>
+${marks}
+</svg></div>
+<p class="note">Percentage points of task success. Two dots per row &mdash; one per model, using each
+model's largest promoted pilot &mdash; joined by a connector; the heavier line marks zero.</p>`;
+}
+
+// A dot's value label, anchored on its outward side (end-anchored to the left,
+// start-anchored to the right) with a fixed 9px gap from the dot.
+function valueLabel(
+  value: number,
+  cx: number,
+  y: number,
+  toLeft: boolean,
+): string {
+  const anchor = toLeft ? "end" : "start";
+  const lx = toLeft ? cx - 9 : cx + 9;
+  return `<text class="chart-value" x="${fmt(lx)}" y="${fmt(y + 4)}" text-anchor="${anchor}">${formatPp(value)}</text>`;
+}
+
+/**
+ * The computed findings panel for an experiment: an effects table over every
+ * promoted model-pilot run, plus a dumbbell of the four decomposition effects
+ * using each model's largest pilot. Renders nothing when the experiment has no
+ * model-pilot runs.
+ */
+export function renderFindingsPanel(
+  experimentId: string,
+  runs: readonly RunView[],
+): string {
+  const pilots = runs.filter((run) => run.manifest.mode === "model-pilot");
+  if (pilots.length === 0) {
+    return "";
+  }
+  const largest = selectLargestPilotRunPerModel(pilots);
+
+  const effectRows: { label: string; key: keyof RunFindings }[] = [
+    { label: "Content", key: "content" },
+    { label: "Lookup", key: "lookup" },
+    { label: "Detection alone", key: "detection" },
+    { label: "Enforcement", key: "enforcement" },
+  ];
+
+  let chart = "";
+  const modelA = largest[0];
+  const modelB = largest[1];
+  if (largest.length === 2 && modelA !== undefined && modelB !== undefined) {
+    const fA = computeRunFindings(modelA.aggregate);
+    const fB = computeRunFindings(modelB.aggregate);
+    const rows: DumbbellRow[] = effectRows
+      .map(({ label, key }) => {
+        const a = fA[key];
+        const b = fB[key];
+        if (typeof a !== "number" || typeof b !== "number") {
+          return undefined;
+        }
+        return { label, a, b };
+      })
+      .filter((row): row is DumbbellRow => row !== undefined);
+    if (rows.length > 0) {
+      const labelA = `${shortModel(modelA.manifest.provenance.modelName)} · ${modelA.manifest.trialCount} trials`;
+      const labelB = `${shortModel(modelB.manifest.provenance.modelName)} · ${modelB.manifest.trialCount} trials`;
+      chart = dumbbellChart(
+        rows,
+        { label: labelA, cls: "a" },
+        { label: labelB, cls: "b" },
+      );
+    }
+  }
+
+  return `<div class="findings">
+<h3>Findings so far</h3>
+<p class="note">Effect sizes recomputed from each promoted pilot's public trials &mdash; differences in
+task-success rate, in percentage points. Exploratory, not confirmatory; read the interpretation below.</p>
+${effectsTable(pilots)}
+${chart}
+</div>`;
+}
+
+// -------------------------------------------------------------------------
+// Interpretation note (editorial, coverage-gated)
+// -------------------------------------------------------------------------
+
+/**
+ * The editorial interpretation note for an experiment. Renders nothing when no
+ * copy is registered or the experiment has no promoted runs. FAILS the build
+ * (throws) when a promoted run is not listed in the note's `coveredRunIds`, so
+ * a note can never silently describe a stale slice of the promoted data.
+ */
+export function renderInterpretation(
+  experimentId: string,
+  promotedRunIds: readonly string[],
+): string {
+  const interpretation = getInterpretation(experimentId);
+  if (interpretation === undefined || promotedRunIds.length === 0) {
+    return "";
+  }
+  const missing = uncoveredRunIds(experimentId, promotedRunIds);
+  if (missing.length > 0) {
+    throw new Error(
+      `Interpretation for "${experimentId}" does not cover promoted run(s): ${missing.join(", ")}. ` +
+        `Update coveredRunIds (and asOf) in scripts/site-content/interpretations.ts.`,
+    );
+  }
+  const paragraphs = interpretation.paragraphs
+    .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+    .join("\n");
+  return `<div class="interpretation">
+<h3>Interpretation <span class="asof">&mdash; as of ${escapeHtml(interpretation.asOf)}</span></h3>
+${paragraphs}
+</div>`;
+}
+
+// -------------------------------------------------------------------------
 // Index page
 // -------------------------------------------------------------------------
 
@@ -509,7 +932,9 @@ confirmatory. Only a <b>confirmatory</b> run tests a preregistered hypothesis.</
 
   const sections = experiments
     .map((experimentId) => {
-      const rows = (byExperiment.get(experimentId) ?? [])
+      const experimentRuns = byExperiment.get(experimentId) ?? [];
+      const promotedRunIds = experimentRuns.map((run) => run.manifest.runId);
+      const rows = experimentRuns
         .slice()
         .sort((a, b) =>
           b.manifest.createdAt.localeCompare(a.manifest.createdAt),
@@ -530,6 +955,8 @@ confirmatory. Only a <b>confirmatory</b> run tests a preregistered hypothesis.</
 
       return `<h2 id="${escapeHtml(experimentAnchor(experimentId))}">${escapeHtml(experimentId)}</h2>
 ${explainerBlock(experimentId)}
+${renderFindingsPanel(experimentId, experimentRuns)}
+${renderInterpretation(experimentId, promotedRunIds)}
 <div class="table-wrap"><table class="runlist">
 <thead><tr>
 <th>Date</th><th>Mode</th><th>Model / provider</th>

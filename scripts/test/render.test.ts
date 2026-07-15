@@ -13,7 +13,9 @@ function makeManifest(overrides: Partial<ResultManifest> = {}): ResultManifest {
     artifactSchemaVersion: "0.3.0",
     protocolVersion: "0.3.0",
     experimentId: "babel-relay",
-    runId: "20260714T000000000Z-order-20260714",
+    // A runId covered by the babel-relay interpretation note, so renderIndex's
+    // coverage gate is satisfied for this synthetic run.
+    runId: "20260714T170651223Z-order-20260714",
     mode: "model-pilot",
     evidenceClaim: "Exploratory model pilot. Not confirmatory evidence.",
     createdAt: "2026-07-14T00:00:00.000Z",
