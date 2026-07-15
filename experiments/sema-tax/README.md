@@ -30,16 +30,27 @@ linearly — so _success per token_ traces a genuine cost/benefit curve. The
   baseline; delivery and cache are undefined with no patterns).
 - **Delivery**: `prose` (full definitions inline), `opaque` (compact content-free
   lookup labels), `content` (content-addressed references).
-- **Cache**: `cold` (definitions fetched fresh) and `warm` (definitions resident
-  locally / in the prompt cache).
+- **Cache**: `cold` (definitions fetched fresh, paying hydration bytes) and
+  `warm` (definitions resident locally, zero hydration). The cold/warm axis is a
+  **harness-level hydration** distinction — cold pays hydration bytes to resolve
+  references, warm pays zero.
 
 Information parity holds: for a given active set the resolved-definitions block
 is byte-identical across all delivery arms and cache states; only the reference
 material above it differs. The opaque arm controls for compact lookup so any
 opaque-vs-content difference is attributable to content-addressing itself (ADR
-0002). Wire bytes and hydration bytes are recorded as separate channels, and the
-cold/warm split is recorded in the token account and cost — not in token
-throughput.
+0002). Wire bytes and hydration bytes are recorded as separate channels.
+
+> **Provider cache telemetry is observational, not controlled.** In model-pilot
+> mode against an OpenAI-compatible provider (e.g. Chutes), the provider caches
+> prompt prefixes automatically across _both_ the cold and warm arms — the first
+> instrumentation run saw `cachedInputTokensRead > 0` on all 225 cold trials as
+> well as all 225 warm trials. The harness cold/warm label does not control the
+> provider's cache. `cachedInputTokensRead` and provider-reported cost are still
+> recorded per trial, but they are observational, not a controlled cold/warm
+> effect. Only the harness-side hydration channel is controlled. The deterministic
+> simulator keeps its simulated cache accounting, labelled as modelling an
+> idealized provider. See [ADR 0011](../../docs/adr/0011-provider-cache-observational.md).
 
 ## Run (deterministic harness)
 
@@ -113,9 +124,19 @@ either mode, exactly as in the Babel Relay.
 
 Each run writes `manifest.json`, `trials.jsonl`, `summary.json`, and
 `summary.md` via `packages/reporters`. Metrics record, per trial and per
-condition: graded score and task success, wire bytes, hydration bytes, input /
+condition: graded score and task success, items answered (format compliance,
+separate from correctness — `itemsAnswered` alongside `itemsTotal` and
+`itemsCorrect`; unanswered = total − answered), wire bytes, hydration bytes, input /
 cached-input / output / total model tokens, cost, latency, and between-run
-variance — each reported separately.
+variance — each reported separately. The `summary.md` table carries a per-condition
+mean answered-rate column and, in model-pilot mode, notes that provider
+cached-token telemetry is observational.
+
+`itemsAnswered` was added after the first instrumentation run showed heavy format
+non-compliance (only 184/465 trials answered every item; 106 emitted zero
+parseable answer lines) that was invisible in `itemsCorrect` alone — a wrong
+answer and a missing answer both scored zero, so "answered wrong" could not be
+told apart from "did not answer" without re-parsing transcripts by hand.
 
 ## Phase 2 exit gate
 

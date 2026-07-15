@@ -11,7 +11,7 @@ import type {
  * is ever the source of truth. Bump this string (and never silently) if the
  * parsing or ground-truth rule changes.
  */
-export const SEMA_TAX_SCORER_VERSION = "sema-tax-worksheet-scorer-v1";
+export const SEMA_TAX_SCORER_VERSION = "sema-tax-worksheet-scorer-v2";
 
 export type WorksheetAnswer = "yes" | "no";
 
@@ -77,6 +77,11 @@ export interface ItemScore {
 export interface WorksheetScore {
   scorerVersion: string;
   itemsTotal: number;
+  /** Items with a parseable `ITEM <id>: yes|no` line for that item's id. This
+   * separates format compliance from correctness: an item can be answered yet
+   * wrong. Unanswered items = itemsTotal - itemsAnswered. Duplicate lines for one
+   * id count once (the parser keeps only the last). */
+  itemsAnswered: number;
   itemsCorrect: number;
   score: number;
   taskSuccess: boolean;
@@ -87,7 +92,9 @@ export interface WorksheetScore {
  * Scores a response against the worksheet ground truth. An item is correct only
  * when the parsed answer exactly matches the executable ground truth; a missing
  * or malformed answer is wrong (never dropped). `score` is the correct fraction;
- * `taskSuccess` requires every item correct.
+ * `taskSuccess` requires every item correct. `itemsAnswered` additionally reports
+ * format compliance — how many items got a parseable answer line at all — so a
+ * wrong answer is distinguishable from no answer without re-parsing transcripts.
  */
 export function scoreWorksheet(
   items: readonly SemaTaxItem[],
@@ -107,9 +114,13 @@ export function scoreWorksheet(
     return { id: item.id, expected, answered, correct: answered === expected };
   });
   const itemsCorrect = perItem.filter((entry) => entry.correct).length;
+  const itemsAnswered = perItem.filter(
+    (entry) => entry.answered !== "missing",
+  ).length;
   return {
     scorerVersion: SEMA_TAX_SCORER_VERSION,
     itemsTotal: items.length,
+    itemsAnswered,
     itemsCorrect,
     score: items.length === 0 ? 0 : itemsCorrect / items.length,
     taskSuccess: itemsCorrect === items.length,

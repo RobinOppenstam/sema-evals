@@ -72,6 +72,7 @@ describe("scoreWorksheet", () => {
       "ITEM item-01: yes\nITEM item-02: no",
     );
     expect(score.itemsCorrect).toBe(2);
+    expect(score.itemsAnswered).toBe(2);
     expect(score.score).toBe(1);
     expect(score.taskSuccess).toBe(true);
     expect(score.scorerVersion).toBe(SEMA_TAX_SCORER_VERSION);
@@ -87,6 +88,47 @@ describe("scoreWorksheet", () => {
     expect(score.score).toBe(0);
     expect(score.taskSuccess).toBe(false);
     expect(score.perItem[1]?.answered).toBe("missing");
+  });
+
+  it("separates answered from correct: a wrong-but-parseable item is answered", () => {
+    // item-01 answered wrong, item-02 answered right -> 2 answered, 1 correct.
+    const score = scoreWorksheet(
+      items,
+      patternsByHandle,
+      "ITEM item-01: no\nITEM item-02: no",
+    );
+    expect(score.itemsAnswered).toBe(2);
+    expect(score.itemsCorrect).toBe(1);
+  });
+
+  it("counts markdown-wrapped answer lines as answered", () => {
+    const score = scoreWorksheet(
+      items,
+      patternsByHandle,
+      "**ITEM item-01: yes**\n`ITEM item-02: no`",
+    );
+    expect(score.itemsAnswered).toBe(2);
+    expect(score.itemsCorrect).toBe(2);
+  });
+
+  it("does not count missing items toward itemsAnswered", () => {
+    const score = scoreWorksheet(
+      items,
+      patternsByHandle,
+      "ITEM item-01: yes", // item-02 has no line at all
+    );
+    expect(score.itemsAnswered).toBe(1);
+    expect(score.perItem[1]?.answered).toBe("missing");
+  });
+
+  it("does not double-count duplicate answer lines for one item", () => {
+    // Two lines for item-01, none for item-02: still exactly one answered item.
+    const score = scoreWorksheet(
+      items,
+      patternsByHandle,
+      "ITEM item-01: no\nITEM item-01: yes",
+    );
+    expect(score.itemsAnswered).toBe(1);
   });
 
   it("grades partial worksheets", () => {

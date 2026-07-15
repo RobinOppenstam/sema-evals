@@ -104,6 +104,10 @@ describe("runSimulatedTaxTrial scoring curve", () => {
       expect(record.metrics.score).toBeCloseTo(score, 10);
       expect(record.metrics.itemsTotal).toBe(8);
       expect(record.metrics.itemsCorrect).toBe(Math.round(score * 8));
+      // The deterministic executor simulates a fully compliant provider: every
+      // item is answered even when its pattern is inactive (answered wrong), so
+      // itemsAnswered equals itemsTotal regardless of coverage.
+      expect(record.metrics.itemsAnswered).toBe(8);
     }
   });
 
@@ -206,6 +210,8 @@ describe("runSimulatedTaxTrial matrix", () => {
       expect(semaTaxTrialRecordSchema.safeParse(record).success).toBe(true);
       expect(record.usage).toBeNull();
       expect(record.transcript).toBeNull();
+      // Full format compliance across the whole matrix.
+      expect(record.metrics.itemsAnswered).toBe(record.metrics.itemsTotal);
     }
   });
 
