@@ -40,7 +40,7 @@ const INTERPRETATIONS: Readonly<Record<string, ExperimentInterpretation>> = {
     ],
     paragraphs: [
       "These are exploratory pilots — a consistent signal, not a proven effect. Nothing below is confirmatory.",
-      "Across a 12B model and a frontier-class model, baseline drift behavior is capability-resistant: both silently execute drifted definitions in over 90% of baseline drift trials. Supplying full definitions as prose helps (+18 to +27 points) but requires no content addressing, and compact lookup is a wash. Content-addressed references made drift visible in every addressed trial across both pilots — yet visibility alone barely moved task success. Enforcement converted that detection into outcomes (+39 to +45 points over voluntary checking), reaching 93.9% and 98.9% task success respectively, with enforced-arm false halts at 5% and 0.6%.",
+      "Across a 12B model and a frontier-class model, baseline drift behavior is capability-resistant: both silently execute drifted definitions in over 90% of baseline drift trials. Supplying full definitions as prose helps (+18 to +27 points) but requires no content addressing, and compact lookup is a wash. Content-addressed references made drift visible in every addressed trial across both pilots — yet visibility alone barely moved task success. Enforcement converted that detection into outcomes (+39 to +45 points over voluntary checking), reaching 93.9% and 98.9% task success respectively, with enforced-arm false halts at 5% and 0%.",
       "The preregistered, confirmatory test of these effects has not yet run. Until it has, the strongest supportable claim is that the mechanism decomposition behaves as designed at two very different capability levels.",
     ],
   },
