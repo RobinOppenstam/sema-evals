@@ -579,8 +579,8 @@ async function main(): Promise<void> {
       runId,
       mode: isModelPilot ? "model-pilot" : "deterministic-harness",
       evidenceClaim: isModelPilot
-        ? "Exploratory model pilot. Not preregistered, not confirmatory evidence."
-        : "Validates the tax-curve condition matrix, byte/token accounting, cache split, scoring, randomization, and reporting only. Deterministic outcomes and token prices are scripted.",
+        ? "Exploratory model pilot. Not preregistered, not confirmatory evidence. Provider cached-token telemetry is observational only: the cold/warm axis controls harness-level hydration bytes, not the provider's automatic prompt-prefix caching, which may be active in both arms (see ADR 0011)."
+        : "Validates the tax-curve condition matrix, byte/token accounting, hydration cold/warm split, scoring, randomization, and reporting only. Deterministic outcomes and token prices are scripted, and the simulated cached-token accounting models an idealized provider (see ADR 0011).",
       createdAt: createdAt.toISOString(),
       orderSeed: options.orderSeed,
       seeds,

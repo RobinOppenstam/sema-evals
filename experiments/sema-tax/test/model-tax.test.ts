@@ -187,6 +187,8 @@ describe("runModelTaxTrial", () => {
 
     expect(record.metrics.taskSuccess).toBe(true);
     expect(record.metrics.score).toBe(1);
+    // Every item answered and correct.
+    expect(record.metrics.itemsAnswered).toBe(record.metrics.itemsTotal);
     // Token fields come from the provider's usage, not the harness estimate.
     expect(record.metrics.inputTokens).toBe(300);
     expect(record.metrics.cachedInputTokensRead).toBe(90);
@@ -223,6 +225,8 @@ describe("runModelTaxTrial", () => {
     expect(record.metrics.score).toBe(0);
     expect(record.metrics.taskSuccess).toBe(false);
     expect(record.metrics.itemsCorrect).toBe(0);
+    // Empty response: nothing parseable, so no item is answered.
+    expect(record.metrics.itemsAnswered).toBe(0);
     expect(record.usage?.attempts).toBe(5);
     expect(record.transcript).not.toBeNull();
     expect(semaTaxTrialRecordSchema.safeParse(record).success).toBe(true);
@@ -248,6 +252,9 @@ describe("runModelTaxTrial", () => {
 
     expect(record.metrics.itemsCorrect).toBe(4);
     expect(record.metrics.itemsTotal).toBe(8);
+    // Only the first four items got a line, so four are answered (all correct);
+    // the unanswered four are distinguishable from wrong answers.
+    expect(record.metrics.itemsAnswered).toBe(4);
     expect(record.metrics.score).toBe(0.5);
   });
 });

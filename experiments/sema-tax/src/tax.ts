@@ -24,9 +24,13 @@ export interface SimulatedTaxTrialOptions {
 /**
  * The scripted worksheet agent: it answers an item correctly exactly when the
  * item's pattern is in the active set (its definition was delivered), and emits
- * `unknown` otherwise. This makes the graded score equal the active-set
- * coverage of the worksheet — the benefit side of the tax curve — with no model
- * call and no randomness, so every aggregate is exactly reproducible.
+ * the opposite of ground truth otherwise. Every item still gets a format-compliant
+ * `ITEM <id>: yes|no` line — the simulated agent models an idealized, fully
+ * compliant provider, so `itemsAnswered == itemsTotal` for every trial — while an
+ * inactive-pattern item is deliberately answered wrong. The graded score therefore
+ * still equals the active-set coverage of the worksheet (the benefit side of the
+ * tax curve), with no model call and no randomness, so every aggregate is exactly
+ * reproducible.
  */
 export function simulateResponse(
   scenario: SemaTaxScenario,
@@ -35,16 +39,21 @@ export function simulateResponse(
 ): string {
   return scenario.items
     .map((item) => {
-      if (!activeHandles.has(item.patternHandle)) {
-        return `ITEM ${item.id}: unknown`;
-      }
       const pattern = patternsByHandle.get(item.patternHandle);
       if (!pattern) {
         throw new Error(
           `Item ${item.id} references unknown pattern ${item.patternHandle}.`,
         );
       }
-      return `ITEM ${item.id}: ${evaluateItem(pattern, item.value)}`;
+      const truth = evaluateItem(pattern, item.value);
+      // Active: answer correctly. Inactive: answer wrong but still compliant, so
+      // the item counts as answered yet not correct.
+      const answer = activeHandles.has(item.patternHandle)
+        ? truth
+        : truth === "yes"
+          ? "no"
+          : "yes";
+      return `ITEM ${item.id}: ${answer}`;
     })
     .join("\n");
 }

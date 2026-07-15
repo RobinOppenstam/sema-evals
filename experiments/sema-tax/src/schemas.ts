@@ -69,6 +69,10 @@ export const semaTaxMetricsSchema = z.object({
   cacheState: semaTaxCacheStateSchema,
   activePatternCount: z.number().int().nonnegative(),
   itemsTotal: z.number().int().positive(),
+  /** Items that received a parseable `ITEM <id>: yes|no` line (format
+   * compliance), separate from correctness. Unanswered = itemsTotal - itemsAnswered.
+   * itemsCorrect <= itemsAnswered always holds. */
+  itemsAnswered: z.number().int().nonnegative(),
   itemsCorrect: z.number().int().nonnegative(),
   /** Graded quality in [0, 1]: fraction of worksheet items answered correctly. */
   score: z.number().min(0).max(1),

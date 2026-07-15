@@ -74,6 +74,9 @@ describe("summarizeSemaTax", () => {
       // within-condition variance.
       expect(condition.scoreVariance).toBe(0);
       expect(condition.trials).toBeGreaterThan(0);
+      // The deterministic executor is fully compliant, so every condition's mean
+      // answered-rate is 1 (format compliance is decoupled from correctness).
+      expect(condition.meanAnsweredRate).toBe(1);
       // The primary endpoint: graded score per 1000 billable model tokens.
       const expected =
         condition.meanTotalModelTokens === 0
@@ -112,6 +115,10 @@ describe("summarizeSemaTax", () => {
     expect(markdown).toContain("# Sema tax curve summary");
     expect(markdown).toContain("Harness validation only");
     expect(markdown).toContain("Score / 1k tok");
+    expect(markdown).toContain("Answered rate");
+    // The observational-cache caveat must be present in the preamble.
+    expect(markdown).toContain("OBSERVATIONAL");
+    expect(markdown).toContain("ADR 0011");
     expect(markdown).toContain("p0-baseline");
   });
 });

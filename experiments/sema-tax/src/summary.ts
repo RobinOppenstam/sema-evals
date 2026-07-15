@@ -12,6 +12,9 @@ export interface SemaTaxConditionSummary {
   meanScore: number;
   scoreVariance: number;
   scoreStdDev: number;
+  /** Mean fraction of worksheet items that received a parseable answer line
+   * (format compliance), separate from correctness. */
+  meanAnsweredRate: number;
   meanWireBytes: number;
   meanHydrationBytes: number;
   meanTotalContextBytes: number;
@@ -95,6 +98,13 @@ export function summarizeSemaTax(
         meanScore: mean(scores),
         scoreVariance: variance(scores),
         scoreStdDev: Math.sqrt(variance(scores)),
+        meanAnsweredRate: mean(
+          trials.map((trial) =>
+            trial.metrics.itemsTotal === 0
+              ? 0
+              : trial.metrics.itemsAnswered / trial.metrics.itemsTotal,
+          ),
+        ),
         meanWireBytes: mean(trials.map((trial) => trial.metrics.wireBytes)),
         meanHydrationBytes: mean(
           trials.map((trial) => trial.metrics.hydrationBytes),
@@ -135,6 +145,7 @@ export function semaTaxSummaryMarkdown(summary: SemaTaxSummary): string {
       condition.trials,
       condition.patternCount,
       number(condition.meanScore, 3),
+      number(condition.meanAnsweredRate, 3),
       number(condition.meanWireBytes),
       number(condition.meanHydrationBytes),
       number(condition.meanInputTokens),
@@ -147,12 +158,14 @@ export function semaTaxSummaryMarkdown(summary: SemaTaxSummary): string {
   return [
     "# Sema tax curve summary",
     "",
-    "> Harness validation only. Deterministic-mode outcomes are scripted and are not empirical evidence about language models. Token prices in deterministic mode are illustrative.",
+    "> Harness validation only. Deterministic-mode outcomes are scripted and are not empirical evidence about language models. Token prices in deterministic mode are illustrative, and deterministic cached-token accounting simulates an idealized provider (see ADR 0011).",
+    "",
+    "> Provider cache telemetry is OBSERVATIONAL, not controlled. The cold/warm axis controls harness-level hydration bytes only; a provider (e.g. Chutes) may cache prompt prefixes automatically across both arms, so the `Mean cached tok` column reflects the provider's own caching, not the cold/warm condition. See ADR 0011.",
     "",
     `Trials: ${summary.trialCount} across ${summary.scenarioCount} scenarios.`,
     "",
-    "Condition | Trials | Patterns | Mean score | Mean wire B | Mean hydration B | Mean input tok | Mean cached tok | Mean total tok | Score / 1k tok",
-    "--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
+    "Condition | Trials | Patterns | Mean score | Answered rate | Mean wire B | Mean hydration B | Mean input tok | Mean cached tok | Mean total tok | Score / 1k tok",
+    "--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
     ...rows,
     "",
   ].join("\n");

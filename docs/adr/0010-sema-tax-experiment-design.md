@@ -101,6 +101,16 @@ surfaces in **cost** and in **hydration bytes**, not in token count. Determinist
 token prices are illustrative constants, labelled as such; model-pilot cost is
 whatever the provider reports (or null).
 
+> **Superseded in part by [ADR 0011](0011-provider-cache-observational.md).** The
+> first instrumentation run showed that an OpenAI-compatible provider (Chutes)
+> caches prompt prefixes automatically across _both_ the cold and warm arms, so
+> the claim above that the cache benefit surfaces in cost via
+> `cachedInputTokensRead` is **not controlled** in model-pilot mode on that
+> provider class. ADR 0011 reclassifies provider cached-token telemetry as
+> observational and narrows the controlled cold/warm axis to harness-level
+> hydration bytes. The hydration channel and the deterministic simulator's
+> accounting (now labelled as modelling an idealized provider) are unaffected.
+
 ### An objective, executable scorer with a frozen version
 
 Scoring never uses an LLM judge as the source of truth. The agent must end with
