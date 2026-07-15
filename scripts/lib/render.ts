@@ -2,11 +2,17 @@ import type {
   ExperimentCondition,
   ResultManifest,
 } from "../../packages/core/src/schemas.js";
+import { getExplainer } from "../site-content/explainers.js";
 import type {
   ConditionAggregate,
   SiteAggregate,
   TrialOutcome,
 } from "./aggregate.js";
+
+/** DOM id of an experiment's index section, used as the back-link anchor. */
+function experimentAnchor(experimentId: string): string {
+  return `exp-${experimentId}`;
+}
 
 export interface RunView {
   manifest: ResultManifest;
@@ -307,6 +313,40 @@ th[role="button"]::after { content: " \\2195"; color: var(--axis); font-size: 0.
   overflow-wrap: anywhere;
 }
 
+/* Experiment explainer: framing prose above a run list. The conditions read as
+   a definition list — slug left, what it isolates right — echoing the
+   provenance grid so both themes are covered by the shared token set. */
+.explainer { margin: 0.75rem 0 1.75rem; }
+.explainer .lede { margin-top: 0.35rem; }
+.explainer h3 { margin-top: 1.25rem; }
+.conditions {
+  display: grid;
+  grid-template-columns: minmax(10rem, max-content) minmax(0, 1fr);
+  gap: 0;
+  margin: 0.85rem 0 0.5rem;
+  max-width: var(--measure);
+  font-size: var(--fs-0);
+  border-top: 1px solid var(--line);
+}
+.conditions dt {
+  padding: 0.4rem 1rem 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.conditions dt code {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.conditions dd {
+  margin: 0;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+  min-width: 0;
+}
+.about-link { font-size: var(--fs-sm); }
+
 /* Charts. All ink comes from CSS custom properties so the single theme swap
    above re-colours the SVG; no hardcoded hex lives inside the markup. */
 .chart { margin: 0.75rem 0 1.5rem; max-width: 760px; }
@@ -399,6 +439,39 @@ function headlineCell(
 }
 
 // -------------------------------------------------------------------------
+// Experiment explainers
+// -------------------------------------------------------------------------
+
+// Full explainer block for the index: lede, "How to read the results" body, the
+// conditions definition list, and an optional small-print reading note. Renders
+// nothing for an experiment with no registered copy.
+function explainerBlock(experimentId: string): string {
+  const explainer = getExplainer(experimentId);
+  if (explainer === undefined) {
+    return "";
+  }
+  const body = explainer.body
+    .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+    .join("\n");
+  const conditions = explainer.conditions
+    .map(
+      (condition) =>
+        `<dt><code>${escapeHtml(condition.term)}</code></dt><dd>${escapeHtml(condition.description)}</dd>`,
+    )
+    .join("\n");
+  const readingNote =
+    explainer.readingNote === undefined
+      ? ""
+      : `\n<p class="note">${escapeHtml(explainer.readingNote)}</p>`;
+  return `<div class="explainer">
+<p class="lede">${escapeHtml(explainer.lede)}</p>
+<h3>How to read the results</h3>
+${body}
+<dl class="conditions">${conditions}</dl>${readingNote}
+</div>`;
+}
+
+// -------------------------------------------------------------------------
 // Index page
 // -------------------------------------------------------------------------
 
@@ -455,7 +528,8 @@ confirmatory. Only a <b>confirmatory</b> run tests a preregistered hypothesis.</
         })
         .join("\n");
 
-      return `<h2>${escapeHtml(experimentId)}</h2>
+      return `<h2 id="${escapeHtml(experimentAnchor(experimentId))}">${escapeHtml(experimentId)}</h2>
+${explainerBlock(experimentId)}
 <div class="table-wrap"><table class="runlist">
 <thead><tr>
 <th>Date</th><th>Mode</th><th>Model / provider</th>
@@ -734,6 +808,13 @@ export function renderRunPage(run: RunView): string {
   const enforced = conditionByName(run.aggregate, "addressed-enforced");
   const equalProse = conditionByName(run.aggregate, "equal-prose");
 
+  const explainer = getExplainer(m.experimentId);
+  const about =
+    explainer === undefined
+      ? ""
+      : `<p class="lede">${escapeHtml(explainer.lede)}
+<a class="about-link" href="../index.html#${escapeHtml(experimentAnchor(m.experimentId))}">About this experiment</a></p>`;
+
   const banner = `<div class="banner banner-${m.mode}">
 <div>${badge(m.mode)}</div>
 <p class="claim">${escapeHtml(m.evidenceClaim)}</p>
@@ -765,6 +846,7 @@ export function renderRunPage(run: RunView): string {
 <p class="crumbs"><a href="../index.html">&larr; All reports</a></p>
 <h1>${escapeHtml(m.experimentId)}</h1>
 <p class="meta"><code>${escapeHtml(m.runId)}</code> &middot; ${escapeHtml(conditionDate(m.createdAt))} &middot; ${m.trialCount} trials across ${m.scenarioCount} scenarios</p>
+${about}
 ${banner}
 ${headline}
 <h2>Provenance</h2>
