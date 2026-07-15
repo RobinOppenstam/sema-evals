@@ -2,12 +2,29 @@ import type {
   ExperimentCondition,
   ResultManifest,
   TrialProvenance,
+  TrialRecord,
 } from "../../packages/core/src/schemas.js";
+import {
+  analyzeArm,
+  analyzeReport,
+  EXCLUSION_INVALID_RATE,
+  H1_MAX_UPPER,
+  H2_MIN_LOWER_DIFF,
+  H3_MIN_LOWER,
+  type ConfirmatoryReport,
+  type HypothesisCheck,
+  type ModelAnalysis,
+} from "../../experiments/babel-relay/src/confirmatory-analysis.js";
+import type { Interval } from "../../experiments/babel-relay/src/stats.js";
 import { getExplainer } from "../site-content/explainers.js";
 import {
   getInterpretation,
   uncoveredRunIds,
 } from "../site-content/interpretations.js";
+import {
+  getPreregistrationByDigest,
+  type RegisteredPreregistration,
+} from "../site-content/preregistrations.js";
 import type {
   ConditionAggregate,
   SiteAggregate,
@@ -19,6 +36,13 @@ export interface RunView {
   aggregate: SiteAggregate;
   /** Directory holding the public derivative files, relative to the run page. */
   dataDir: string;
+  /**
+   * The parsed public trial records. Attached only for confirmatory runs, where
+   * the preregistered analysis (hypothesis intervals + verdict) is recomputed
+   * from them at build time via the registered analysis module. Undefined for
+   * every other mode, whose pages never touch it.
+   */
+  records?: readonly TrialRecord[];
 }
 
 const REPO_URL = "https://github.com/RobinOppenstam/sema-evals";
@@ -468,6 +492,23 @@ th[role="button"]::after { content: " \\2195"; color: var(--axis); font-size: 0.
 .interpretation h3 { margin: 0 0 0.35rem; font-size: var(--fs-1); }
 .interpretation .asof { color: var(--muted); font-weight: 600; letter-spacing: 0.01em; }
 .interpretation p { color: var(--text-2); font-size: var(--fs-sm); margin: 0.5rem 0 0; max-width: var(--measure); }
+
+/* Preregistered-hypotheses panel + cross-arm verdict. Deliberately plain: the
+   same structure renders whether the verdict is confirmed, partial, or refuted.
+   PASS/FAIL/pending carry only a status-token colour on the word itself — no
+   celebratory layout, borders, or fills keyed to the outcome. */
+.hypotheses { margin: 0.75rem 0 1.5rem; }
+.hypotheses h2 { margin-top: 2.75rem; }
+.verdict { margin: 0.75rem 0 1.5rem; }
+.verdict .verdict-line { max-width: var(--measure); }
+.verdict .verdict-line .label { font-weight: 600; }
+.pf { font-weight: 600; font-variant-numeric: tabular-nums; }
+.pf-pass { color: var(--success); }
+.pf-fail { color: var(--danger); }
+.pf-partial { color: var(--warn); }
+.pf-pending { color: var(--muted); }
+.excluded-line { color: var(--text-2); font-size: var(--fs-sm); margin: 0.5rem 0 0.25rem; max-width: var(--measure); }
+.excluded-line .invalid { color: var(--danger); font-weight: 600; }
 
 /* Per-scenario glyph grid. Fixed layout + wrapping cells keep the matrix inside
    the container regardless of how many seeds land in a cell. */
@@ -992,6 +1033,370 @@ ${paragraphs}
 }
 
 // -------------------------------------------------------------------------
+// Confirmatory rendering (preregistration-gated)
+//
+// A confirmatory run's hypothesis intervals and the cross-arm conjunctive
+// verdict are NEVER stored and reprinted — they are recomputed at build time
+// from the run's public trial derivative by the registered analysis module
+// (experiments/babel-relay/src/confirmatory-analysis.ts), the identical code the
+// preregistration pins. This module only formats what that module returns; it
+// reimplements no statistics and forks no verdict logic. The registered arm list
+// (which drives "verdict pending" until every arm is published) is site content
+// keyed by the preregistration digest each bundle carries.
+// -------------------------------------------------------------------------
+
+/** Signed percentage-point value at fixed precision, e.g. "+15.0pp". */
+function ppValue(value: number): string {
+  const points = value * 100;
+  const sign = points >= 0 ? "+" : "";
+  return `${sign}${points.toFixed(1)}pp`;
+}
+
+function pctInterval(iv: Interval): string {
+  return `[${percent(iv.lower)}, ${percent(iv.upper)}]`;
+}
+
+function ppInterval(iv: Interval): string {
+  return `[${ppValue(iv.lower)}, ${ppValue(iv.upper)}]`;
+}
+
+// Interval method → short human label. The registered method is the source of
+// truth; this only renders it.
+const METHOD_LABEL: Record<string, string> = {
+  "clopper-pearson-exact": "Clopper–Pearson",
+  "newcombe-hybrid-score": "Newcombe",
+  "wilson-score": "Wilson",
+};
+
+/**
+ * The preregistered analysis for one confirmatory run, recomputed from its
+ * public trials by the registered module. Undefined for any non-confirmatory run
+ * or a confirmatory run whose records were not attached (never on the site path).
+ */
+export function confirmatoryAnalysisFor(
+  run: RunView,
+): ModelAnalysis | undefined {
+  if (run.manifest.mode !== "confirmatory" || run.records === undefined) {
+    return undefined;
+  }
+  return analyzeArm({
+    arm: run.manifest.provenance.modelName,
+    mode: run.manifest.mode,
+    trials: run.records,
+  });
+}
+
+/** The registered margin for a hypothesis, in the estimate's own units. */
+function registeredMargin(check: HypothesisCheck): string {
+  if (check.id === "H1") {
+    return `upper &le; ${percent(H1_MAX_UPPER)}`;
+  }
+  if (check.id === "H2") {
+    return `lower &gt; ${ppValue(H2_MIN_LOWER_DIFF)}`;
+  }
+  return `lower &gt; ${percent(H3_MIN_LOWER)}`;
+}
+
+/** Observed point estimate with its count fraction (pp for H2, else percent). */
+function hypothesisObserved(check: HypothesisCheck): string {
+  const point =
+    check.id === "H2"
+      ? ppValue(check.pointEstimate)
+      : percent(check.pointEstimate);
+  return `${point} <span class="muted">(${check.numerator}/${check.denominator})</span>`;
+}
+
+function hypothesisInterval(check: HypothesisCheck): string {
+  return check.id === "H2"
+    ? ppInterval(check.interval)
+    : pctInterval(check.interval);
+}
+
+/**
+ * PASS/FAIL as text with a status-token colour only. Deliberately no fill,
+ * border, or icon: a failing hypothesis renders as plainly as a passing one.
+ */
+function passFail(pass: boolean): string {
+  return pass
+    ? `<span class="pf pf-pass">PASS</span>`
+    : `<span class="pf pf-fail">FAIL</span>`;
+}
+
+/** The exclusion-accounting line (§9): count/%, the 2% threshold, arm validity. */
+function exclusionLine(analysis: ModelAnalysis): string {
+  const e = analysis.exclusions;
+  const validity = e.infrastructureInvalid
+    ? `<span class="invalid">INFRASTRUCTURE-INVALID</span> &mdash; above threshold, arm must be rerun`
+    : `arm valid`;
+  const breakdown = Object.entries(e.byCondition)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([condition, n]) => `${escapeHtml(condition)}=${n}`)
+    .join(", ");
+  const breakdownText =
+    breakdown === "" ? "" : ` Excluded by condition: ${breakdown}.`;
+  return `<p class="excluded-line">Excluded trials (hop failures): <span class="tnum">${e.excluded}/${e.totalTrials}</span> (${percent(e.excludedRate)}); registered threshold ${percent(EXCLUSION_INVALID_RATE)} &mdash; ${validity}.${breakdownText}</p>`;
+}
+
+/**
+ * The "Preregistered hypotheses" panel for a confirmatory run page: exclusion
+ * accounting plus one row per registered hypothesis (H1 voluntary, H1 enforced,
+ * H2, H3) with observed value, the registered 95% interval, the interval method,
+ * the registered margin, and PASS/FAIL. Every value is recomputed at build time.
+ */
+export function renderHypothesisPanel(analysis: ModelAnalysis): string {
+  const rows = analysis.hypotheses
+    .map(
+      (check) => `<tr>
+<td><code>${escapeHtml(check.id)}</code> ${escapeHtml(check.label)}</td>
+<td><code>${escapeHtml(check.condition ?? "")}</code></td>
+<td class="num">${hypothesisObserved(check)}</td>
+<td class="num">${hypothesisInterval(check)}</td>
+<td>${METHOD_LABEL[check.method] ?? escapeHtml(check.method)}</td>
+<td class="num">${registeredMargin(check)}</td>
+<td>${passFail(check.pass)}</td>
+</tr>`,
+    )
+    .join("\n");
+  return `<div class="hypotheses">
+<h2>Preregistered hypotheses</h2>
+<p class="note">Each hypothesis, its interval method, and its margin were fixed at registration
+(preregistration 001 &sect;2). Every value here is recomputed at build time from this run's public
+trials by the registered analysis module &mdash; never read from a stored result.</p>
+${exclusionLine(analysis)}
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Hypothesis</th><th>Arm / contrast</th>
+<th class="num">Observed</th><th class="num">95% interval</th>
+<th>Method</th><th class="num">Registered<br>margin</th><th>Result</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>
+</div>`;
+}
+
+/**
+ * The most recent promoted confirmatory run per model, one per distinct model,
+ * ordered by model name so the cross-arm matrix and verdict are deterministic.
+ */
+export function selectConfirmatoryRunPerModel(
+  runs: readonly RunView[],
+): RunView[] {
+  const bestByModel = new Map<string, RunView>();
+  for (const run of runs) {
+    if (run.manifest.mode !== "confirmatory") {
+      continue;
+    }
+    const model = run.manifest.provenance.modelName;
+    const current = bestByModel.get(model);
+    if (
+      current === undefined ||
+      run.manifest.createdAt.localeCompare(current.manifest.createdAt) > 0
+    ) {
+      bestByModel.set(model, run);
+    }
+  }
+  return [...bestByModel.values()].sort((a, b) =>
+    a.manifest.provenance.modelName.localeCompare(
+      b.manifest.provenance.modelName,
+    ),
+  );
+}
+
+/** Whether every registered H of an id passes for an arm (H1 spans two arms). */
+function hypothesisGroupPasses(
+  analysis: ModelAnalysis,
+  id: "H1" | "H2" | "H3",
+): boolean {
+  const checks = analysis.hypotheses.filter((check) => check.id === id);
+  return checks.length > 0 && checks.every((check) => check.pass);
+}
+
+interface CrossArm {
+  readonly prereg: RegisteredPreregistration;
+  /** Registered arms that are published, with records, in registry order. */
+  readonly publishedRuns: readonly RunView[];
+  /** The conjunctive report over the published arms (registered verdict logic). */
+  readonly report: ConfirmatoryReport;
+  /** Registered arms not yet published (drives the "verdict pending" wording). */
+  readonly missingArms: readonly string[];
+}
+
+/**
+ * Resolve the cross-arm confirmatory state for an experiment: the registered
+ * preregistration (looked up by the digest every confirmatory bundle carries),
+ * the published registered arms, the conjunctive report recomputed over them by
+ * {@link analyzeReport} (the registered verdict logic, not a fork), and which
+ * registered arms are still missing. Returns undefined when the experiment has
+ * no confirmatory run or the preregistration is not registered as site content.
+ */
+function computeCrossArm(
+  experimentRuns: readonly RunView[],
+): CrossArm | undefined {
+  const selected = selectConfirmatoryRunPerModel(experimentRuns);
+  const first = selected[0];
+  if (first === undefined) {
+    return undefined;
+  }
+  const prereg = getPreregistrationByDigest(
+    first.manifest.provenance.preregistrationDigest,
+  );
+  if (prereg === undefined) {
+    return undefined;
+  }
+  const byModel = new Map(
+    selected.map((run) => [run.manifest.provenance.modelName, run] as const),
+  );
+  // Only registered arms count toward the verdict; an unregistered confirmatory
+  // run (not part of this design) never influences it.
+  const publishedRuns = prereg.registeredArms
+    .map((model) => byModel.get(model))
+    .filter(
+      (run): run is RunView => run !== undefined && run.records !== undefined,
+    );
+  const report = analyzeReport(
+    publishedRuns.map((run) => run.manifest.runId),
+    publishedRuns.map((run) => ({
+      arm: run.manifest.provenance.modelName,
+      mode: run.manifest.mode,
+      trials: run.records ?? [],
+    })),
+  );
+  const publishedModels = new Set(
+    publishedRuns.map((run) => run.manifest.provenance.modelName),
+  );
+  const missingArms = prereg.registeredArms.filter(
+    (model) => !publishedModels.has(model),
+  );
+  return { prereg, publishedRuns, report, missingArms };
+}
+
+/** The verdict word + status class + detail, honest about missing arms. */
+function crossArmVerdict(cross: CrossArm): {
+  cls: string;
+  word: string;
+  text: string;
+} {
+  const total = cross.prereg.registeredArms.length;
+  const published = total - cross.missingArms.length;
+  if (cross.missingArms.length > 0) {
+    return {
+      cls: "pf-pending",
+      word: "verdict pending",
+      text: `${published} of ${total} registered arms published — verdict pending.`,
+    };
+  }
+  if (cross.report.verdict === "confirmed") {
+    return {
+      cls: "pf-pass",
+      word: "confirmed",
+      text: cross.report.verdictDetail,
+    };
+  }
+  if (cross.report.verdict === "partial") {
+    return {
+      cls: "pf-partial",
+      word: "partial",
+      text: cross.report.verdictDetail,
+    };
+  }
+  return { cls: "pf-fail", word: "refuted", text: cross.report.verdictDetail };
+}
+
+/** A cross-arm matrix cell: PASS/FAIL when published, "pending" otherwise. */
+function matrixCell(present: boolean, pass: boolean): string {
+  if (!present) {
+    return `<td><span class="pf pf-pending">pending</span></td>`;
+  }
+  return `<td>${passFail(pass)}</td>`;
+}
+
+/**
+ * The cross-arm conjunctive-verdict block for the experiment page (rendered
+ * above the findings panel when at least one confirmatory run is promoted): the
+ * overall verdict per preregistration §2 logic, a per-model H pass/fail matrix
+ * over every registered arm (missing arms shown as pending), and a link to the
+ * registered document at its registration commit. Renders nothing when there is
+ * no confirmatory run or the preregistration is unknown.
+ */
+export function renderConfirmatoryVerdict(
+  experimentRuns: readonly RunView[],
+): string {
+  const cross = computeCrossArm(experimentRuns);
+  if (cross === undefined) {
+    return "";
+  }
+  const analysisByArm = new Map(
+    cross.report.models.map((model) => [model.arm, model] as const),
+  );
+  const publishedModels = new Set(
+    cross.publishedRuns.map((run) => run.manifest.provenance.modelName),
+  );
+  const rows = cross.prereg.registeredArms
+    .map((model) => {
+      const present = publishedModels.has(model);
+      const analysis = analysisByArm.get(model);
+      const armCell =
+        present && analysis !== undefined
+          ? `<td>${passFail(analysis.confirmed)}</td>`
+          : `<td><span class="pf pf-pending">pending</span></td>`;
+      return `<tr>
+<td><code>${escapeHtml(shortModel(model))}</code></td>
+${matrixCell(present, analysis !== undefined && hypothesisGroupPasses(analysis, "H1"))}
+${matrixCell(present, analysis !== undefined && hypothesisGroupPasses(analysis, "H2"))}
+${matrixCell(present, analysis !== undefined && hypothesisGroupPasses(analysis, "H3"))}
+${armCell}
+</tr>`;
+    })
+    .join("\n");
+
+  const verdict = crossArmVerdict(cross);
+  const blobUrl = `${REPO_URL}/blob/${cross.prereg.registeredCommit}/${cross.prereg.path}`;
+  const invalidArms = cross.report.models
+    .filter((model) => model.exclusions.infrastructureInvalid)
+    .map((model) => `<code>${escapeHtml(shortModel(model.arm))}</code>`);
+  const invalidNote =
+    invalidArms.length === 0
+      ? ""
+      : `\n<p class="note">Infrastructure-invalid (&gt; ${percent(EXCLUSION_INVALID_RATE)} of trials excluded; arm must be rerun): ${invalidArms.join(", ")}.</p>`;
+
+  return `<div class="verdict">
+<h2>Confirmatory verdict</h2>
+<p class="verdict-line"><span class="label">Verdict:</span> <span class="pf ${verdict.cls}">${escapeHtml(verdict.word)}</span> &mdash; ${escapeHtml(verdict.text)}</p>
+<p class="note">Preregistered conjunctive test (${escapeHtml(cross.prereg.id)}: every hypothesis for every
+registered arm). Recomputed at build time from each arm's public trials by the registered analysis
+module. Registered document: <a href="${blobUrl}">${escapeHtml(cross.prereg.path)}</a>.</p>
+<div class="table-wrap"><table>
+<thead><tr>
+<th>Model arm</th>
+<th>H1<br>addressing</th><th>H2<br>enforcement</th><th>H3<br>baseline</th>
+<th>Arm verdict</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>${invalidNote}
+</div>`;
+}
+
+/**
+ * A one-word (or short) confirmatory status for the overview card: the verdict
+ * once every registered arm is published, else "pending (N of M arms)". Returns
+ * undefined when the experiment has no confirmatory run or an unknown prereg.
+ */
+export function confirmatoryStatusLabel(
+  experimentRuns: readonly RunView[],
+): string | undefined {
+  const cross = computeCrossArm(experimentRuns);
+  if (cross === undefined) {
+    return undefined;
+  }
+  const total = cross.prereg.registeredArms.length;
+  const published = total - cross.missingArms.length;
+  if (cross.missingArms.length > 0) {
+    return `pending (${published} of ${total} arms)`;
+  }
+  return cross.report.verdict;
+}
+
+// -------------------------------------------------------------------------
 // Overview page
 // -------------------------------------------------------------------------
 
@@ -1084,6 +1489,12 @@ export function renderBabelRelayCard(
       headlineHtml = `Latest <code>addressed-enforced</code> &mdash; silent divergence <span class="tnum">${percent(enforced.silentDivergenceRate)}</span>, task success <span class="tnum">${percent(enforced.taskSuccessRate)}</span>`;
     }
   }
+  // Once any confirmatory run is promoted, surface its verdict-or-pending state.
+  const confirmatory = confirmatoryStatusLabel(runs);
+  if (confirmatory !== undefined) {
+    const prefix = headlineHtml === "&mdash;" ? "" : `${headlineHtml}<br>`;
+    headlineHtml = `${prefix}Confirmatory: <span class="tnum">${escapeHtml(confirmatory)}</span>`;
+  }
   return renderExperimentCard({
     experimentId,
     lede: explainer?.lede ?? experimentId,
@@ -1129,6 +1540,7 @@ export function renderBabelRelaySection(
 
   return `<h1>${escapeHtml(experimentId)}</h1>
 ${explainerBlock(experimentId)}
+${renderConfirmatoryVerdict(experimentRuns)}
 ${renderFindingsPanel(experimentId, experimentRuns)}
 ${renderInterpretation(experimentId, promotedRunIds)}
 <div class="table-wrap"><table class="runlist">
@@ -1266,6 +1678,29 @@ function provenanceRows(manifest: ProvenanceManifest): [string, string][] {
   ];
 }
 
+/**
+ * Extra provenance rows for a confirmatory run: the preregistration digest and a
+ * link to the registered document. The blob URL is pinned to the commit whose
+ * document bytes hash to the recorded digest (the registration commit from site
+ * content when the digest is registered, else the run's own implementation
+ * commit), so the link always resolves the exact registered text. Empty for any
+ * run that carries no preregistration (every non-confirmatory mode).
+ */
+function preregistrationRows(manifest: ProvenanceManifest): string {
+  const p = manifest.provenance;
+  if (p.preregistrationPath === undefined) {
+    return "";
+  }
+  const registered = getPreregistrationByDigest(p.preregistrationDigest);
+  const commit = registered?.registeredCommit ?? p.implementationCommit;
+  const blobUrl = `${REPO_URL}/blob/${commit}/${p.preregistrationPath}`;
+  const digestRow =
+    p.preregistrationDigest === undefined
+      ? ""
+      : `\n<dt>Preregistration digest</dt><dd><code>${escapeHtml(p.preregistrationDigest)}</code></dd>`;
+  return `\n<dt>Preregistration</dt><dd><a href="${blobUrl}"><code>${escapeHtml(p.preregistrationPath)}</code></a></dd>${digestRow}`;
+}
+
 export function provenanceList(manifest: ProvenanceManifest): string {
   const body = provenanceRows(manifest)
     .map(
@@ -1273,7 +1708,7 @@ export function provenanceList(manifest: ProvenanceManifest): string {
         `<dt>${escapeHtml(key)}</dt><dd><code>${escapeHtml(value)}</code></dd>`,
     )
     .join("\n");
-  return `<dl class="provenance">${body}</dl>`;
+  return `<dl class="provenance">${body}${preregistrationRows(manifest)}</dl>`;
 }
 
 function conditionTable(aggregate: SiteAggregate): string {
@@ -1452,6 +1887,12 @@ export function renderRunPage(run: RunView): string {
 (${equalProse.silentDivergences}/${equalProse.driftTrials}).</p>`;
   }
 
+  // Confirmatory runs carry the preregistered-hypotheses panel above the results
+  // table; every other mode renders nothing here.
+  const analysis = confirmatoryAnalysisFor(run);
+  const hypothesisPanel =
+    analysis === undefined ? "" : `${renderHypothesisPanel(analysis)}\n`;
+
   return `
 <p class="crumbs"><a href="../index.html">&larr; ${escapeHtml(m.experimentId)}</a></p>
 <h1>${escapeHtml(m.experimentId)}</h1>
@@ -1461,7 +1902,7 @@ ${banner}
 ${headline}
 <h2>Provenance</h2>
 ${provenanceList(m)}
-<h2>Results by condition</h2>
+${hypothesisPanel}<h2>Results by condition</h2>
 ${conditionTable(run.aggregate)}
 <h2>Silent divergence rate by condition</h2>
 ${barChart(divergenceBars, "divergence")}
