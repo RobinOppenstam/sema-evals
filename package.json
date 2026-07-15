@@ -12,6 +12,7 @@
   "scripts": {
     "build": "pnpm --filter './packages/**' run build",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "experiment:a2a": "pnpm build && pnpm --filter @sema-evals/a2a-drift run start",
     "experiment:babel": "pnpm build && pnpm --filter @sema-evals/babel-relay run start",
     "experiment:sema-tax": "pnpm build && pnpm --filter @sema-evals/sema-tax run start",
     "format": "prettier --write .",

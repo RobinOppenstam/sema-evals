@@ -1,0 +1,243 @@
+# A2A semantic-extension drift fixtures (RESEARCH_PLAN Phase 3).
+#
+# Each topic appears twice: a `-drift` scenario, where the worker's registry
+# holds a mutated definition for exactly one acceptance handle (controlled
+# cross-agent registry drift), and a `-clean` no-drift control with identical
+# content and `drift: null`. Running both under all three conditions on the same
+# scenario/seed blocks lets the demo measure silent execution and detection on
+# the drift scenarios and the false-halt guard on the clean controls.
+schemaVersion: "0.1.0"
+scenarios:
+  - id: "settlement-drift"
+    title: "Settlement desk task with drifted slippage tolerance"
+    description: >-
+      A requester delegates a settlement task; the worker's registry has drifted
+      the SlippageTolerance definition to a wider threshold.
+    task: "Settle the pending fill within the configured slippage tolerance, settlement window, and minimum fill ratio."
+    patterns:
+      - handle: "SlippageTolerance"
+        definition:
+          gloss: "Maximum acceptable price slippage for a fill."
+          comparator: "<="
+          threshold: 50
+          unit: "bps"
+      - handle: "SettlementWindow"
+        definition:
+          gloss: "Maximum time to settle a fill after match."
+          comparator: "<="
+          threshold: 30
+          unit: "seconds"
+      - handle: "MinFillRatio"
+        definition:
+          gloss: "Minimum fraction of the order that must fill."
+          comparator: ">="
+          threshold: 90
+          unit: "percent"
+    acceptanceHandles: ["SlippageTolerance", "SettlementWindow", "MinFillRatio"]
+    drift:
+      handle: "SlippageTolerance"
+      fieldPath: "threshold"
+      before: 50
+      after: 150
+      mutatedDefinition:
+        gloss: "Maximum acceptable price slippage for a fill."
+        comparator: "<="
+        threshold: 150
+        unit: "bps"
+  - id: "settlement-clean"
+    title: "Settlement desk task with aligned registries"
+    description: >-
+      The no-drift control for the settlement topic: the worker registry matches
+      the requester's canonical vocabulary exactly.
+    task: "Settle the pending fill within the configured slippage tolerance, settlement window, and minimum fill ratio."
+    patterns:
+      - handle: "SlippageTolerance"
+        definition:
+          gloss: "Maximum acceptable price slippage for a fill."
+          comparator: "<="
+          threshold: 50
+          unit: "bps"
+      - handle: "SettlementWindow"
+        definition:
+          gloss: "Maximum time to settle a fill after match."
+          comparator: "<="
+          threshold: 30
+          unit: "seconds"
+      - handle: "MinFillRatio"
+        definition:
+          gloss: "Minimum fraction of the order that must fill."
+          comparator: ">="
+          threshold: 90
+          unit: "percent"
+    acceptanceHandles: ["SlippageTolerance", "SettlementWindow", "MinFillRatio"]
+    drift: null
+  - id: "payment-drift"
+    title: "Payment task with drifted settlement currency"
+    description: >-
+      The worker's registry has drifted the Currency definition from USDC to
+      USDT, so the worker would settle in the wrong asset.
+    task: "Execute the payment for the stated amount in the configured currency before the deadline."
+    patterns:
+      - handle: "PaymentAmount"
+        definition:
+          gloss: "Amount to transfer."
+          comparator: "=="
+          threshold: 2500
+          unit: "tokens"
+      - handle: "Currency"
+        definition:
+          gloss: "Settlement asset."
+          asset: "USDC"
+          decimals: 6
+      - handle: "Deadline"
+        definition:
+          gloss: "Latest acceptable settlement time."
+          comparator: "<="
+          threshold: 3600
+          unit: "seconds"
+    acceptanceHandles: ["PaymentAmount", "Currency", "Deadline"]
+    drift:
+      handle: "Currency"
+      fieldPath: "asset"
+      before: "USDC"
+      after: "USDT"
+      mutatedDefinition:
+        gloss: "Settlement asset."
+        asset: "USDT"
+        decimals: 6
+  - id: "payment-clean"
+    title: "Payment task with aligned registries"
+    description: "The no-drift control for the payment topic."
+    task: "Execute the payment for the stated amount in the configured currency before the deadline."
+    patterns:
+      - handle: "PaymentAmount"
+        definition:
+          gloss: "Amount to transfer."
+          comparator: "=="
+          threshold: 2500
+          unit: "tokens"
+      - handle: "Currency"
+        definition:
+          gloss: "Settlement asset."
+          asset: "USDC"
+          decimals: 6
+      - handle: "Deadline"
+        definition:
+          gloss: "Latest acceptable settlement time."
+          comparator: "<="
+          threshold: 3600
+          unit: "seconds"
+    acceptanceHandles: ["PaymentAmount", "Currency", "Deadline"]
+    drift: null
+  - id: "escrow-drift"
+    title: "Escrow task with drifted dispute window"
+    description: >-
+      The worker's registry has drifted the DisputeWindow definition to a
+      shorter window, so it would release escrow too early.
+    task: "Release escrow only after the dispute window elapses, subject to the release condition and arbiter quorum."
+    patterns:
+      - handle: "ReleaseCondition"
+        definition:
+          gloss: "Condition under which escrow releases."
+          requiresSignoff: true
+          party: "buyer"
+      - handle: "DisputeWindow"
+        definition:
+          gloss: "Time a counterparty may dispute before release."
+          comparator: ">="
+          threshold: 72
+          unit: "hours"
+      - handle: "ArbiterQuorum"
+        definition:
+          gloss: "Arbiters required to resolve a dispute."
+          comparator: ">="
+          threshold: 2
+          unit: "count"
+    acceptanceHandles: ["ReleaseCondition", "DisputeWindow", "ArbiterQuorum"]
+    drift:
+      handle: "DisputeWindow"
+      fieldPath: "threshold"
+      before: 72
+      after: 24
+      mutatedDefinition:
+        gloss: "Time a counterparty may dispute before release."
+        comparator: ">="
+        threshold: 24
+        unit: "hours"
+  - id: "escrow-clean"
+    title: "Escrow task with aligned registries"
+    description: "The no-drift control for the escrow topic."
+    task: "Release escrow only after the dispute window elapses, subject to the release condition and arbiter quorum."
+    patterns:
+      - handle: "ReleaseCondition"
+        definition:
+          gloss: "Condition under which escrow releases."
+          requiresSignoff: true
+          party: "buyer"
+      - handle: "DisputeWindow"
+        definition:
+          gloss: "Time a counterparty may dispute before release."
+          comparator: ">="
+          threshold: 72
+          unit: "hours"
+      - handle: "ArbiterQuorum"
+        definition:
+          gloss: "Arbiters required to resolve a dispute."
+          comparator: ">="
+          threshold: 2
+          unit: "count"
+    acceptanceHandles: ["ReleaseCondition", "DisputeWindow", "ArbiterQuorum"]
+    drift: null
+  - id: "bridge-drift"
+    title: "Bridge task with drifted finality depth"
+    description: >-
+      The worker's registry has drifted the FinalityDepth definition to fewer
+      confirmations, so it would bridge before safe finality.
+    task: "Bridge the asset from the source chain to the destination chain after the required finality depth."
+    patterns:
+      - handle: "SourceChain"
+        definition:
+          gloss: "Origin chain id."
+          chainId: 8453
+      - handle: "DestChain"
+        definition:
+          gloss: "Destination chain id."
+          chainId: 42161
+      - handle: "FinalityDepth"
+        definition:
+          gloss: "Confirmations required before bridging."
+          comparator: ">="
+          threshold: 64
+          unit: "blocks"
+    acceptanceHandles: ["SourceChain", "DestChain", "FinalityDepth"]
+    drift:
+      handle: "FinalityDepth"
+      fieldPath: "threshold"
+      before: 64
+      after: 12
+      mutatedDefinition:
+        gloss: "Confirmations required before bridging."
+        comparator: ">="
+        threshold: 12
+        unit: "blocks"
+  - id: "bridge-clean"
+    title: "Bridge task with aligned registries"
+    description: "The no-drift control for the bridge topic."
+    task: "Bridge the asset from the source chain to the destination chain after the required finality depth."
+    patterns:
+      - handle: "SourceChain"
+        definition:
+          gloss: "Origin chain id."
+          chainId: 8453
+      - handle: "DestChain"
+        definition:
+          gloss: "Destination chain id."
+          chainId: 42161
+      - handle: "FinalityDepth"
+        definition:
+          gloss: "Confirmations required before bridging."
+          comparator: ">="
+          threshold: 64
+          unit: "blocks"
+    acceptanceHandles: ["SourceChain", "DestChain", "FinalityDepth"]
+    drift: null
