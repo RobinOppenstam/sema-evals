@@ -2,12 +2,8 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { resultManifestSchema } from "../packages/core/src/schemas.js";
-
-import {
-  buildPublicTrialsJsonl,
-  PUBLIC_DERIVATIVE_RULES,
-} from "./lib/public-derivative.js";
+import { requireAdapter } from "./lib/experiment-adapter.js";
+import { PUBLIC_DERIVATIVE_RULES } from "./lib/public-derivative.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -57,8 +53,18 @@ async function main(): Promise<void> {
   const summaryRaw = await readFile(join(sourceDir, "summary.json"), "utf8");
   const trialsRaw = await readFile(join(sourceDir, "trials.jsonl"), "utf8");
 
+  // Peek the experiment id, then dispatch to that experiment's adapter for the
+  // manifest parse gate and the trial redaction policy.
+  const manifestJson: unknown = JSON.parse(manifestRaw);
+  const experimentId = (manifestJson as { experimentId?: unknown })
+    .experimentId;
+  if (typeof experimentId !== "string") {
+    throw new Error("manifest.json is missing a string experimentId.");
+  }
+  const adapter = requireAdapter(experimentId);
+
   // Validate the manifest before promoting anything.
-  const manifest = resultManifestSchema.parse(JSON.parse(manifestRaw));
+  const manifest = adapter.parseManifest(manifestJson);
 
   const destDir = join(
     repoRoot,
@@ -79,7 +85,7 @@ async function main(): Promise<void> {
 
   // Build the redacted public derivative before writing anything, so a failure
   // leaves no partial promotion behind.
-  const publicTrials = buildPublicTrialsJsonl(trialsRaw);
+  const publicTrials = adapter.redactTrials(trialsRaw);
 
   await mkdir(destDir, { recursive: true });
 

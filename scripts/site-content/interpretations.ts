@@ -44,6 +44,15 @@ const INTERPRETATIONS: Readonly<Record<string, ExperimentInterpretation>> = {
       "The preregistered, confirmatory test of these effects has not yet run. Until it has, the strongest supportable claim is that the mechanism decomposition behaves as designed at two very different capability levels.",
     ],
   },
+  "sema-tax": {
+    asOf: "2026-07-15",
+    coveredRunIds: ["20260715T103807828Z-order-20260714"],
+    paragraphs: [
+      "One exploratory pilot on one model — a first pricing of the tax curve, not a proven effect.",
+      "Task quality rises with active pattern count, but token efficiency stays flat until coverage is complete — then doubles. At partial coverage the model burns output tokens deliberating over items whose definitions it lacks, so incomplete semantic coverage is both the least accurate and the most expensive regime. The addressing tax is real: at full coverage, content-addressed delivery pays roughly 20% of score-per-token relative to inline prose, from reference wire and hydration overhead. It is a bounded premium, not a quality cost — the content-addressed arm was also the most accurate (0.994–0.996 versus 0.971 for prose at sixteen patterns) with a 100% answered rate.",
+      "These fixtures sit near the worst case for references — definitions of roughly a hundred bytes, used once; the tax should shrink as definitions grow or are reused. Provider prompt caching was pervasive in both cache arms, confirming the observational status of cached-token telemetry (ADR 0011). One cell (twelve patterns, prose, cold) dips below its eight-pattern counterpart; the trial records are published for inspection. A preregistered test of the curve and of the accuracy hint has not yet run.",
+    ],
+  },
 };
 
 /**

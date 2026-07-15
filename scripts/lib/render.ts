@@ -1,6 +1,7 @@
 import type {
   ExperimentCondition,
   ResultManifest,
+  TrialProvenance,
 } from "../../packages/core/src/schemas.js";
 import { getExplainer } from "../site-content/explainers.js";
 import {
@@ -461,7 +462,7 @@ function siteFooter(): string {
   return `<footer class="site-foot"><p>Generated from committed result artifacts by <code>pnpm site:build</code>. Every aggregate is recomputed from the public trial derivative at build time, not read from a stored summary. <a href="${STANDARD_URL}">Experiment standard</a> &middot; <a href="${REPO_URL}">Source</a></p></footer>`;
 }
 
-function page(body: string, homeHref: string): string {
+export function page(body: string, homeHref: string): string {
   return `${siteHeader(homeHref)}<main>${body}</main>${siteFooter()}`;
 }
 
@@ -470,7 +471,7 @@ function page(body: string, homeHref: string): string {
 // script can inline it consistently across every page.
 export const SITE_STYLE = STYLE;
 
-function badge(mode: ResultManifest["mode"]): string {
+export function badge(mode: ResultManifest["mode"]): string {
   return `<span class="badge badge-${mode}">${escapeHtml(MODE_LABEL[mode])}</span>`;
 }
 
@@ -499,7 +500,7 @@ function headlineCell(
 // Full explainer block for the index: lede, "How to read the results" body, the
 // conditions definition list, and an optional small-print reading note. Renders
 // nothing for an experiment with no registered copy.
-function explainerBlock(experimentId: string): string {
+export function explainerBlock(experimentId: string): string {
   const explainer = getExplainer(experimentId);
   if (explainer === undefined) {
     return "";
@@ -898,16 +899,7 @@ ${paragraphs}
 // Index page
 // -------------------------------------------------------------------------
 
-export function renderIndex(runs: readonly RunView[]): string {
-  const byExperiment = new Map<string, RunView[]>();
-  for (const run of runs) {
-    const list = byExperiment.get(run.manifest.experimentId) ?? [];
-    list.push(run);
-    byExperiment.set(run.manifest.experimentId, list);
-  }
-  const experiments = [...byExperiment.keys()].sort();
-
-  const header = `
+const INDEX_HEADER = `
 <h1>sema-evals</h1>
 <p class="lede">Open, causal evaluations for content-addressed semantics and multi-agent
 coordination. Each report is generated directly from a committed result artifact &mdash; a run
@@ -922,26 +914,39 @@ confirmatory. Only a <b>confirmatory</b> run tests a preregistered hypothesis.</
 <a href="${RESEARCH_PLAN_URL}">Research plan</a> &middot;
 <a href="${STANDARD_URL}">Experiment standard</a></p>`;
 
-  if (runs.length === 0) {
+/**
+ * The index shell: the shared page header plus the per-experiment section
+ * fragments (each produced by that experiment's site adapter), in the order
+ * given. An empty list renders the "no runs promoted yet" state. Build-site
+ * composes the sections; this keeps the header/empty-state logic in one place.
+ */
+export function renderIndexShell(sectionHtmls: readonly string[]): string {
+  if (sectionHtmls.length === 0) {
     return page(
-      `${header}<p class="lede">No runs have been promoted yet. Promote one with
+      `${INDEX_HEADER}<p class="lede">No runs have been promoted yet. Promote one with
 <code>pnpm report:promote -- &lt;bundle-dir&gt;</code>.</p>`,
       "index.html",
     );
   }
+  return page(`${INDEX_HEADER}${sectionHtmls.join("\n")}`, "index.html");
+}
 
-  const sections = experiments
-    .map((experimentId) => {
-      const experimentRuns = byExperiment.get(experimentId) ?? [];
-      const promotedRunIds = experimentRuns.map((run) => run.manifest.runId);
-      const rows = experimentRuns
-        .slice()
-        .sort((a, b) =>
-          b.manifest.createdAt.localeCompare(a.manifest.createdAt),
-        )
-        .map((run) => {
-          const m = run.manifest;
-          return `<tr>
+/**
+ * The index section for a babel-relay experiment: heading anchor, explainer,
+ * computed findings panel, coverage-gated interpretation, and the relay run
+ * list (silent-divergence columns). Byte-identical to the pre-adapter output.
+ */
+export function renderBabelRelaySection(
+  experimentId: string,
+  experimentRuns: readonly RunView[],
+): string {
+  const promotedRunIds = experimentRuns.map((run) => run.manifest.runId);
+  const rows = experimentRuns
+    .slice()
+    .sort((a, b) => b.manifest.createdAt.localeCompare(a.manifest.createdAt))
+    .map((run) => {
+      const m = run.manifest;
+      return `<tr>
 <td>${escapeHtml(conditionDate(m.createdAt))}</td>
 <td>${badge(m.mode)}</td>
 <td><code class="model">${escapeHtml(m.provenance.modelName)}</code><code class="muted">${escapeHtml(m.provenance.modelProvider)}</code></td>
@@ -950,10 +955,10 @@ confirmatory. Only a <b>confirmatory</b> run tests a preregistered hypothesis.</
 <td class="num">${headlineCell(run.aggregate, "equal-prose")}</td>
 <td><a href="runs/${escapeHtml(m.runId)}.html">Report</a></td>
 </tr>`;
-        })
-        .join("\n");
+    })
+    .join("\n");
 
-      return `<h2 id="${escapeHtml(experimentAnchor(experimentId))}">${escapeHtml(experimentId)}</h2>
+  return `<h2 id="${escapeHtml(experimentAnchor(experimentId))}">${escapeHtml(experimentId)}</h2>
 ${explainerBlock(experimentId)}
 ${renderFindingsPanel(experimentId, experimentRuns)}
 ${renderInterpretation(experimentId, promotedRunIds)}
@@ -969,10 +974,25 @@ ${renderInterpretation(experimentId, promotedRunIds)}
 </table></div>
 <p class="note">Silent divergence is the share of drift trials where injected drift went
 undetected and the relay proceeded &mdash; lower is better.</p>`;
-    })
-    .join("\n");
+}
 
-  return page(`${header}${sections}`, "index.html");
+/**
+ * Render the full index for a homogeneous set of babel-relay runs. Retained for
+ * tests and as the babel section source of truth; build-site drives the index
+ * through the adapter registry and {@link renderIndexShell} instead.
+ */
+export function renderIndex(runs: readonly RunView[]): string {
+  const byExperiment = new Map<string, RunView[]>();
+  for (const run of runs) {
+    const list = byExperiment.get(run.manifest.experimentId) ?? [];
+    list.push(run);
+    byExperiment.set(run.manifest.experimentId, list);
+  }
+  const experiments = [...byExperiment.keys()].sort();
+  const sections = experiments.map((experimentId) =>
+    renderBabelRelaySection(experimentId, byExperiment.get(experimentId) ?? []),
+  );
+  return renderIndexShell(sections);
 }
 
 // -------------------------------------------------------------------------
@@ -1063,7 +1083,20 @@ ${rows}
 </svg></div>`;
 }
 
-function provenanceRows(manifest: ResultManifest): [string, string][] {
+/**
+ * The manifest fields the provenance definition-list reads. Both the babel-relay
+ * {@link ResultManifest} and the sema-tax manifest satisfy this structurally, so
+ * the same provenance block renders for every experiment.
+ */
+export interface ProvenanceManifest {
+  provenance: TrialProvenance;
+  protocolVersion: string;
+  artifactSchemaVersion: string;
+  orderSeed: number;
+  seeds: readonly number[];
+}
+
+function provenanceRows(manifest: ProvenanceManifest): [string, string][] {
   const p = manifest.provenance;
   return [
     ["Model", p.modelName],
@@ -1083,7 +1116,7 @@ function provenanceRows(manifest: ResultManifest): [string, string][] {
   ];
 }
 
-function provenanceList(manifest: ResultManifest): string {
+export function provenanceList(manifest: ProvenanceManifest): string {
   const body = provenanceRows(manifest)
     .map(
       ([key, value]) =>

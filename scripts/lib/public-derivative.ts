@@ -1,10 +1,30 @@
 import {
   transcriptBlockSchema,
   trialRecordSchema,
+  type Transcript,
   type TranscriptBlock,
   type TranscriptEntry,
   type TrialRecord,
 } from "../../packages/core/src/schemas.js";
+
+/**
+ * The only shape the redactor needs from a trial record: a nullable transcript.
+ * Both the babel-relay core record and the sema-tax record satisfy this (both
+ * reuse core's {@link Transcript} shape), so the same redaction policy applies
+ * to every experiment without duplicating the transcript-capping logic.
+ */
+export interface RedactableRecord {
+  transcript: Transcript | null;
+}
+
+/**
+ * Structural view of a Zod schema's parse gate — just enough to validate a JSON
+ * line into a typed record. Declared structurally so this module needs no direct
+ * `zod` dependency; every experiment's record schema satisfies it.
+ */
+export interface RecordSchema<T> {
+  parse(data: unknown): T;
+}
 
 /**
  * Maximum number of characters retained from each transcript content block in a
@@ -62,33 +82,50 @@ export function redactTranscriptEntry(entry: TranscriptEntry): TranscriptEntry {
 }
 
 /**
- * Produce the public derivative of a single trial record: raw transcript
- * payloads removed and content blocks capped. The result is re-validated against
- * {@link trialRecordSchema} so a malformed derivative fails loudly rather than
- * being committed. All non-transcript fields (metrics, provenance, events,
- * usage) are preserved unchanged.
+ * Strip raw transcript payloads and cap content-block text on any record that
+ * carries a nullable {@link Transcript}. Non-transcript fields (metrics,
+ * provenance, events, usage) are preserved unchanged. Schema-agnostic so both
+ * the babel-relay and sema-tax records get the identical redaction policy.
  */
-export function redactTrialRecord(record: TrialRecord): TrialRecord {
+export function redactRecordTranscript<T extends RedactableRecord>(
+  record: T,
+): T {
   const transcript =
     record.transcript === null
       ? null
       : { entries: record.transcript.entries.map(redactTranscriptEntry) };
-  const derivative: TrialRecord = { ...record, transcript };
-  return trialRecordSchema.parse(derivative);
+  return { ...record, transcript };
+}
+
+/**
+ * Produce the public derivative of a single core trial record: raw transcript
+ * payloads removed and content blocks capped. The result is re-validated against
+ * {@link trialRecordSchema} so a malformed derivative fails loudly rather than
+ * being committed.
+ */
+export function redactTrialRecord(record: TrialRecord): TrialRecord {
+  return trialRecordSchema.parse(redactRecordTranscript(record));
 }
 
 /**
  * Parse and redact a full `trials.jsonl` document into public-derivative JSONL
- * text. Blank lines are skipped; every non-blank line must be a schema-valid
- * trial record.
+ * text. Blank lines are skipped; every non-blank line must validate against
+ * `recordSchema` (the core {@link trialRecordSchema} by default, or an
+ * experiment-specific record schema such as the sema-tax record). The redaction
+ * policy — strip `raw`, cap transcript text — is identical across experiments.
  */
-export function buildPublicTrialsJsonl(source: string): string {
+export function buildPublicTrialsJsonl<T extends RedactableRecord>(
+  source: string,
+  recordSchema: RecordSchema<T> = trialRecordSchema as unknown as RecordSchema<T>,
+): string {
   const records = source
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-    .map((line) => trialRecordSchema.parse(JSON.parse(line)))
-    .map(redactTrialRecord);
+    .map((line) => recordSchema.parse(JSON.parse(line)))
+    .map(redactRecordTranscript)
+    // Re-validate the redacted record so a malformed derivative fails loudly.
+    .map((record) => recordSchema.parse(record));
 
   // Re-validate content blocks defensively; a truncated block must still parse.
   for (const record of records) {
