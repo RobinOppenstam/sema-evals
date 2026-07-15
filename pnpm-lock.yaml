@@ -42,6 +42,24 @@ importers:
         specifier: ^3.24.6
         version: 3.25.2(zod@3.25.76)
 
+  experiments/a2a-drift:
+    dependencies:
+      '@sema-evals/adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
+      '@sema-evals/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@sema-evals/reporters':
+        specifier: workspace:*
+        version: link:../../packages/reporters
+      yaml:
+        specifier: ^2.8.0
+        version: 2.9.0
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
   experiments/babel-relay:
     dependencies:
       '@sema-evals/adapters':
