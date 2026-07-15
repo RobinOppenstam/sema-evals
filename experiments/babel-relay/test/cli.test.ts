@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   assertProviderApiKey,
   parseArgs,
+  runsModels,
   validateThinkingForModel,
 } from "../src/cli.js";
 
@@ -72,7 +73,7 @@ describe("parseArgs", () => {
 
   it("rejects an unknown mode or thinking mode", () => {
     expect(() => parseArgs(["--mode", "bogus"])).toThrow(
-      /deterministic or model-pilot/,
+      /deterministic, model-pilot, or confirmatory/,
     );
     expect(() => parseArgs(["--thinking", "bogus"])).toThrow(
       /adaptive or none/,
@@ -168,6 +169,74 @@ describe("parseArgs provider selection", () => {
   it("rejects an unknown provider", () => {
     expect(() => parseArgs(["--provider", "bogus"])).toThrow(
       /anthropic or openai-compatible/,
+    );
+  });
+});
+
+describe("runsModels", () => {
+  it("is true for model-pilot and confirmatory, false for deterministic", () => {
+    expect(runsModels("deterministic")).toBe(false);
+    expect(runsModels("model-pilot")).toBe(true);
+    expect(runsModels("confirmatory")).toBe(true);
+  });
+});
+
+describe("parseArgs confirmatory mode", () => {
+  const confirmatoryArgs = [
+    "--mode",
+    "confirmatory",
+    "--provider",
+    "openai-compatible",
+    "--base-url",
+    "https://llm.chutes.ai/v1",
+    "--model",
+    "Qwen/Qwen3-32B-TEE",
+    "--order-seed",
+    "20260716",
+    "--preregistration",
+    "docs/preregistrations/prereg-001-babel-relay-confirmatory.md",
+  ];
+
+  it("accepts a complete confirmatory invocation", () => {
+    const options = parseArgs(confirmatoryArgs);
+    expect(options.mode).toBe("confirmatory");
+    expect(options.preregistrationPath).toMatch(/prereg-001.*\.md$/);
+    expect(options.orderSeed).toBe(20_260_716);
+    // Confirmatory shares the model-pilot repetition default.
+    expect(options.seedCount).toBe(5);
+  });
+
+  it("requires --preregistration in confirmatory mode", () => {
+    const withoutPrereg = confirmatoryArgs.filter(
+      (arg, i) =>
+        arg !== "--preregistration" &&
+        confirmatoryArgs[i - 1] !== "--preregistration",
+    );
+    expect(() => parseArgs(withoutPrereg)).toThrow(
+      /requires --preregistration/,
+    );
+  });
+
+  it("rejects --preregistration outside confirmatory mode", () => {
+    expect(() =>
+      parseArgs([
+        "--mode",
+        "model-pilot",
+        "--preregistration",
+        "docs/preregistrations/prereg-001-babel-relay-confirmatory.md",
+      ]),
+    ).toThrow(/only valid with --mode confirmatory/);
+  });
+
+  it("rejects --preregistration with a missing value", () => {
+    expect(() =>
+      parseArgs(["--mode", "confirmatory", "--preregistration"]),
+    ).toThrow(/requires a path/);
+  });
+
+  it("still rejects an unknown mode", () => {
+    expect(() => parseArgs(["--mode", "bogus"])).toThrow(
+      /deterministic, model-pilot, or confirmatory/,
     );
   });
 });

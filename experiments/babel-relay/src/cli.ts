@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
@@ -29,7 +29,16 @@ import {
 import { summarizeTrials, writeResultBundle } from "@sema-evals/reporters";
 
 import { loadScenarioFile } from "./fixtures.js";
-import { runModelRelayTrial, type ModelRelayAdapters } from "./model-relay.js";
+import {
+  DECISION_SCORER_VERSION,
+  runModelRelayTrial,
+  type ModelRelayAdapters,
+} from "./model-relay.js";
+import {
+  loadPreregistration,
+  verifyFreeze,
+  type LoadedPreregistration,
+} from "./preregistration.js";
 import { prepareSemaRegistryRuntime } from "./registry-runtime.js";
 import { runRelayTrial, type RelaySemanticRuntime } from "./relay.js";
 
@@ -51,11 +60,21 @@ const DEFAULT_OPENAI_KEY_ENV = "CHUTES_API_KEY";
 const SUGGESTED_CHUTES_BASE_URL = "https://llm.chutes.ai/v1";
 const MAX_CONCURRENCY = 32;
 
-type RunMode = "deterministic" | "model-pilot";
+/** Modes that invoke a model provider (as opposed to the deterministic relay).
+ * Confirmatory mode executes exactly like a model pilot; it adds the freeze
+ * check and preregistration provenance around the same run. */
+export function runsModels(mode: RunMode): boolean {
+  return mode === "model-pilot" || mode === "confirmatory";
+}
+
+type RunMode = "deterministic" | "model-pilot" | "confirmatory";
 type ModelProvider = "anthropic" | "openai-compatible";
 
 interface CliOptions {
   mode: RunMode;
+  /** Preregistration markdown path; required by (and only valid in) confirmatory
+   * mode. Its pins are verified against the loaded artifacts before any run. */
+  preregistrationPath: string;
   fixturePath: string;
   outputRoot: string;
   orderSeed: number;
@@ -117,7 +136,11 @@ function usage(): string {
     "Usage: pnpm experiment:babel -- [options]",
     "",
     "Options:",
-    "  --mode <m>          deterministic or model-pilot (default: deterministic)",
+    "  --mode <m>          deterministic, model-pilot, or confirmatory",
+    "                      (default: deterministic)",
+    "  --preregistration <path>",
+    "                      Preregistration markdown; required by and only valid",
+    "                      with --mode confirmatory. Freeze-checked before any run.",
     "  --fixtures <path>   YAML scenario file",
     "  --output <path>     Result root directory",
     "  --order-seed <n>    Recorded randomization seed (default: 20260714)",
@@ -179,6 +202,7 @@ function resolveFromRepoRoot(value: string): string {
 export function parseArgs(args: readonly string[]): CliOptions {
   const options: CliOptions = {
     mode: "deterministic",
+    preregistrationPath: "",
     fixturePath: join(
       REPO_ROOT,
       "experiments/babel-relay/fixtures/scenarios.yaml",
@@ -213,10 +237,26 @@ export function parseArgs(args: readonly string[]): CliOptions {
     }
     if (argument === "--mode") {
       const mode = args[++index];
-      if (mode !== "deterministic" && mode !== "model-pilot") {
-        throw new Error(`${argument} requires deterministic or model-pilot.`);
+      if (
+        mode !== "deterministic" &&
+        mode !== "model-pilot" &&
+        mode !== "confirmatory"
+      ) {
+        throw new Error(
+          `${argument} requires deterministic, model-pilot, or confirmatory.`,
+        );
       }
       options.mode = mode;
+      continue;
+    }
+    if (argument === "--preregistration") {
+      const path = args[++index];
+      if (!path) {
+        throw new Error(
+          `${argument} requires a path to a preregistration file.`,
+        );
+      }
+      options.preregistrationPath = resolve(REPO_ROOT, path);
       continue;
     }
     if (argument === "--fixtures") {
@@ -311,8 +351,19 @@ export function parseArgs(args: readonly string[]): CliOptions {
     throw new Error(`Unknown argument: ${argument}\n\n${usage()}`);
   }
 
-  if (options.mode === "model-pilot" && !options.seedCountExplicit) {
+  if (runsModels(options.mode) && !options.seedCountExplicit) {
     options.seedCount = DEFAULT_MODEL_PILOT_REPETITIONS;
+  }
+
+  if (options.mode === "confirmatory" && !options.preregistrationPath) {
+    throw new Error(
+      "--mode confirmatory requires --preregistration <path> so the run's frozen artifacts can be verified against the registration.",
+    );
+  }
+  if (options.mode !== "confirmatory" && options.preregistrationPath) {
+    throw new Error(
+      "--preregistration is only valid with --mode confirmatory.",
+    );
   }
 
   if (options.provider === "openai-compatible") {
@@ -452,15 +503,25 @@ function trialProgressLine(
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
-  // Fail fast before any work when a model pilot cannot authenticate.
-  if (options.mode === "model-pilot") {
+  const isModelRun = runsModels(options.mode);
+  const isConfirmatory = options.mode === "confirmatory";
+
+  // Fail fast before any work when a model run cannot authenticate.
+  if (isModelRun) {
     assertProviderApiKey(options);
+  }
+
+  // A confirmatory run's pins are parsed up front so a malformed or unreadable
+  // preregistration fails before any fixture or model work begins.
+  let preregistration: LoadedPreregistration | undefined;
+  if (isConfirmatory) {
+    preregistration = await loadPreregistration(options.preregistrationPath);
   }
 
   // Concurrency only helps when trials wait on a network provider. Deterministic
   // runs are local and CPU-bound; run them sequentially and note the override.
   let concurrency = options.concurrency;
-  if (options.mode !== "model-pilot" && concurrency > 1) {
+  if (!isModelRun && concurrency > 1) {
     console.error(
       `Note: --concurrency ${concurrency} is ignored in deterministic mode; running sequentially.`,
     );
@@ -473,7 +534,7 @@ async function main(): Promise<void> {
 
   let promptSnapshot: PromptSnapshot | undefined;
   let adapters: ModelRelayAdapters | undefined;
-  if (options.mode === "model-pilot") {
+  if (isModelRun) {
     promptSnapshot = await loadPromptSnapshot(PROMPTS_DIR);
     adapters = createModelAdapters(promptSnapshot, options);
 
@@ -481,7 +542,11 @@ async function main(): Promise<void> {
     const conditionCount = EXPERIMENT_CONDITIONS.length;
     const trialCount = scenarioCount * conditionCount * options.seedCount;
     const hopCount = RELAY_BOUNDARIES.length;
-    console.log("Babel Relay model pilot (exploratory, not confirmatory).");
+    console.log(
+      isConfirmatory
+        ? "Babel Relay CONFIRMATORY run (preregistered)."
+        : "Babel Relay model pilot (exploratory, not confirmatory).",
+    );
     console.log(
       options.provider === "openai-compatible"
         ? `Provider: openai-compatible (${options.baseUrl}, host=${options.host})`
@@ -527,20 +592,20 @@ async function main(): Promise<void> {
       { length: options.seedCount },
       (_, index) => index,
     );
-    const isModelPilot = options.mode === "model-pilot";
     const promptDigest =
-      isModelPilot && promptSnapshot
+      isModelRun && promptSnapshot
         ? promptSnapshot.promptDigest
         : fingerprint({
             experiment: EXPERIMENT_ID,
             protocolVersion: PROTOCOL_VERSION,
             policy: "deterministic-relay-v2-registry-handshake",
           });
+    const implementationCommit = gitRevision();
     const provenance: TrialProvenance = {
       artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
       protocolVersion: PROTOCOL_VERSION,
       fixtureDigest,
-      implementationCommit: gitRevision(),
+      implementationCommit,
       dependencyLockDigest: await fileDigest(join(REPO_ROOT, "pnpm-lock.yaml")),
       promptDigest,
       semaVersion: semanticMetadata.semaVersion,
@@ -550,15 +615,42 @@ async function main(): Promise<void> {
         process.env.SEMA_VOCABULARY_ROOT ??
         "",
       semanticBackend: semanticMetadata.backend,
-      modelProvider: isModelPilot
+      modelProvider: isModelRun
         ? options.provider === "openai-compatible"
           ? options.host
           : "anthropic"
         : (process.env.MODEL_PROVIDER ?? "deterministic"),
-      modelName: isModelPilot
+      modelName: isModelRun
         ? options.model
         : (process.env.MODEL_NAME ?? "deterministic-relay-v1"),
+      ...(isConfirmatory && preregistration
+        ? {
+            preregistrationPath: relative(
+              REPO_ROOT,
+              options.preregistrationPath,
+            ),
+            preregistrationDigest: preregistration.documentDigest,
+          }
+        : {}),
     };
+
+    // Freeze verification: the confirmatory run refuses to make a single model
+    // call unless every registered pin matches the artifacts just loaded and the
+    // tree is clean. This runs after provenance is assembled (so we have the
+    // resolved commit and digests) and before executeMatrix touches a provider.
+    if (isConfirmatory && preregistration) {
+      verifyFreeze(preregistration, {
+        fixtureDigest,
+        promptDigest,
+        scorerVersion: DECISION_SCORER_VERSION,
+        orderSeed: options.orderSeed,
+        implementationCommit,
+      });
+      console.log(
+        `Freeze check passed against ${provenance.preregistrationPath} ` +
+          `(digest ${preregistration.documentDigest.slice(0, 12)}...).`,
+      );
+    }
 
     await Promise.all(
       scenarioSet.scenarios.flatMap((scenario) => [
@@ -585,7 +677,7 @@ async function main(): Promise<void> {
 
     const total = cells.length;
     let completed = 0;
-    if (isModelPilot) {
+    if (isModelRun) {
       console.error(`Running ${total} trials, concurrency ${concurrency}...`);
     }
     const records = await executeMatrix<
@@ -595,7 +687,7 @@ async function main(): Promise<void> {
     >(
       cells,
       (cell) => {
-        if (isModelPilot && adapters) {
+        if (isModelRun && adapters) {
           return runModelRelayTrial(cell, {
             experimentId: EXPERIMENT_ID,
             referenceProvider,
@@ -613,7 +705,7 @@ async function main(): Promise<void> {
       },
       {
         concurrency,
-        ...(isModelPilot
+        ...(isModelRun
           ? {
               onComplete: (record: TrialRecord): void => {
                 completed += 1;
@@ -633,10 +725,16 @@ async function main(): Promise<void> {
         protocolVersion: PROTOCOL_VERSION,
         experimentId: EXPERIMENT_ID,
         runId,
-        mode: isModelPilot ? "model-pilot" : "deterministic-harness",
-        evidenceClaim: isModelPilot
-          ? "Exploratory model pilot. Not preregistered, not confirmatory evidence."
-          : "Validates condition mechanics, drift scoring, randomization, and artifact reporting only.",
+        mode: isConfirmatory
+          ? "confirmatory"
+          : isModelRun
+            ? "model-pilot"
+            : "deterministic-harness",
+        evidenceClaim: isConfirmatory
+          ? "Preregistered confirmatory experiment. Hypotheses, sample size, exclusions, and analysis were fixed at registration; see the preregistration digest in provenance."
+          : isModelRun
+            ? "Exploratory model pilot. Not preregistered, not confirmatory evidence."
+            : "Validates condition mechanics, drift scoring, randomization, and artifact reporting only.",
         createdAt: createdAt.toISOString(),
         orderSeed: options.orderSeed,
         seeds,
