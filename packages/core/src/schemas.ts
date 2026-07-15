@@ -143,6 +143,11 @@ export const trialProvenanceSchema = z.object({
   semanticBackend: z.string().min(1),
   modelProvider: z.string().min(1),
   modelName: z.string().min(1),
+  // Confirmatory runs (preregistration 001+) record the registered document
+  // and its digest here. Optional and additive: deterministic, model-pilot,
+  // sema-tax, and a2a bundles never set them and are unaffected.
+  preregistrationPath: z.string().min(1).optional(),
+  preregistrationDigest: z.string().length(64).optional(),
 });
 
 export const trialRecordSchema = z.object({
