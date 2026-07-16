@@ -85,6 +85,8 @@ function record(
     provenance,
     usage: null,
     transcript: null,
+    modelDecision: null,
+    decisionParserVersion: null,
   });
 }
 
