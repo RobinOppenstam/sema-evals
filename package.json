@@ -16,6 +16,7 @@
     "experiment:babel": "pnpm build && pnpm --filter @sema-evals/babel-relay run start",
     "experiment:security": "pnpm build && pnpm --filter @sema-evals/security run start",
     "experiment:sema-tax": "pnpm build && pnpm --filter @sema-evals/sema-tax run start",
+    "experiment:x402": "pnpm build && pnpm --filter @sema-evals/x402-contract-drift run start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
