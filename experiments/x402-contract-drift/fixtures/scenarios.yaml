@@ -1,0 +1,424 @@
+# x402 payment-contract drift fixtures (RESEARCH_PLAN parallel track).
+#
+# Each topic appears twice: a `-drift` scenario, where the payer's registry
+# holds a mutated definition for exactly one acceptance handle (controlled
+# cross-party registry drift), and a `-clean` no-drift control with identical
+# content and `drift: null`. Running both under all three conditions on the same
+# scenario/seed blocks lets the demo measure silent payment and detection on
+# the drift scenarios and the false-refusal guard on the clean controls.
+#
+# Ground truth lives ONLY in the `drift` blocks below. Payer-facing text
+# (`resourceDescription`) never carries annotations about the mutation.
+schemaVersion: "0.1.0"
+scenarios:
+  - id: "refund-window-drift"
+    title: "API access with drifted refund-window anchor"
+    description: >-
+      The payer's registry has drifted RefundWindow from anchoring on delivery
+      to anchoring on payment.
+    resourceDescription: "Premium market data feed with refund and settlement terms."
+    resource: "https://api.example.com/premium-data"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "10000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 60
+    patterns:
+      - handle: "RefundWindow"
+        definition:
+          gloss: "Period during which the payer may request a refund."
+          durationDays: 7
+          anchor: "delivery"
+      - handle: "SettlementFinality"
+        definition:
+          gloss: "When a settlement is considered final."
+          requiresConfirmations: 12
+          status: "irreversible"
+      - handle: "DisputeWindow"
+        definition:
+          gloss: "Time a counterparty may open a dispute."
+          comparator: ">="
+          threshold: 72
+          unit: "hours"
+    acceptanceHandles: ["RefundWindow", "SettlementFinality", "DisputeWindow"]
+    drift:
+      handle: "RefundWindow"
+      fieldPath: "anchor"
+      before: "delivery"
+      after: "payment"
+      mutatedDefinition:
+        gloss: "Period during which the payer may request a refund."
+        durationDays: 7
+        anchor: "payment"
+  - id: "refund-window-clean"
+    title: "API access with aligned refund-window registries"
+    description: "The no-drift control for the refund-window topic."
+    resourceDescription: "Premium market data feed with refund and settlement terms."
+    resource: "https://api.example.com/premium-data"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "10000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 60
+    patterns:
+      - handle: "RefundWindow"
+        definition:
+          gloss: "Period during which the payer may request a refund."
+          durationDays: 7
+          anchor: "delivery"
+      - handle: "SettlementFinality"
+        definition:
+          gloss: "When a settlement is considered final."
+          requiresConfirmations: 12
+          status: "irreversible"
+      - handle: "DisputeWindow"
+        definition:
+          gloss: "Time a counterparty may open a dispute."
+          comparator: ">="
+          threshold: 72
+          unit: "hours"
+    acceptanceHandles: ["RefundWindow", "SettlementFinality", "DisputeWindow"]
+    drift: null
+  - id: "amount-basis-drift"
+    title: "Checkout with drifted amount basis"
+    description: >-
+      The payer's registry has drifted AmountBasis from gross to net, so the
+      authorized value would exclude fees the seller expects included.
+    resourceDescription: "Checkout for metered compute credits."
+    resource: "https://api.example.com/compute-credits"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "25000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 60
+    patterns:
+      - handle: "AmountBasis"
+        definition:
+          gloss: "Whether the stated amount is before or after fees."
+          basis: "gross"
+          includesNetworkFee: true
+      - handle: "FeeBearer"
+        definition:
+          gloss: "Which party pays protocol and network fees."
+          party: "payer"
+      - handle: "SettlementFinality"
+        definition:
+          gloss: "When a settlement is considered final."
+          requiresConfirmations: 12
+          status: "irreversible"
+    acceptanceHandles: ["AmountBasis", "FeeBearer", "SettlementFinality"]
+    drift:
+      handle: "AmountBasis"
+      fieldPath: "basis"
+      before: "gross"
+      after: "net"
+      mutatedDefinition:
+        gloss: "Whether the stated amount is before or after fees."
+        basis: "net"
+        includesNetworkFee: true
+  - id: "amount-basis-clean"
+    title: "Checkout with aligned amount-basis registries"
+    description: "The no-drift control for the amount-basis topic."
+    resourceDescription: "Checkout for metered compute credits."
+    resource: "https://api.example.com/compute-credits"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "25000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 60
+    patterns:
+      - handle: "AmountBasis"
+        definition:
+          gloss: "Whether the stated amount is before or after fees."
+          basis: "gross"
+          includesNetworkFee: true
+      - handle: "FeeBearer"
+        definition:
+          gloss: "Which party pays protocol and network fees."
+          party: "payer"
+      - handle: "SettlementFinality"
+        definition:
+          gloss: "When a settlement is considered final."
+          requiresConfirmations: 12
+          status: "irreversible"
+    acceptanceHandles: ["AmountBasis", "FeeBearer", "SettlementFinality"]
+    drift: null
+  - id: "fee-bearer-drift"
+    title: "Subscription with drifted fee bearer"
+    description: >-
+      The payer's registry has drifted FeeBearer from payer to payee, so the
+      payer would underpay relative to the seller's terms.
+    resourceDescription: "Monthly subscription for inference capacity."
+    resource: "https://api.example.com/subscription"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "50000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 90
+    patterns:
+      - handle: "FeeBearer"
+        definition:
+          gloss: "Which party pays protocol and network fees."
+          party: "payer"
+      - handle: "DeliveryCondition"
+        definition:
+          gloss: "When the seller must deliver the purchased resource."
+          trigger: "on_settlement"
+      - handle: "AuthorizationValidity"
+        definition:
+          gloss: "How long a signed payment authorization remains valid."
+          comparator: "<="
+          threshold: 300
+          unit: "seconds"
+    acceptanceHandles:
+      ["FeeBearer", "DeliveryCondition", "AuthorizationValidity"]
+    drift:
+      handle: "FeeBearer"
+      fieldPath: "party"
+      before: "payer"
+      after: "payee"
+      mutatedDefinition:
+        gloss: "Which party pays protocol and network fees."
+        party: "payee"
+  - id: "fee-bearer-clean"
+    title: "Subscription with aligned fee-bearer registries"
+    description: "The no-drift control for the fee-bearer topic."
+    resourceDescription: "Monthly subscription for inference capacity."
+    resource: "https://api.example.com/subscription"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "50000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 90
+    patterns:
+      - handle: "FeeBearer"
+        definition:
+          gloss: "Which party pays protocol and network fees."
+          party: "payer"
+      - handle: "DeliveryCondition"
+        definition:
+          gloss: "When the seller must deliver the purchased resource."
+          trigger: "on_settlement"
+      - handle: "AuthorizationValidity"
+        definition:
+          gloss: "How long a signed payment authorization remains valid."
+          comparator: "<="
+          threshold: 300
+          unit: "seconds"
+    acceptanceHandles:
+      ["FeeBearer", "DeliveryCondition", "AuthorizationValidity"]
+    drift: null
+  - id: "settlement-finality-drift"
+    title: "Escrow release with drifted settlement finality"
+    description: >-
+      The payer's registry has drifted SettlementFinality to fewer confirmations,
+      so the payer would treat an unsettled transfer as final.
+    resourceDescription: "Escrow release for completed delivery milestone."
+    resource: "https://api.example.com/escrow/release"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "75000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 120
+    patterns:
+      - handle: "SettlementFinality"
+        definition:
+          gloss: "When a settlement is considered final."
+          requiresConfirmations: 64
+          status: "irreversible"
+      - handle: "DeliveryCondition"
+        definition:
+          gloss: "When the seller must deliver the purchased resource."
+          trigger: "on_settlement"
+      - handle: "DisputeWindow"
+        definition:
+          gloss: "Time a counterparty may open a dispute."
+          comparator: ">="
+          threshold: 48
+          unit: "hours"
+    acceptanceHandles:
+      ["SettlementFinality", "DeliveryCondition", "DisputeWindow"]
+    drift:
+      handle: "SettlementFinality"
+      fieldPath: "requiresConfirmations"
+      before: 64
+      after: 1
+      mutatedDefinition:
+        gloss: "When a settlement is considered final."
+        requiresConfirmations: 1
+        status: "irreversible"
+  - id: "settlement-finality-clean"
+    title: "Escrow release with aligned settlement-finality registries"
+    description: "The no-drift control for the settlement-finality topic."
+    resourceDescription: "Escrow release for completed delivery milestone."
+    resource: "https://api.example.com/escrow/release"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "75000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 120
+    patterns:
+      - handle: "SettlementFinality"
+        definition:
+          gloss: "When a settlement is considered final."
+          requiresConfirmations: 64
+          status: "irreversible"
+      - handle: "DeliveryCondition"
+        definition:
+          gloss: "When the seller must deliver the purchased resource."
+          trigger: "on_settlement"
+      - handle: "DisputeWindow"
+        definition:
+          gloss: "Time a counterparty may open a dispute."
+          comparator: ">="
+          threshold: 48
+          unit: "hours"
+    acceptanceHandles:
+      ["SettlementFinality", "DeliveryCondition", "DisputeWindow"]
+    drift: null
+  - id: "delivery-condition-drift"
+    title: "Content unlock with drifted delivery condition"
+    description: >-
+      The payer's registry has drifted DeliveryCondition from on_settlement to
+      on_payment, so the payer expects delivery before settlement finality.
+    resourceDescription: "Unlock digital content after payment terms are met."
+    resource: "https://api.example.com/content/unlock"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "15000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 60
+    patterns:
+      - handle: "DeliveryCondition"
+        definition:
+          gloss: "When the seller must deliver the purchased resource."
+          trigger: "on_settlement"
+      - handle: "RefundWindow"
+        definition:
+          gloss: "Period during which the payer may request a refund."
+          durationDays: 14
+          anchor: "delivery"
+      - handle: "AuthorizationValidity"
+        definition:
+          gloss: "How long a signed payment authorization remains valid."
+          comparator: "<="
+          threshold: 120
+          unit: "seconds"
+    acceptanceHandles:
+      ["DeliveryCondition", "RefundWindow", "AuthorizationValidity"]
+    drift:
+      handle: "DeliveryCondition"
+      fieldPath: "trigger"
+      before: "on_settlement"
+      after: "on_payment"
+      mutatedDefinition:
+        gloss: "When the seller must deliver the purchased resource."
+        trigger: "on_payment"
+  - id: "delivery-condition-clean"
+    title: "Content unlock with aligned delivery-condition registries"
+    description: "The no-drift control for the delivery-condition topic."
+    resourceDescription: "Unlock digital content after payment terms are met."
+    resource: "https://api.example.com/content/unlock"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "15000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 60
+    patterns:
+      - handle: "DeliveryCondition"
+        definition:
+          gloss: "When the seller must deliver the purchased resource."
+          trigger: "on_settlement"
+      - handle: "RefundWindow"
+        definition:
+          gloss: "Period during which the payer may request a refund."
+          durationDays: 14
+          anchor: "delivery"
+      - handle: "AuthorizationValidity"
+        definition:
+          gloss: "How long a signed payment authorization remains valid."
+          comparator: "<="
+          threshold: 120
+          unit: "seconds"
+    acceptanceHandles:
+      ["DeliveryCondition", "RefundWindow", "AuthorizationValidity"]
+    drift: null
+  - id: "dispute-window-drift"
+    title: "Marketplace purchase with drifted dispute window"
+    description: >-
+      The payer's registry has drifted DisputeWindow to a shorter threshold, so
+      the payer would treat disputes as closed too early.
+    resourceDescription: "Marketplace purchase with dispute and refund terms."
+    resource: "https://api.example.com/marketplace/order"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "42000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 60
+    patterns:
+      - handle: "DisputeWindow"
+        definition:
+          gloss: "Time a counterparty may open a dispute."
+          comparator: ">="
+          threshold: 168
+          unit: "hours"
+      - handle: "AmountBasis"
+        definition:
+          gloss: "Whether the stated amount is before or after fees."
+          basis: "gross"
+          includesNetworkFee: false
+      - handle: "PartialFillPolicy"
+        definition:
+          gloss: "Whether partial settlement of the required amount is allowed."
+          allowPartial: false
+    acceptanceHandles: ["DisputeWindow", "AmountBasis", "PartialFillPolicy"]
+    drift:
+      handle: "DisputeWindow"
+      fieldPath: "threshold"
+      before: 168
+      after: 24
+      mutatedDefinition:
+        gloss: "Time a counterparty may open a dispute."
+        comparator: ">="
+        threshold: 24
+        unit: "hours"
+  - id: "dispute-window-clean"
+    title: "Marketplace purchase with aligned dispute-window registries"
+    description: "The no-drift control for the dispute-window topic."
+    resourceDescription: "Marketplace purchase with dispute and refund terms."
+    resource: "https://api.example.com/marketplace/order"
+    scheme: "exact"
+    network: "base-sepolia"
+    maxAmountRequired: "42000"
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    maxTimeoutSeconds: 60
+    patterns:
+      - handle: "DisputeWindow"
+        definition:
+          gloss: "Time a counterparty may open a dispute."
+          comparator: ">="
+          threshold: 168
+          unit: "hours"
+      - handle: "AmountBasis"
+        definition:
+          gloss: "Whether the stated amount is before or after fees."
+          basis: "gross"
+          includesNetworkFee: false
+      - handle: "PartialFillPolicy"
+        definition:
+          gloss: "Whether partial settlement of the required amount is allowed."
+          allowPartial: false
+    acceptanceHandles: ["DisputeWindow", "AmountBasis", "PartialFillPolicy"]
+    drift: null
