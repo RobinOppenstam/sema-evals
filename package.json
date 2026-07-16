@@ -14,6 +14,7 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
     "experiment:a2a": "pnpm build && pnpm --filter @sema-evals/a2a-drift run start",
     "experiment:babel": "pnpm build && pnpm --filter @sema-evals/babel-relay run start",
+    "experiment:forecasting": "pnpm build && pnpm --filter @sema-evals/forecasting run start",
     "experiment:security": "pnpm build && pnpm --filter @sema-evals/security run start",
     "experiment:sema-tax": "pnpm build && pnpm --filter @sema-evals/sema-tax run start",
     "experiment:x402": "pnpm build && pnpm --filter @sema-evals/x402-contract-drift run start",
