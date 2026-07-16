@@ -1,0 +1,612 @@
+# Forecasting council fixtures (RESEARCH_PLAN Phase 5 scaffold).
+#
+# Synthetic Polymarket-style questions (invented events). Each topic appears
+# twice: a `-drift` scenario, where exactly one forecaster's registry holds a
+# mutated definition for exactly one coordination handle, and a `-clean`
+# no-drift control with identical content and `drift: null`.
+#
+# Ground truth (outcomes, drift specs, audit verdicts) lives ONLY in the
+# structured fields below. Agent-facing text (`questionText`,
+# `resolutionCriteria`, definition glosses) never carries annotations about
+# the mutation or the expected endpoint.
+#
+# Drift families covered:
+#   - probability-format (0–1 vs 0–100) — baseline averages 0.62-scale with 62
+#   - resolution-definition (announced vs effective; threshold comparator)
+schemaVersion: "0.1.0"
+scenarios:
+  # ---------------------------------------------------------------------------
+  # Probability-format drift: baseline averages 0.55+0.60+0.65+0.58+62 = 12.876
+  # ---------------------------------------------------------------------------
+  - id: "synthetic-prob-format-drift"
+    title: "Synthetic Q2 product launch — probability format drift"
+    description: >-
+      Forecaster-4's registry has drifted ProbabilityFormat from unit (0–1) to
+      percent (0–100). Its reported 62 is correct under its format and
+      catastrophic when averaged raw under baseline.
+    question:
+      questionText: >-
+        Will Acme Corp announce a generally available launch of Product X by
+        30 June 2024?
+      resolutionCriteria: >-
+        Resolves YES if Acme Corp publicly announces general availability of
+        Product X on or before 30 June 2024 23:59 UTC. Resolves NO otherwise.
+        Announcement means an official company press release or blog post;
+        third-party rumors do not count.
+      resolutionTimestamp: "2024-07-01T00:00:00.000Z"
+      resolvedOutcome: "YES"
+      marketPrior: 0.48
+      evidencePack: null
+    leakageAudit:
+      model: "synthetic-auditor-v1"
+      zeroEvidenceAnswer: "YES"
+      confidence: 0.72
+      verdict: "keep"
+    patterns:
+      - handle: "ResolutionDefinition"
+        definition:
+          gloss: "What counts as YES for the Product X launch question."
+          anchor: "announced"
+          deadline: "2024-06-30T23:59:59.000Z"
+          source: "official_company_channel"
+      - handle: "EvidenceCutoff"
+        definition:
+          gloss: "Latest time evidence may be used when forecasting."
+          cutoff: "2024-06-30T23:59:59.000Z"
+          timezone: "UTC"
+      - handle: "ProbabilityFormat"
+        definition:
+          gloss: "How probability values are encoded."
+          scale: "unit"
+          minimum: 0
+          maximum: 1
+      - handle: "AggregationRule"
+        definition:
+          gloss: "How council forecasts are combined."
+          method: "probability_mean"
+          requiresFormatNormalization: true
+    coordinationHandles:
+      - "ResolutionDefinition"
+      - "EvidenceCutoff"
+      - "ProbabilityFormat"
+      - "AggregationRule"
+    agents:
+      - id: "forecaster-0"
+        round1Probability: 0.52
+        round2Probability: 0.55
+      - id: "forecaster-1"
+        round1Probability: 0.58
+        round2Probability: 0.6
+      - id: "forecaster-2"
+        round1Probability: 0.62
+        round2Probability: 0.65
+      - id: "forecaster-3"
+        round1Probability: 0.55
+        round2Probability: 0.58
+      - id: "forecaster-4"
+        # Reported in percent under drifted format: 62 means 0.62.
+        round1Probability: 60
+        round2Probability: 62
+    drift:
+      agentId: "forecaster-4"
+      handle: "ProbabilityFormat"
+      fieldPath: "scale"
+      before: "unit"
+      after: "percent"
+      mutatedDefinition:
+        gloss: "How probability values are encoded."
+        scale: "percent"
+        minimum: 0
+        maximum: 100
+
+  - id: "synthetic-prob-format-clean"
+    title: "Synthetic Q2 product launch — aligned probability format"
+    description: "The no-drift control for the probability-format topic."
+    question:
+      questionText: >-
+        Will Acme Corp announce a generally available launch of Product X by
+        30 June 2024?
+      resolutionCriteria: >-
+        Resolves YES if Acme Corp publicly announces general availability of
+        Product X on or before 30 June 2024 23:59 UTC. Resolves NO otherwise.
+        Announcement means an official company press release or blog post;
+        third-party rumors do not count.
+      resolutionTimestamp: "2024-07-01T00:00:00.000Z"
+      resolvedOutcome: "YES"
+      marketPrior: 0.48
+      evidencePack: null
+    leakageAudit:
+      model: "synthetic-auditor-v1"
+      zeroEvidenceAnswer: "YES"
+      confidence: 0.72
+      verdict: "keep"
+    patterns:
+      - handle: "ResolutionDefinition"
+        definition:
+          gloss: "What counts as YES for the Product X launch question."
+          anchor: "announced"
+          deadline: "2024-06-30T23:59:59.000Z"
+          source: "official_company_channel"
+      - handle: "EvidenceCutoff"
+        definition:
+          gloss: "Latest time evidence may be used when forecasting."
+          cutoff: "2024-06-30T23:59:59.000Z"
+          timezone: "UTC"
+      - handle: "ProbabilityFormat"
+        definition:
+          gloss: "How probability values are encoded."
+          scale: "unit"
+          minimum: 0
+          maximum: 1
+      - handle: "AggregationRule"
+        definition:
+          gloss: "How council forecasts are combined."
+          method: "probability_mean"
+          requiresFormatNormalization: true
+    coordinationHandles:
+      - "ResolutionDefinition"
+      - "EvidenceCutoff"
+      - "ProbabilityFormat"
+      - "AggregationRule"
+    agents:
+      - id: "forecaster-0"
+        round1Probability: 0.52
+        round2Probability: 0.55
+      - id: "forecaster-1"
+        round1Probability: 0.58
+        round2Probability: 0.6
+      - id: "forecaster-2"
+        round1Probability: 0.62
+        round2Probability: 0.65
+      - id: "forecaster-3"
+        round1Probability: 0.55
+        round2Probability: 0.58
+      - id: "forecaster-4"
+        round1Probability: 0.6
+        round2Probability: 0.62
+    drift: null
+
+  # ---------------------------------------------------------------------------
+  # Resolution-definition drift: announced vs effective
+  # ---------------------------------------------------------------------------
+  - id: "synthetic-resolution-announced-drift"
+    title: "Synthetic rate decision — announced vs effective resolution drift"
+    description: >-
+      Forecaster-2's registry has drifted ResolutionDefinition from anchoring
+      on announcement to anchoring on the policy becoming effective.
+    question:
+      questionText: >-
+        Will the Central Reserve announce a policy-rate cut of at least 25
+        basis points before 31 March 2024?
+      resolutionCriteria: >-
+        Resolves YES if the Central Reserve issues an official statement
+        announcing a policy-rate cut of at least 25 basis points with a
+        decision date on or before 31 March 2024 23:59 UTC. The date the cut
+        takes effect may be later; the public statement is what counts.
+      resolutionTimestamp: "2024-04-01T00:00:00.000Z"
+      resolvedOutcome: "YES"
+      marketPrior: 0.61
+      evidencePack: null
+    leakageAudit:
+      model: "synthetic-auditor-v1"
+      zeroEvidenceAnswer: "YES"
+      confidence: 0.65
+      verdict: "keep"
+    patterns:
+      - handle: "ResolutionDefinition"
+        definition:
+          gloss: "What counts as YES for the rate-cut question."
+          anchor: "announced"
+          deadline: "2024-03-31T23:59:59.000Z"
+          minimumCutBps: 25
+      - handle: "EvidenceCutoff"
+        definition:
+          gloss: "Latest time evidence may be used when forecasting."
+          cutoff: "2024-03-31T23:59:59.000Z"
+          timezone: "UTC"
+      - handle: "ProbabilityFormat"
+        definition:
+          gloss: "How probability values are encoded."
+          scale: "unit"
+          minimum: 0
+          maximum: 1
+      - handle: "AggregationRule"
+        definition:
+          gloss: "How council forecasts are combined."
+          method: "probability_mean"
+          requiresFormatNormalization: true
+    coordinationHandles:
+      - "ResolutionDefinition"
+      - "EvidenceCutoff"
+      - "ProbabilityFormat"
+      - "AggregationRule"
+    agents:
+      - id: "forecaster-0"
+        round1Probability: 0.68
+        round2Probability: 0.7
+      - id: "forecaster-1"
+        round1Probability: 0.72
+        round2Probability: 0.74
+      - id: "forecaster-2"
+        # Forecasting the drifted event (takes-effect anchor) — lower probability.
+        round1Probability: 0.35
+        round2Probability: 0.32
+      - id: "forecaster-3"
+        round1Probability: 0.66
+        round2Probability: 0.68
+      - id: "forecaster-4"
+        round1Probability: 0.7
+        round2Probability: 0.71
+    drift:
+      agentId: "forecaster-2"
+      handle: "ResolutionDefinition"
+      fieldPath: "anchor"
+      before: "announced"
+      after: "effective"
+      mutatedDefinition:
+        gloss: "What counts as YES for the rate-cut question."
+        anchor: "effective"
+        deadline: "2024-03-31T23:59:59.000Z"
+        minimumCutBps: 25
+
+  - id: "synthetic-resolution-announced-clean"
+    title: "Synthetic rate decision — aligned resolution definition"
+    description: "The no-drift control for the announced-vs-effective topic."
+    question:
+      questionText: >-
+        Will the Central Reserve announce a policy-rate cut of at least 25
+        basis points before 31 March 2024?
+      resolutionCriteria: >-
+        Resolves YES if the Central Reserve issues an official statement
+        announcing a policy-rate cut of at least 25 basis points with a
+        decision date on or before 31 March 2024 23:59 UTC. The date the cut
+        takes effect may be later; the public statement is what counts.
+      resolutionTimestamp: "2024-04-01T00:00:00.000Z"
+      resolvedOutcome: "YES"
+      marketPrior: 0.61
+      evidencePack: null
+    leakageAudit:
+      model: "synthetic-auditor-v1"
+      zeroEvidenceAnswer: "YES"
+      confidence: 0.65
+      verdict: "keep"
+    patterns:
+      - handle: "ResolutionDefinition"
+        definition:
+          gloss: "What counts as YES for the rate-cut question."
+          anchor: "announced"
+          deadline: "2024-03-31T23:59:59.000Z"
+          minimumCutBps: 25
+      - handle: "EvidenceCutoff"
+        definition:
+          gloss: "Latest time evidence may be used when forecasting."
+          cutoff: "2024-03-31T23:59:59.000Z"
+          timezone: "UTC"
+      - handle: "ProbabilityFormat"
+        definition:
+          gloss: "How probability values are encoded."
+          scale: "unit"
+          minimum: 0
+          maximum: 1
+      - handle: "AggregationRule"
+        definition:
+          gloss: "How council forecasts are combined."
+          method: "probability_mean"
+          requiresFormatNormalization: true
+    coordinationHandles:
+      - "ResolutionDefinition"
+      - "EvidenceCutoff"
+      - "ProbabilityFormat"
+      - "AggregationRule"
+    agents:
+      - id: "forecaster-0"
+        round1Probability: 0.68
+        round2Probability: 0.7
+      - id: "forecaster-1"
+        round1Probability: 0.72
+        round2Probability: 0.74
+      - id: "forecaster-2"
+        round1Probability: 0.69
+        round2Probability: 0.71
+      - id: "forecaster-3"
+        round1Probability: 0.66
+        round2Probability: 0.68
+      - id: "forecaster-4"
+        round1Probability: 0.7
+        round2Probability: 0.71
+    drift: null
+
+  # ---------------------------------------------------------------------------
+  # Resolution-definition drift: threshold comparator (>= vs >)
+  # ---------------------------------------------------------------------------
+  - id: "synthetic-resolution-threshold-drift"
+    title: "Synthetic treaty ratification — threshold comparator drift"
+    description: >-
+      Forecaster-1's registry has drifted ResolutionDefinition from requiring
+      at least 60 ratifications to requiring strictly more than 60.
+    question:
+      questionText: >-
+        Will at least 60 member states deposit instruments of ratification for
+        the Aurora Climate Treaty by 31 December 2023?
+      resolutionCriteria: >-
+        Resolves YES if the treaty depositary records at least 60 deposited
+        instruments of ratification with deposit timestamps on or before
+        31 December 2023 23:59 UTC. Resolves NO otherwise.
+      resolutionTimestamp: "2024-01-01T00:00:00.000Z"
+      resolvedOutcome: "NO"
+      marketPrior: 0.42
+      evidencePack: null
+    leakageAudit:
+      model: "synthetic-auditor-v1"
+      zeroEvidenceAnswer: "NO"
+      confidence: 0.58
+      verdict: "keep"
+    patterns:
+      - handle: "ResolutionDefinition"
+        definition:
+          gloss: "What counts as YES for the treaty ratification question."
+          comparator: ">="
+          threshold: 60
+          deadline: "2023-12-31T23:59:59.000Z"
+      - handle: "EvidenceCutoff"
+        definition:
+          gloss: "Latest time evidence may be used when forecasting."
+          cutoff: "2023-12-31T23:59:59.000Z"
+          timezone: "UTC"
+      - handle: "ProbabilityFormat"
+        definition:
+          gloss: "How probability values are encoded."
+          scale: "unit"
+          minimum: 0
+          maximum: 1
+      - handle: "AggregationRule"
+        definition:
+          gloss: "How council forecasts are combined."
+          method: "probability_mean"
+          requiresFormatNormalization: true
+    coordinationHandles:
+      - "ResolutionDefinition"
+      - "EvidenceCutoff"
+      - "ProbabilityFormat"
+      - "AggregationRule"
+    agents:
+      - id: "forecaster-0"
+        round1Probability: 0.38
+        round2Probability: 0.36
+      - id: "forecaster-1"
+        # Drifted comparator makes YES harder — lower probability.
+        round1Probability: 0.22
+        round2Probability: 0.2
+      - id: "forecaster-2"
+        round1Probability: 0.4
+        round2Probability: 0.39
+      - id: "forecaster-3"
+        round1Probability: 0.35
+        round2Probability: 0.34
+      - id: "forecaster-4"
+        round1Probability: 0.37
+        round2Probability: 0.35
+    drift:
+      agentId: "forecaster-1"
+      handle: "ResolutionDefinition"
+      fieldPath: "comparator"
+      before: ">="
+      after: ">"
+      mutatedDefinition:
+        gloss: "What counts as YES for the treaty ratification question."
+        comparator: ">"
+        threshold: 60
+        deadline: "2023-12-31T23:59:59.000Z"
+
+  - id: "synthetic-resolution-threshold-clean"
+    title: "Synthetic treaty ratification — aligned resolution threshold"
+    description: "The no-drift control for the threshold-comparator topic."
+    question:
+      questionText: >-
+        Will at least 60 member states deposit instruments of ratification for
+        the Aurora Climate Treaty by 31 December 2023?
+      resolutionCriteria: >-
+        Resolves YES if the treaty depositary records at least 60 deposited
+        instruments of ratification with deposit timestamps on or before
+        31 December 2023 23:59 UTC. Resolves NO otherwise.
+      resolutionTimestamp: "2024-01-01T00:00:00.000Z"
+      resolvedOutcome: "NO"
+      marketPrior: 0.42
+      evidencePack: null
+    leakageAudit:
+      model: "synthetic-auditor-v1"
+      zeroEvidenceAnswer: "NO"
+      confidence: 0.58
+      verdict: "keep"
+    patterns:
+      - handle: "ResolutionDefinition"
+        definition:
+          gloss: "What counts as YES for the treaty ratification question."
+          comparator: ">="
+          threshold: 60
+          deadline: "2023-12-31T23:59:59.000Z"
+      - handle: "EvidenceCutoff"
+        definition:
+          gloss: "Latest time evidence may be used when forecasting."
+          cutoff: "2023-12-31T23:59:59.000Z"
+          timezone: "UTC"
+      - handle: "ProbabilityFormat"
+        definition:
+          gloss: "How probability values are encoded."
+          scale: "unit"
+          minimum: 0
+          maximum: 1
+      - handle: "AggregationRule"
+        definition:
+          gloss: "How council forecasts are combined."
+          method: "probability_mean"
+          requiresFormatNormalization: true
+    coordinationHandles:
+      - "ResolutionDefinition"
+      - "EvidenceCutoff"
+      - "ProbabilityFormat"
+      - "AggregationRule"
+    agents:
+      - id: "forecaster-0"
+        round1Probability: 0.38
+        round2Probability: 0.36
+      - id: "forecaster-1"
+        round1Probability: 0.37
+        round2Probability: 0.36
+      - id: "forecaster-2"
+        round1Probability: 0.4
+        round2Probability: 0.39
+      - id: "forecaster-3"
+        round1Probability: 0.35
+        round2Probability: 0.34
+      - id: "forecaster-4"
+        round1Probability: 0.37
+        round2Probability: 0.35
+    drift: null
+
+  # ---------------------------------------------------------------------------
+  # Evidence-cutoff drift (second coordination handle family for coverage)
+  # ---------------------------------------------------------------------------
+  - id: "synthetic-evidence-cutoff-drift"
+    title: "Synthetic merger clearance — evidence cutoff drift"
+    description: >-
+      Forecaster-0's registry has drifted EvidenceCutoff from the resolution
+      deadline to thirty days earlier, so that agent forecasts under a
+      different information set definition.
+    question:
+      questionText: >-
+        Will the Horizon–Nimbus merger receive unconditional clearance from
+        the Competition Authority by 15 September 2024?
+      resolutionCriteria: >-
+        Resolves YES if the Competition Authority publishes an unconditional
+        clearance decision for the Horizon–Nimbus merger with a decision date
+        on or before 15 September 2024 23:59 UTC. Conditional clearances and
+        prohibitions resolve NO.
+      resolutionTimestamp: "2024-09-16T00:00:00.000Z"
+      resolvedOutcome: "YES"
+      marketPrior: 0.55
+      evidencePack: null
+    leakageAudit:
+      model: "synthetic-auditor-v1"
+      zeroEvidenceAnswer: "YES"
+      confidence: 0.61
+      verdict: "keep"
+    patterns:
+      - handle: "ResolutionDefinition"
+        definition:
+          gloss: "What counts as YES for the merger clearance question."
+          decision: "unconditional_clearance"
+          deadline: "2024-09-15T23:59:59.000Z"
+      - handle: "EvidenceCutoff"
+        definition:
+          gloss: "Latest time evidence may be used when forecasting."
+          cutoff: "2024-09-15T23:59:59.000Z"
+          timezone: "UTC"
+      - handle: "ProbabilityFormat"
+        definition:
+          gloss: "How probability values are encoded."
+          scale: "unit"
+          minimum: 0
+          maximum: 1
+      - handle: "AggregationRule"
+        definition:
+          gloss: "How council forecasts are combined."
+          method: "probability_mean"
+          requiresFormatNormalization: true
+    coordinationHandles:
+      - "ResolutionDefinition"
+      - "EvidenceCutoff"
+      - "ProbabilityFormat"
+      - "AggregationRule"
+    agents:
+      - id: "forecaster-0"
+        round1Probability: 0.45
+        round2Probability: 0.44
+      - id: "forecaster-1"
+        round1Probability: 0.58
+        round2Probability: 0.6
+      - id: "forecaster-2"
+        round1Probability: 0.56
+        round2Probability: 0.57
+      - id: "forecaster-3"
+        round1Probability: 0.54
+        round2Probability: 0.55
+      - id: "forecaster-4"
+        round1Probability: 0.59
+        round2Probability: 0.58
+    drift:
+      agentId: "forecaster-0"
+      handle: "EvidenceCutoff"
+      fieldPath: "cutoff"
+      before: "2024-09-15T23:59:59.000Z"
+      after: "2024-08-16T23:59:59.000Z"
+      mutatedDefinition:
+        gloss: "Latest time evidence may be used when forecasting."
+        cutoff: "2024-08-16T23:59:59.000Z"
+        timezone: "UTC"
+
+  - id: "synthetic-evidence-cutoff-clean"
+    title: "Synthetic merger clearance — aligned evidence cutoff"
+    description: "The no-drift control for the evidence-cutoff topic."
+    question:
+      questionText: >-
+        Will the Horizon–Nimbus merger receive unconditional clearance from
+        the Competition Authority by 15 September 2024?
+      resolutionCriteria: >-
+        Resolves YES if the Competition Authority publishes an unconditional
+        clearance decision for the Horizon–Nimbus merger with a decision date
+        on or before 15 September 2024 23:59 UTC. Conditional clearances and
+        prohibitions resolve NO.
+      resolutionTimestamp: "2024-09-16T00:00:00.000Z"
+      resolvedOutcome: "YES"
+      marketPrior: 0.55
+      evidencePack: null
+    leakageAudit:
+      model: "synthetic-auditor-v1"
+      zeroEvidenceAnswer: "YES"
+      confidence: 0.61
+      verdict: "keep"
+    patterns:
+      - handle: "ResolutionDefinition"
+        definition:
+          gloss: "What counts as YES for the merger clearance question."
+          decision: "unconditional_clearance"
+          deadline: "2024-09-15T23:59:59.000Z"
+      - handle: "EvidenceCutoff"
+        definition:
+          gloss: "Latest time evidence may be used when forecasting."
+          cutoff: "2024-09-15T23:59:59.000Z"
+          timezone: "UTC"
+      - handle: "ProbabilityFormat"
+        definition:
+          gloss: "How probability values are encoded."
+          scale: "unit"
+          minimum: 0
+          maximum: 1
+      - handle: "AggregationRule"
+        definition:
+          gloss: "How council forecasts are combined."
+          method: "probability_mean"
+          requiresFormatNormalization: true
+    coordinationHandles:
+      - "ResolutionDefinition"
+      - "EvidenceCutoff"
+      - "ProbabilityFormat"
+      - "AggregationRule"
+    agents:
+      - id: "forecaster-0"
+        round1Probability: 0.57
+        round2Probability: 0.56
+      - id: "forecaster-1"
+        round1Probability: 0.58
+        round2Probability: 0.6
+      - id: "forecaster-2"
+        round1Probability: 0.56
+        round2Probability: 0.57
+      - id: "forecaster-3"
+        round1Probability: 0.54
+        round2Probability: 0.55
+      - id: "forecaster-4"
+        round1Probability: 0.59
+        round2Probability: 0.58
+    drift: null
