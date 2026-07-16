@@ -5,8 +5,8 @@
   "split": "train",
   "mutation": {
     "description": "updateFee() lacks an authorized-caller check, so any address can change the fee basis points.",
-    "vulnerableMarker": "/* VULN: open-updateFee */",
-    "patchedMarker": "/* PATCH: gated-updateFee */"
+    "vulnerableSnippet": "require(nextBps <= 10_000, \"bps\");\n        feeBps = nextBps;",
+    "patchedSnippet": "require(msg.sender == governor, \"not governor\");"
   },
   "expectedFindings": [{ "class": "access-control", "function": "updateFee" }],
   "identifiers": {

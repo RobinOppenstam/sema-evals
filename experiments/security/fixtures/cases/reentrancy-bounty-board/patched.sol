@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Patched heldout bounty board: clears the slot before paying.
+/// @notice Posts ETH bounties and pays them out to claimants.
 contract BountyBoard {
     mapping(uint256 => uint256) public openBounties;
     mapping(address => uint256) public hunterPaid;
@@ -20,7 +20,6 @@ contract BountyBoard {
     function claimBounty(uint256 id) external {
         uint256 reward = openBounties[id];
         require(reward > 0, "gone");
-        /* PATCH: clear-before-pay */
         openBounties[id] = 0;
         hunterPaid[msg.sender] += reward;
         (bool ok, ) = msg.sender.call{value: reward}("");

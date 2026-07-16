@@ -5,8 +5,8 @@
   "split": "heldout",
   "mutation": {
     "description": "flipPause() has no curator authorization, so any address can freeze or unfreeze the module.",
-    "vulnerableMarker": "/* VULN: open-flipPause */",
-    "patchedMarker": "/* PATCH: curator-flipPause */"
+    "vulnerableSnippet": "function flipPause() external {\n        paused = !paused;\n    }",
+    "patchedSnippet": "require(msg.sender == curator, \"not curator\");"
   },
   "expectedFindings": [{ "class": "access-control", "function": "flipPause" }],
   "identifiers": {

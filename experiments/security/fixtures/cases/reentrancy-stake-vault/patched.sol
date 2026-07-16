@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Patched staking vault: burns shares before the ETH transfer.
+/// @notice Accepts ETH stakes and returns them when shares are redeemed.
 contract StakeVault {
     mapping(address => uint256) public shares;
     uint256 public totalShares;
@@ -18,7 +18,6 @@ contract StakeVault {
 
     function unstake(uint256 amount) external {
         require(shares[msg.sender] >= amount, "shares");
-        /* PATCH: burn-before-transfer */
         shares[msg.sender] -= amount;
         totalShares -= amount;
         (bool ok, ) = msg.sender.call{value: amount}("");

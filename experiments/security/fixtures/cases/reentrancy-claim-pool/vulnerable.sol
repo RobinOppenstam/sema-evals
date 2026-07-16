@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Minimal claimable-ETH pool used as a train reentrancy fixture.
+/// @notice Tracks claimable ETH balances and pays them out on demand.
 contract ClaimPool {
     mapping(address => uint256) public claimable;
     uint256 public totalDeposits;
@@ -18,7 +18,6 @@ contract ClaimPool {
     function claim() external {
         uint256 amount = claimable[msg.sender];
         require(amount > 0, "nothing");
-        /* VULN: call-before-zero */
         (bool ok, ) = msg.sender.call{value: amount}("");
         require(ok, "pay failed");
         claimable[msg.sender] = 0;

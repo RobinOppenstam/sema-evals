@@ -41,16 +41,17 @@ export const expectedFindingSchema = z.object({
 });
 
 /**
- * Distinguishing mutation metadata. Integrity tests use the markers to confirm
- * vulnerable.sol and patched.sol differ in the described way; the free-text
- * description is for humans and future model prompts.
+ * Distinguishing mutation metadata. Integrity tests use exact real code
+ * snippets (never annotation comments) to confirm vulnerable.sol and
+ * patched.sol differ in the described way. Ground truth lives only in
+ * case.json — fixture .sol sources are model-facing and must stay unannotated.
  */
 export const mutationSchema = z.object({
   description: z.string().min(1),
-  /** Substring that must appear in vulnerable.sol and not in patched.sol. */
-  vulnerableMarker: z.string().min(1),
-  /** Substring that must appear in patched.sol and not in vulnerable.sol. */
-  patchedMarker: z.string().min(1),
+  /** Exact code substring that must appear in vulnerable.sol and not in patched.sol. */
+  vulnerableSnippet: z.string().min(1),
+  /** Exact code substring that must appear in patched.sol and not in vulnerable.sol. */
+  patchedSnippet: z.string().min(1),
 });
 
 export const securityCaseSchema = z.object({

@@ -5,8 +5,8 @@
   "split": "heldout",
   "mutation": {
     "description": "dropTip() forwards ETH via a low-level call and never inspects the returned success boolean.",
-    "vulnerableMarker": "/* VULN: no-ok-check */",
-    "patchedMarker": "/* PATCH: ok-checked */"
+    "vulnerableSnippet": "jarBalance -= amount;\n        artist.call{value: amount}(\"\");",
+    "patchedSnippet": "(bool ok, ) = artist.call{value: amount}(\"\");\n        require(ok, \"tip failed\");"
   },
   "expectedFindings": [
     { "class": "unchecked-external-call", "function": "dropTip" }

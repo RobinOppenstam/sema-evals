@@ -5,8 +5,8 @@
   "split": "train",
   "mutation": {
     "description": "setTreasury() has no onlyOwner (or equivalent) guard, so any address can redirect withdrawals.",
-    "vulnerableMarker": "/* VULN: missing-onlyOwner */",
-    "patchedMarker": "/* PATCH: onlyOwner-guard */"
+    "vulnerableSnippet": "function setTreasury(address next) external {\n        treasury = next;\n    }",
+    "patchedSnippet": "require(msg.sender == owner, \"not owner\");"
   },
   "expectedFindings": [
     { "class": "access-control", "function": "setTreasury" }

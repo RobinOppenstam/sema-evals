@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Patched pause switch: only curator may flipPause.
+/// @notice On/off pause switch for a dependent module.
 contract PauseSwitch {
     address public curator;
     bool public paused;
@@ -15,7 +15,6 @@ contract PauseSwitch {
     }
 
     function flipPause() external {
-        /* PATCH: curator-flipPause */
         require(msg.sender == curator, "not curator");
         paused = !paused;
     }

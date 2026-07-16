@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Train access-control fixture: open fee updater.
+/// @notice Fee oracle with an updatable basis-point fee.
 contract FeeOracle {
     address public governor;
     uint256 public feeBps;
@@ -13,7 +13,6 @@ contract FeeOracle {
 
     function updateFee(uint256 nextBps) external {
         require(nextBps <= 10_000, "bps");
-        /* VULN: open-updateFee */
         feeBps = nextBps;
     }
 }

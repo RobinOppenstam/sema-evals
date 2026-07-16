@@ -5,8 +5,8 @@
   "split": "train",
   "mutation": {
     "description": "relay() performs a low-level call and does not require the returned success flag, so a failed payout is treated as success.",
-    "vulnerableMarker": "/* VULN: ignore-return */",
-    "patchedMarker": "/* PATCH: require-return */"
+    "vulnerableSnippet": "credits[msg.sender] -= amount;\n        to.call{value: amount}(\"\");",
+    "patchedSnippet": "(bool ok, ) = to.call{value: amount}(\"\");\n        require(ok, \"relay failed\");"
   },
   "expectedFindings": [
     { "class": "unchecked-external-call", "function": "relay" }

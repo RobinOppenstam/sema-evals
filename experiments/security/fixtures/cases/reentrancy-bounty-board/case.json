@@ -5,8 +5,8 @@
   "split": "heldout",
   "mutation": {
     "description": "In claimBounty(), the board sends ETH before clearing openBounties[id], allowing a reentering hunter to claim the same bounty twice.",
-    "vulnerableMarker": "/* VULN: pay-before-clear */",
-    "patchedMarker": "/* PATCH: clear-before-pay */"
+    "vulnerableSnippet": "(bool ok, ) = msg.sender.call{value: reward}(\"\");\n        require(ok, \"pay\");\n        openBounties[id] = 0;",
+    "patchedSnippet": "openBounties[id] = 0;\n        hunterPaid[msg.sender] += reward;\n        (bool ok, ) = msg.sender.call{value: reward}(\"\");"
   },
   "expectedFindings": [{ "class": "reentrancy", "function": "claimBounty" }],
   "identifiers": {

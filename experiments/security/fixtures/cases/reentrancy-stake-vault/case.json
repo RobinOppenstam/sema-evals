@@ -5,8 +5,8 @@
   "split": "train",
   "mutation": {
     "description": "In unstake(), shares are burned only after the ETH transfer, so a malicious receiver can reenter and unstake again against the still-live share balance.",
-    "vulnerableMarker": "/* VULN: transfer-before-burn */",
-    "patchedMarker": "/* PATCH: burn-before-transfer */"
+    "vulnerableSnippet": "(bool ok, ) = msg.sender.call{value: amount}(\"\");\n        require(ok, \"send\");\n        shares[msg.sender] -= amount;",
+    "patchedSnippet": "shares[msg.sender] -= amount;\n        totalShares -= amount;\n        (bool ok, ) = msg.sender.call{value: amount}(\"\");"
   },
   "expectedFindings": [{ "class": "reentrancy", "function": "unstake" }],
   "identifiers": {

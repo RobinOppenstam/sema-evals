@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Heldout access-control fixture: unprotected pause toggle.
+/// @notice On/off pause switch for a dependent module.
 contract PauseSwitch {
     address public curator;
     bool public paused;
@@ -15,7 +15,6 @@ contract PauseSwitch {
     }
 
     function flipPause() external {
-        /* VULN: open-flipPause */
         paused = !paused;
     }
 }

@@ -5,8 +5,8 @@
   "split": "train",
   "mutation": {
     "description": "In claim(), the external ETH call runs before claimable[msg.sender] is set to zero, so a reentering receiver can drain the pool.",
-    "vulnerableMarker": "/* VULN: call-before-zero */",
-    "patchedMarker": "/* PATCH: zero-before-call */"
+    "vulnerableSnippet": "(bool ok, ) = msg.sender.call{value: amount}(\"\");\n        require(ok, \"pay failed\");\n        claimable[msg.sender] = 0;",
+    "patchedSnippet": "claimable[msg.sender] = 0;\n        totalDeposits -= amount;\n        (bool ok, ) = msg.sender.call{value: amount}(\"\");"
   },
   "expectedFindings": [{ "class": "reentrancy", "function": "claim" }],
   "identifiers": {

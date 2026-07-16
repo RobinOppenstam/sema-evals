@@ -111,9 +111,9 @@ function assertClassCoverage(
 }
 
 /**
- * Confirms vulnerable vs patched differ exactly per the mutation markers:
- * each marker appears in its designated variant and not the other, and the two
- * sources are not byte-identical.
+ * Confirms vulnerable vs patched differ exactly per the mutation snippets:
+ * each real-code snippet appears in its designated variant and not the other,
+ * and the two sources are not byte-identical.
  */
 export function assertMutationIntegrity(
   meta: SecurityCase,
@@ -125,22 +125,22 @@ export function assertMutationIntegrity(
       `Case ${meta.id}: vulnerable.sol and patched.sol are identical.`,
     );
   }
-  if (!vulnerableSource.includes(meta.mutation.vulnerableMarker)) {
+  if (!vulnerableSource.includes(meta.mutation.vulnerableSnippet)) {
     throw new Error(
-      `Case ${meta.id}: vulnerable.sol missing vulnerableMarker.`,
+      `Case ${meta.id}: vulnerable.sol missing vulnerableSnippet.`,
     );
   }
-  if (patchedSource.includes(meta.mutation.vulnerableMarker)) {
+  if (patchedSource.includes(meta.mutation.vulnerableSnippet)) {
     throw new Error(
-      `Case ${meta.id}: patched.sol still contains vulnerableMarker.`,
+      `Case ${meta.id}: patched.sol still contains vulnerableSnippet.`,
     );
   }
-  if (!patchedSource.includes(meta.mutation.patchedMarker)) {
-    throw new Error(`Case ${meta.id}: patched.sol missing patchedMarker.`);
+  if (!patchedSource.includes(meta.mutation.patchedSnippet)) {
+    throw new Error(`Case ${meta.id}: patched.sol missing patchedSnippet.`);
   }
-  if (vulnerableSource.includes(meta.mutation.patchedMarker)) {
+  if (vulnerableSource.includes(meta.mutation.patchedSnippet)) {
     throw new Error(
-      `Case ${meta.id}: vulnerable.sol still contains patchedMarker.`,
+      `Case ${meta.id}: vulnerable.sol still contains patchedSnippet.`,
     );
   }
   if (!vulnerableSource.includes("pragma solidity ^0.8")) {

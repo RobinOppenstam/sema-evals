@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Patched refund desk: checks the low-level call success flag.
+/// @notice Desk that tracks owed amounts and issues ETH refunds.
 contract RefundDesk {
     mapping(address => uint256) public owed;
     uint256 public deskBalance;
@@ -19,7 +19,6 @@ contract RefundDesk {
         require(deskBalance >= amount, "desk");
         owed[recipient] -= amount;
         deskBalance -= amount;
-        /* PATCH: check-success */
         (bool ok, ) = recipient.call{value: amount}("");
         require(ok, "refund failed");
     }

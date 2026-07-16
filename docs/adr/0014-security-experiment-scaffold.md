@@ -30,9 +30,15 @@ Ship a seed set of **9 cases** across three vulnerability classes (reentrancy,
 access control, unchecked external-call return). Each case is one small
 self-contained Solidity ^0.8 contract in two variants — `vulnerable.sol` (the
 mutation applied) and `patched.sol` (the clean negative) — plus a `case.json`
-with id, class, precise mutation description and integrity markers,
-`split: "train" | "heldout"`, expected findings, and identifier lists for the
-leakage guard.
+with id, class, precise mutation description and distinguishing real-code
+snippets (`vulnerableSnippet` / `patchedSnippet`), `split: "train" | "heldout"`,
+expected findings, and identifier lists for the leakage guard.
+
+**Invariant:** fixture `.sol` source is model-facing prompt material. Ground
+truth (class labels, expected findings, mutation snippets, split) lives only in
+`case.json`. Never embed vulnerability annotations, `VULN` markers, or class-name
+spoilers in contract source comments — integrity and annotation-leakage tests
+enforce this permanently.
 
 Split: **5 train / 4 heldout**, every class present in both. Contracts are
 original, minimal (< ~80 lines). Compilation is not part of CI.

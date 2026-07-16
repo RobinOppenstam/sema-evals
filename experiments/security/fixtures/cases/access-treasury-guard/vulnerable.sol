@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Train access-control fixture: unprotected treasury setter.
+/// @notice Holds a treasury destination and forwards contract balance to it.
 contract TreasuryGuard {
     address public owner;
     address public treasury;
@@ -12,7 +12,6 @@ contract TreasuryGuard {
     }
 
     function setTreasury(address next) external {
-        /* VULN: missing-onlyOwner */
         treasury = next;
     }
 

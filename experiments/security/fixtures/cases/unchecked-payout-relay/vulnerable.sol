@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Train unchecked-call fixture: ignored low-level return.
+/// @notice Credit-based relay that forwards ETH to a chosen recipient.
 contract PayoutRelay {
     mapping(address => uint256) public credits;
 
@@ -12,7 +12,6 @@ contract PayoutRelay {
     function relay(address payable to, uint256 amount) external {
         require(credits[msg.sender] >= amount, "credit");
         credits[msg.sender] -= amount;
-        /* VULN: ignore-return */
         to.call{value: amount}("");
     }
 }
