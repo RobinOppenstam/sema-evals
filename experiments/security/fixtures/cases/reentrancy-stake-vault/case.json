@@ -1,0 +1,18 @@
+{
+  "id": "reentrancy-stake-vault",
+  "class": "reentrancy",
+  "title": "Stake vault unlocks before completing the ETH transfer",
+  "split": "train",
+  "mutation": {
+    "description": "In unstake(), shares are burned only after the ETH transfer, so a malicious receiver can reenter and unstake again against the still-live share balance.",
+    "vulnerableMarker": "/* VULN: transfer-before-burn */",
+    "patchedMarker": "/* PATCH: burn-before-transfer */"
+  },
+  "expectedFindings": [{ "class": "reentrancy", "function": "unstake" }],
+  "identifiers": {
+    "contractName": "StakeVault",
+    "functions": ["stake", "unstake", "sharesOf"],
+    "variables": ["shares", "totalShares"]
+  },
+  "solc": "^0.8.0"
+}

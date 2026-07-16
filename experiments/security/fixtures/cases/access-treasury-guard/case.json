@@ -1,0 +1,20 @@
+{
+  "id": "access-treasury-guard",
+  "class": "access-control",
+  "title": "Treasury destination can be rewritten by any caller",
+  "split": "train",
+  "mutation": {
+    "description": "setTreasury() has no onlyOwner (or equivalent) guard, so any address can redirect withdrawals.",
+    "vulnerableMarker": "/* VULN: missing-onlyOwner */",
+    "patchedMarker": "/* PATCH: onlyOwner-guard */"
+  },
+  "expectedFindings": [
+    { "class": "access-control", "function": "setTreasury" }
+  ],
+  "identifiers": {
+    "contractName": "TreasuryGuard",
+    "functions": ["setTreasury", "withdraw", "owner"],
+    "variables": ["treasury", "owner"]
+  },
+  "solc": "^0.8.0"
+}

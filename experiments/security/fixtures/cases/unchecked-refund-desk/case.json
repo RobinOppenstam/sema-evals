@@ -1,0 +1,20 @@
+{
+  "id": "unchecked-refund-desk",
+  "class": "unchecked-external-call",
+  "title": "Refund desk drops the success flag from issueRefund",
+  "split": "heldout",
+  "mutation": {
+    "description": "issueRefund() calls the recipient with value and discards the boolean success result.",
+    "vulnerableMarker": "/* VULN: drop-success */",
+    "patchedMarker": "/* PATCH: check-success */"
+  },
+  "expectedFindings": [
+    { "class": "unchecked-external-call", "function": "issueRefund" }
+  ],
+  "identifiers": {
+    "contractName": "RefundDesk",
+    "functions": ["issueRefund", "fundDesk", "owedOf"],
+    "variables": ["deskBalance"]
+  },
+  "solc": "^0.8.0"
+}

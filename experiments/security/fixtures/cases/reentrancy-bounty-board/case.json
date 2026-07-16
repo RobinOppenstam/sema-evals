@@ -1,0 +1,18 @@
+{
+  "id": "reentrancy-bounty-board",
+  "class": "reentrancy",
+  "title": "Bounty board pays the hunter before clearing the open slot",
+  "split": "heldout",
+  "mutation": {
+    "description": "In claimBounty(), the board sends ETH before clearing openBounties[id], allowing a reentering hunter to claim the same bounty twice.",
+    "vulnerableMarker": "/* VULN: pay-before-clear */",
+    "patchedMarker": "/* PATCH: clear-before-pay */"
+  },
+  "expectedFindings": [{ "class": "reentrancy", "function": "claimBounty" }],
+  "identifiers": {
+    "contractName": "BountyBoard",
+    "functions": ["postBounty", "claimBounty", "bountyOf"],
+    "variables": ["openBounties", "hunterPaid", "nextId"]
+  },
+  "solc": "^0.8.0"
+}

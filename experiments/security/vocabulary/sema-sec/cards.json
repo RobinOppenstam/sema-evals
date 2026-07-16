@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "0.1.0",
+  "vocabulary": "sema-sec",
+  "cards": [
+    {
+      "handle": "Reentrancy",
+      "class": "reentrancy",
+      "title": "External interaction before accounting update",
+      "description": "A function that performs an external call or ETH transfer before it updates the accounting state that authorizes that interaction can be reentered. An attacker contract may execute the same path again while the prior balance, share, or slot still appears funded. Prefer checks-effects-interactions: finalize local state writes, then interact externally.",
+      "checklist": [
+        "Locate ETH transfers and low-level calls inside state-mutating functions.",
+        "Confirm balances, shares, or claim slots are finalized before the external interaction.",
+        "Treat any call-before-effects ordering as a reentrancy candidate."
+      ]
+    },
+    {
+      "handle": "AccessControl",
+      "class": "access-control",
+      "title": "Privileged state change without authorization",
+      "description": "Administrative setters that change destinations, fees, or operational flags must restrict the caller. A missing owner, governor, or role check lets any address rewrite critical configuration. Require an explicit authorization predicate before mutating privileged storage.",
+      "checklist": [
+        "Inventory functions that mutate owner-controlled or protocol-critical storage.",
+        "Verify each such function gates the caller with an authorization check.",
+        "Flag public or external setters that omit the gate entirely."
+      ]
+    },
+    {
+      "handle": "UncheckedExternalCall",
+      "class": "unchecked-external-call",
+      "title": "Low-level call success flag ignored",
+      "description": "Low-level calls return a boolean success flag. Discarding that flag treats a failed send or call as success, so accounting can diverge from actual value movement. Capture the success boolean and require it (or otherwise handle failure) before continuing.",
+      "checklist": [
+        "Find address.call, call{value: ...}, or similar low-level invocations.",
+        "Confirm the returned success boolean is captured and checked.",
+        "Flag paths that ignore the return value after mutating balances."
+      ]
+    }
+  ]
+}

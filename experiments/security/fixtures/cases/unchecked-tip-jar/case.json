@@ -1,0 +1,20 @@
+{
+  "id": "unchecked-tip-jar",
+  "class": "unchecked-external-call",
+  "title": "Tip jar ignores dropTip call status",
+  "split": "heldout",
+  "mutation": {
+    "description": "dropTip() forwards ETH via a low-level call and never inspects the returned success boolean.",
+    "vulnerableMarker": "/* VULN: no-ok-check */",
+    "patchedMarker": "/* PATCH: ok-checked */"
+  },
+  "expectedFindings": [
+    { "class": "unchecked-external-call", "function": "dropTip" }
+  ],
+  "identifiers": {
+    "contractName": "TipJar",
+    "functions": ["dropTip", "loadJar", "jarBalance"],
+    "variables": ["jarBalance"]
+  },
+  "solc": "^0.8.0"
+}

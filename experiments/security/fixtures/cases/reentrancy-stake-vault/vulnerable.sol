@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+/// @notice Minimal staking vault (train reentrancy fixture).
+contract StakeVault {
+    mapping(address => uint256) public shares;
+    uint256 public totalShares;
+
+    function stake() external payable {
+        require(msg.value > 0, "zero");
+        shares[msg.sender] += msg.value;
+        totalShares += msg.value;
+    }
+
+    function sharesOf(address account) external view returns (uint256) {
+        return shares[account];
+    }
+
+    function unstake(uint256 amount) external {
+        require(shares[msg.sender] >= amount, "shares");
+        /* VULN: transfer-before-burn */
+        (bool ok, ) = msg.sender.call{value: amount}("");
+        require(ok, "send");
+        shares[msg.sender] -= amount;
+        totalShares -= amount;
+    }
+}
