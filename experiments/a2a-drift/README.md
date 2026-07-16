@@ -73,12 +73,36 @@ pnpm experiment:a2a -- \
   --sema-python ../sema/.venv/bin/python
 ```
 
-This is the only mode. A model-pilot mode (driving real A2A agents through the
-existing model adapters) is deliberately **out of scope** for this phase and is
-recorded as the next step in ADR 0012; no providers are wired here.
+## Run (model-pilot)
 
-These outcomes are constructed and must not be presented as evidence about
-language models, nor as conformance evidence against a real A2A SDK.
+Only the **worker** is model-driven. Requester, transport, registries, drift
+injection, and middleware stay deterministic. Ground-truth `driftDetected` is
+always the middleware digest comparison; the model's `DECISION: proceed|halt`
+line measures whether a model worker acts on voluntary detection. See
+[ADR 0015](../../docs/adr/0015-a2a-model-pilot-mode.md).
+
+```bash
+pnpm experiment:a2a -- \
+  --mode model-pilot \
+  --model claude-sonnet-5 \
+  --repetitions 5
+
+pnpm experiment:a2a -- \
+  --mode model-pilot \
+  --provider openai-compatible \
+  --base-url https://llm.chutes.ai/v1 \
+  --model org/model \
+  --concurrency 4 \
+  --repetitions 5
+```
+
+`model-pilot` requires the selected provider's API key env var
+(`ANTHROPIC_API_KEY` or `CHUTES_API_KEY` by default). Outcomes are exploratory
+and must not be presented as confirmatory evidence.
+
+Deterministic harness outcomes are constructed and must not be presented as
+evidence about language models, nor as conformance evidence against a real A2A
+SDK.
 
 ## Phase 3 exit-gate checklist
 
