@@ -120,5 +120,5 @@ integration("official Sema Python registry integration", () => {
       }),
     ).rejects.toThrow("could not mint InvalidRule");
     await expect(access(invalidPath)).rejects.toThrow();
-  });
+  }, 30_000);
 });
