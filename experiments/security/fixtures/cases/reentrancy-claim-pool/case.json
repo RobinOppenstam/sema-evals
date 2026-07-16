@@ -1,0 +1,18 @@
+{
+  "id": "reentrancy-claim-pool",
+  "class": "reentrancy",
+  "title": "Claim pool pays before zeroing the claimable balance",
+  "split": "train",
+  "mutation": {
+    "description": "In claim(), the external ETH call runs before claimable[msg.sender] is set to zero, so a reentering receiver can drain the pool.",
+    "vulnerableSnippet": "(bool ok, ) = msg.sender.call{value: amount}(\"\");\n        require(ok, \"pay failed\");\n        claimable[msg.sender] = 0;",
+    "patchedSnippet": "claimable[msg.sender] = 0;\n        totalDeposits -= amount;\n        (bool ok, ) = msg.sender.call{value: amount}(\"\");"
+  },
+  "expectedFindings": [{ "class": "reentrancy", "function": "claim" }],
+  "identifiers": {
+    "contractName": "ClaimPool",
+    "functions": ["claim", "deposit", "claimableOf"],
+    "variables": ["claimable", "totalDeposits"]
+  },
+  "solc": "^0.8.0"
+}

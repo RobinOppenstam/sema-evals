@@ -1,9 +1,24 @@
 # Security domain trials
 
-Planned Phase 4 experiment. Adapt HexSec's train/heldout scorer and
-mutation-backed Solidity cases without importing private audit material.
+Deterministic scaffold for RESEARCH_PLAN Phase 4: vulnerability recall at a
+fixed false-positive budget on mutation-backed Solidity cases.
 
-Primary endpoint: vulnerability recall at a fixed false-positive budget.
+Primary endpoint: **vulnerability recall at a fixed false-positive budget**.
 
-Candidate Pattern Cards stay in a separate attributed vocabulary and must not
-contain knowledge derived from heldout cases.
+## Package
+
+`@sema-evals/security` — fixtures, `sema-sec` Pattern Cards, condition ladder,
+deterministic scorer (`security-scorer-v1`), leakage guard, and an
+instrumentation CLI. No live model calls.
+
+See [ADR 0014](../../docs/adr/0014-security-experiment-scaffold.md).
+
+## Run
+
+```bash
+pnpm experiment:security -- --mode instrumentation
+```
+
+Optional Foundry PoC stubs live under `foundry/` (train cases only). Pass
+`--with-foundry` or set `FOUNDRY_BIN`; absent Foundry is a no-op. CI never
+requires Foundry.

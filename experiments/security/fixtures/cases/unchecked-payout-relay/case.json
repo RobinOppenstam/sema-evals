@@ -1,0 +1,20 @@
+{
+  "id": "unchecked-payout-relay",
+  "class": "unchecked-external-call",
+  "title": "Payout relay ignores low-level call return value",
+  "split": "train",
+  "mutation": {
+    "description": "relay() performs a low-level call and does not require the returned success flag, so a failed payout is treated as success.",
+    "vulnerableSnippet": "credits[msg.sender] -= amount;\n        to.call{value: amount}(\"\");",
+    "patchedSnippet": "(bool ok, ) = to.call{value: amount}(\"\");\n        require(ok, \"relay failed\");"
+  },
+  "expectedFindings": [
+    { "class": "unchecked-external-call", "function": "relay" }
+  ],
+  "identifiers": {
+    "contractName": "PayoutRelay",
+    "functions": ["relay", "credit"],
+    "variables": ["credits"]
+  },
+  "solc": "^0.8.0"
+}

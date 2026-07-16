@@ -1,0 +1,18 @@
+{
+  "id": "access-pause-switch",
+  "class": "access-control",
+  "title": "Pause switch can be flipped by any caller",
+  "split": "heldout",
+  "mutation": {
+    "description": "flipPause() has no curator authorization, so any address can freeze or unfreeze the module.",
+    "vulnerableSnippet": "function flipPause() external {\n        paused = !paused;\n    }",
+    "patchedSnippet": "require(msg.sender == curator, \"not curator\");"
+  },
+  "expectedFindings": [{ "class": "access-control", "function": "flipPause" }],
+  "identifiers": {
+    "contractName": "PauseSwitch",
+    "functions": ["flipPause"],
+    "variables": ["curator"]
+  },
+  "solc": "^0.8.0"
+}

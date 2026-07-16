@@ -1,0 +1,18 @@
+{
+  "id": "access-fee-oracle",
+  "class": "access-control",
+  "title": "Fee oracle updateFee is callable by anyone",
+  "split": "train",
+  "mutation": {
+    "description": "updateFee() lacks an authorized-caller check, so any address can change the fee basis points.",
+    "vulnerableSnippet": "require(nextBps <= 10_000, \"bps\");\n        feeBps = nextBps;",
+    "patchedSnippet": "require(msg.sender == governor, \"not governor\");"
+  },
+  "expectedFindings": [{ "class": "access-control", "function": "updateFee" }],
+  "identifiers": {
+    "contractName": "FeeOracle",
+    "functions": ["updateFee", "feeBps", "governor"],
+    "variables": ["feeBps", "governor"]
+  },
+  "solc": "^0.8.0"
+}
