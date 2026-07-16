@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   AnthropicModelAdapter,
+  ClaudeCodeModelAdapter,
   FixtureReferenceProvider,
   OpenAiCompatibleModelAdapter,
   SemaPythonRegistryClient,
@@ -68,7 +69,7 @@ export function runsModels(mode: RunMode): boolean {
 }
 
 type RunMode = "deterministic" | "model-pilot" | "confirmatory";
-type ModelProvider = "anthropic" | "openai-compatible";
+type ModelProvider = "anthropic" | "openai-compatible" | "claude-code";
 
 interface CliOptions {
   mode: RunMode;
@@ -88,6 +89,10 @@ interface CliOptions {
   host: string;
   /** Env var name checked for presence and read by the adapter (never here). */
   apiKeyEnv: string;
+  /** Claude Code CLI binary path/name. Only used by `--provider claude-code`. */
+  claudeBin: string;
+  /** Cached `claude --version` string; set after adapters are constructed. */
+  claudeCodeVersion: string;
   model: string;
   thinking: AnthropicThinkingMode;
   maxTokens: number;
@@ -121,9 +126,13 @@ function hostOf(baseUrl: string): string {
 /**
  * Fails fast before any work when the selected provider's API key env var is
  * unset. Presence-only: the value is never read beyond truthiness. Exported for
- * the CLI validation test seam.
+ * the CLI validation test seam. `claude-code` skips this check: subscription
+ * auth is ambient in the installed CLI.
  */
 export function assertProviderApiKey(options: CliOptions): void {
+  if (options.provider === "claude-code") {
+    return;
+  }
   if (!process.env[options.apiKeyEnv]) {
     throw new Error(
       `model-pilot mode with provider ${options.provider} requires ${options.apiKeyEnv} to be set. Export it before running.`,
@@ -148,21 +157,27 @@ function usage(): string {
     "  --repetitions <n>   Alias for --seeds (model-pilot default: 5)",
     "  --semantic-backend  fixture or sema-python (default: fixture)",
     "  --sema-python <cmd> Python executable with semahash installed",
-    "  --provider <p>      anthropic or openai-compatible (default: anthropic)",
+    "  --provider <p>      anthropic, openai-compatible, or claude-code",
+    "                      (default: anthropic)",
     "  --base-url <url>    OpenAI-compatible endpoint base URL (required for",
     `                      openai-compatible; e.g. ${SUGGESTED_CHUTES_BASE_URL})`,
     "  --api-key-env <n>   Env var holding the API key (default:",
     "                      ANTHROPIC_API_KEY for anthropic, CHUTES_API_KEY for",
-    "                      openai-compatible)",
-    "  --model <id>        Model id (anthropic default: claude-sonnet-5;",
-    "                      required for openai-compatible)",
+    "                      openai-compatible; unused for claude-code)",
+    "  --claude-bin <path> Claude Code CLI binary (default: claude; claude-code",
+    "                      provider only)",
+    "  --model <id>        Model id (anthropic/claude-code default:",
+    "                      claude-sonnet-5; required for openai-compatible)",
     "  --thinking <m>      adaptive or none (default: adaptive; anthropic only)",
-    "  --max-tokens <n>    Max output tokens per hop (default: 4096)",
+    "  --max-tokens <n>    Max output tokens per hop (default: 4096;",
+    "                      forwarded for anthropic/openai-compatible; not",
+    "                      controllable via Claude Code print mode)",
     `  --concurrency <n>   Trials in flight at once (default: 1, max: ${MAX_CONCURRENCY};`,
     "                      model-pilot only; ignored in deterministic mode)",
     "  --help              Show this help",
     "",
-    "model-pilot mode requires the selected provider's API key env var to be set.",
+    "model-pilot mode requires the selected provider's API key env var to be set,",
+    "except --provider claude-code (subscription auth is ambient in the CLI).",
   ].join("\n");
 }
 
@@ -217,6 +232,8 @@ export function parseArgs(args: readonly string[]): CliOptions {
     baseUrl: "",
     host: "",
     apiKeyEnv: "",
+    claudeBin: "claude",
+    claudeCodeVersion: "",
     model: DEFAULT_MODEL,
     thinking: "adaptive",
     maxTokens: DEFAULT_MAX_TOKENS,
@@ -294,8 +311,14 @@ export function parseArgs(args: readonly string[]): CliOptions {
     }
     if (argument === "--provider") {
       const provider = args[++index];
-      if (provider !== "anthropic" && provider !== "openai-compatible") {
-        throw new Error(`${argument} requires anthropic or openai-compatible.`);
+      if (
+        provider !== "anthropic" &&
+        provider !== "openai-compatible" &&
+        provider !== "claude-code"
+      ) {
+        throw new Error(
+          `${argument} requires anthropic, openai-compatible, or claude-code.`,
+        );
       }
       options.provider = provider;
       continue;
@@ -315,6 +338,14 @@ export function parseArgs(args: readonly string[]): CliOptions {
       }
       options.apiKeyEnv = apiKeyEnv;
       apiKeyEnvExplicit = true;
+      continue;
+    }
+    if (argument === "--claude-bin") {
+      const claudeBin = args[++index];
+      if (!claudeBin) {
+        throw new Error(`${argument} requires a path or binary name.`);
+      }
+      options.claudeBin = resolveFromRepoRoot(claudeBin);
       continue;
     }
     if (argument === "--model") {
@@ -386,6 +417,23 @@ export function parseArgs(args: readonly string[]): CliOptions {
     options.apiKeyEnv = apiKeyEnvExplicit
       ? options.apiKeyEnv
       : DEFAULT_OPENAI_KEY_ENV;
+  } else if (options.provider === "claude-code") {
+    if (thinkingExplicit) {
+      throw new Error(
+        "--thinking applies only to the anthropic provider. Remove it for claude-code.",
+      );
+    }
+    if (options.baseUrl) {
+      throw new Error(
+        "--base-url applies only to openai-compatible. Remove it for claude-code.",
+      );
+    }
+    if (apiKeyEnvExplicit) {
+      throw new Error(
+        "--api-key-env is unused for claude-code (subscription auth is ambient in the CLI).",
+      );
+    }
+    options.apiKeyEnv = "";
   } else {
     validateThinkingForModel(options.model, options.thinking);
     options.apiKeyEnv = apiKeyEnvExplicit
@@ -413,26 +461,51 @@ function createModelAdapters(
 ): ModelRelayAdapters {
   const build = (
     boundary: RelayBoundary,
-  ): AnthropicModelAdapter | OpenAiCompatibleModelAdapter =>
-    options.provider === "openai-compatible"
-      ? new OpenAiCompatibleModelAdapter({
-          systemPrompt: requirePrompt(snapshot, boundary),
-          baseUrl: options.baseUrl,
-          apiKeyEnvVar: options.apiKeyEnv,
-          model: options.model,
-          maxTokens: options.maxTokens,
-        })
-      : new AnthropicModelAdapter({
-          systemPrompt: requirePrompt(snapshot, boundary),
-          model: options.model,
-          maxTokens: options.maxTokens,
-          thinkingMode: options.thinking,
-        });
+  ):
+    | AnthropicModelAdapter
+    | OpenAiCompatibleModelAdapter
+    | ClaudeCodeModelAdapter => {
+    if (options.provider === "openai-compatible") {
+      return new OpenAiCompatibleModelAdapter({
+        systemPrompt: requirePrompt(snapshot, boundary),
+        baseUrl: options.baseUrl,
+        apiKeyEnvVar: options.apiKeyEnv,
+        model: options.model,
+        maxTokens: options.maxTokens,
+      });
+    }
+    if (options.provider === "claude-code") {
+      return new ClaudeCodeModelAdapter({
+        systemPrompt: requirePrompt(snapshot, boundary),
+        claudeBin: options.claudeBin,
+        model: options.model,
+        maxTokens: options.maxTokens,
+      });
+    }
+    return new AnthropicModelAdapter({
+      systemPrompt: requirePrompt(snapshot, boundary),
+      model: options.model,
+      maxTokens: options.maxTokens,
+      thinkingMode: options.thinking,
+    });
+  };
   return {
     "spec-to-plan": build("spec-to-plan"),
     "plan-to-implementation": build("plan-to-implementation"),
     "implementation-to-audit": build("implementation-to-audit"),
   };
+}
+
+function modelProviderProvenance(options: CliOptions): string {
+  if (options.provider === "openai-compatible") {
+    return options.host;
+  }
+  if (options.provider === "claude-code") {
+    return options.claudeCodeVersion
+      ? `claude-code@${options.claudeCodeVersion}`
+      : "claude-code";
+  }
+  return "anthropic";
 }
 
 function createReferenceProvider(
@@ -537,6 +610,15 @@ async function main(): Promise<void> {
   if (isModelRun) {
     promptSnapshot = await loadPromptSnapshot(PROMPTS_DIR);
     adapters = createModelAdapters(promptSnapshot, options);
+    if (options.provider === "claude-code") {
+      const claudeAdapter = adapters["spec-to-plan"];
+      if (!(claudeAdapter instanceof ClaudeCodeModelAdapter)) {
+        throw new Error(
+          "Internal error: claude-code provider did not construct ClaudeCodeModelAdapter.",
+        );
+      }
+      options.claudeCodeVersion = await claudeAdapter.resolveCliVersion();
+    }
 
     const scenarioCount = scenarioSet.scenarios.length;
     const conditionCount = EXPERIMENT_CONDITIONS.length;
@@ -547,15 +629,23 @@ async function main(): Promise<void> {
         ? "Babel Relay CONFIRMATORY run (preregistered)."
         : "Babel Relay model pilot (exploratory, not confirmatory).",
     );
-    console.log(
-      options.provider === "openai-compatible"
-        ? `Provider: openai-compatible (${options.baseUrl}, host=${options.host})`
-        : "Provider: anthropic",
-    );
+    if (options.provider === "openai-compatible") {
+      console.log(
+        `Provider: openai-compatible (${options.baseUrl}, host=${options.host})`,
+      );
+    } else if (options.provider === "claude-code") {
+      console.log(
+        `Provider: claude-code (bin=${options.claudeBin}, version=${options.claudeCodeVersion})`,
+      );
+    } else {
+      console.log("Provider: anthropic");
+    }
     const modelSuffix =
       options.provider === "openai-compatible"
         ? `max-tokens=${options.maxTokens}`
-        : `thinking=${options.thinking}, max-tokens=${options.maxTokens}`;
+        : options.provider === "claude-code"
+          ? `max-tokens=${options.maxTokens} (not forwarded by Claude Code print mode)`
+          : `thinking=${options.thinking}, max-tokens=${options.maxTokens}`;
     console.log(`Model: ${options.model} (${modelSuffix})`);
     console.log(
       `Planned: ${scenarioCount} scenarios x ${conditionCount} conditions x ` +
@@ -616,9 +706,7 @@ async function main(): Promise<void> {
         "",
       semanticBackend: semanticMetadata.backend,
       modelProvider: isModelRun
-        ? options.provider === "openai-compatible"
-          ? options.host
-          : "anthropic"
+        ? modelProviderProvenance(options)
         : (process.env.MODEL_PROVIDER ?? "deterministic"),
       modelName: isModelRun
         ? options.model

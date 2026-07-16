@@ -168,8 +168,58 @@ describe("parseArgs provider selection", () => {
 
   it("rejects an unknown provider", () => {
     expect(() => parseArgs(["--provider", "bogus"])).toThrow(
-      /anthropic or openai-compatible/,
+      /anthropic, openai-compatible, or claude-code/,
     );
+  });
+});
+
+describe("parseArgs claude-code provider", () => {
+  it("accepts claude-code without an API key env var", () => {
+    const options = parseArgs([
+      "--mode",
+      "model-pilot",
+      "--provider",
+      "claude-code",
+      "--model",
+      "claude-haiku-4-5",
+    ]);
+    expect(options.provider).toBe("claude-code");
+    expect(options.apiKeyEnv).toBe("");
+    expect(options.claudeBin).toBe("claude");
+    expect(options.model).toBe("claude-haiku-4-5");
+  });
+
+  it("honours --claude-bin", () => {
+    const options = parseArgs([
+      "--provider",
+      "claude-code",
+      "--claude-bin",
+      "/usr/local/bin/claude",
+    ]);
+    expect(options.claudeBin).toBe("/usr/local/bin/claude");
+  });
+
+  it("rejects --thinking with claude-code", () => {
+    expect(() =>
+      parseArgs(["--provider", "claude-code", "--thinking", "none"]),
+    ).toThrow(/--thinking applies only to the anthropic provider/);
+  });
+
+  it("rejects --base-url with claude-code", () => {
+    expect(() =>
+      parseArgs([
+        "--provider",
+        "claude-code",
+        "--base-url",
+        "https://example.com/v1",
+      ]),
+    ).toThrow(/--base-url applies only to openai-compatible/);
+  });
+
+  it("rejects --api-key-env with claude-code", () => {
+    expect(() =>
+      parseArgs(["--provider", "claude-code", "--api-key-env", "SOME_KEY"]),
+    ).toThrow(/unused for claude-code/);
   });
 });
 
@@ -274,6 +324,18 @@ describe("assertProviderApiKey", () => {
       "https://llm.chutes.ai/v1",
       "--model",
       "some/model",
+    ]);
+    expect(() => assertProviderApiKey(options)).not.toThrow();
+  });
+
+  it("skips the API key check for claude-code", () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CHUTES_API_KEY;
+    const options = parseArgs([
+      "--mode",
+      "model-pilot",
+      "--provider",
+      "claude-code",
     ]);
     expect(() => assertProviderApiKey(options)).not.toThrow();
   });
