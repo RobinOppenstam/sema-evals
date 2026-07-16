@@ -202,6 +202,8 @@ export const a2aDriftMetricsSchema = z.object({
   elapsedMs: z.number().nonnegative(),
 });
 
+export const workerDecisionSchema = z.enum(["proceed", "halt", "malformed"]);
+
 export const a2aDriftTrialRecordSchema = z.object({
   trialId: z.string().length(64),
   experimentId: z.string().min(1),
@@ -222,6 +224,10 @@ export const a2aDriftTrialRecordSchema = z.object({
   provenance: trialProvenanceSchema,
   usage: usageTelemetrySchema.nullable(),
   transcript: transcriptSchema.nullable(),
+  /** Parsed worker DECISION line; null in the deterministic harness. */
+  modelDecision: workerDecisionSchema.nullable(),
+  /** Frozen parser version that produced `modelDecision`; null when unused. */
+  decisionParserVersion: z.string().nullable(),
 });
 
 export const a2aDriftResultManifestSchema = z.object({
