@@ -1,0 +1,196 @@
+# WORKFLOW-VALUE SEED FIXTURES ONLY.
+#
+# These synthetic tasks exist to validate the harness, validators, condition
+# parity, pairing, budget accounting, and artifact preservation. They are not an
+# evaluation dataset and must not be used for model-performance claims.
+#
+# The dataset-acquisition gate remains closed until an independently sourced,
+# versioned task set replaces or supplements these fixtures.
+schemaVersion: "0.1.0"
+dataset:
+  label: "synthetic-seed-fixtures"
+  status: "seed-only"
+  source: "hand-authored synthetic workflow tasks for harness validation"
+  acquisitionRequirement: >-
+    Acquire and freeze an independently sourced workflow-task dataset with
+    documented licensing, dev/eval partitioning, deduplication, and validator
+    review before any exploratory model pilot.
+tasks:
+  - id: "seed-dev-release-handoff"
+    split: "dev"
+    contract:
+      kind: "structured-json"
+    title: "Release handoff after a failed canary"
+    request: >-
+      Prepare the final release-handoff object for a service whose canary failed
+      and was rolled back. Start from the local draft and return only the JSON
+      object required by the workflow.
+    workflow:
+      handle: "ReleaseHandoff"
+      title: "Release handoff workflow"
+      purpose: "Standardize the closeout of a failed canary release."
+      output:
+        workflowId: "release-handoff-v3"
+        orderedActions:
+          - "freeze-production-rollout"
+          - "attach-canary-evidence"
+          - "record-rollback-verification"
+          - "request-release-manager-approval"
+        requiredArtifacts:
+          - "canary-metrics"
+          - "rollback-log"
+          - "incident-link"
+        escalationTarget: "release-manager"
+        completionState: "awaiting-approval"
+    localDraft:
+      workflowId: "release-handoff-v3"
+      orderedActions:
+        - "freeze-production-rollout"
+        - "record-rollback-verification"
+        - "attach-canary-evidence"
+        - "request-release-manager-approval"
+      requiredArtifacts:
+        - "canary-metrics"
+        - "rollback-log"
+        - "incident-link"
+      escalationTarget: "release-manager"
+      completionState: "awaiting-approval"
+    mismatch:
+      fieldPath: "orderedActions"
+      notice: >-
+        The local draft's action order does not match the canonical workflow.
+        Rehydrate the referenced workflow and repair the order before submission.
+    validator:
+      version: "workflow-exact-validator-v1"
+      expected:
+        workflowId: "release-handoff-v3"
+        orderedActions:
+          - "freeze-production-rollout"
+          - "attach-canary-evidence"
+          - "record-rollback-verification"
+          - "request-release-manager-approval"
+        requiredArtifacts:
+          - "canary-metrics"
+          - "rollback-log"
+          - "incident-link"
+        escalationTarget: "release-manager"
+        completionState: "awaiting-approval"
+
+  - id: "seed-eval-incident-closeout"
+    split: "eval"
+    contract:
+      kind: "structured-json"
+    title: "Security incident closeout"
+    request: >-
+      Produce the final incident-closeout object after containment and customer
+      notification. Start from the local draft and return only the JSON object
+      required by the workflow.
+    workflow:
+      handle: "IncidentCloseout"
+      title: "Security incident closeout workflow"
+      purpose: "Close an incident only after evidence and ownership are complete."
+      output:
+        workflowId: "incident-closeout-v2"
+        orderedActions:
+          - "verify-containment"
+          - "attach-forensic-timeline"
+          - "confirm-customer-notification"
+          - "assign-remediation-owner"
+        requiredArtifacts:
+          - "forensic-timeline"
+          - "notification-record"
+          - "remediation-ticket"
+        escalationTarget: "security-director"
+        completionState: "remediation-tracked"
+    localDraft:
+      workflowId: "incident-closeout-v2"
+      orderedActions:
+        - "verify-containment"
+        - "attach-forensic-timeline"
+        - "confirm-customer-notification"
+        - "assign-remediation-owner"
+      requiredArtifacts:
+        - "forensic-timeline"
+        - "notification-record"
+      escalationTarget: "security-director"
+      completionState: "remediation-tracked"
+    mismatch:
+      fieldPath: "requiredArtifacts"
+      notice: >-
+        The local draft omits a required artifact. Rehydrate the referenced
+        workflow and repair the artifact list before submission.
+    validator:
+      version: "workflow-exact-validator-v1"
+      expected:
+        workflowId: "incident-closeout-v2"
+        orderedActions:
+          - "verify-containment"
+          - "attach-forensic-timeline"
+          - "confirm-customer-notification"
+          - "assign-remediation-owner"
+        requiredArtifacts:
+          - "forensic-timeline"
+          - "notification-record"
+          - "remediation-ticket"
+        escalationTarget: "security-director"
+        completionState: "remediation-tracked"
+
+  - id: "seed-eval-data-export"
+    split: "eval"
+    contract:
+      kind: "structured-json"
+    title: "Regulated data export approval"
+    request: >-
+      Produce the final regulated-export object for a customer data export.
+      Start from the local draft and return only the JSON object required by the
+      workflow.
+    workflow:
+      handle: "RegulatedDataExport"
+      title: "Regulated data export workflow"
+      purpose: "Require privacy and legal controls before an export is released."
+      output:
+        workflowId: "regulated-export-v4"
+        orderedActions:
+          - "verify-requester-identity"
+          - "apply-data-minimization"
+          - "obtain-privacy-approval"
+          - "record-export-checksum"
+        requiredArtifacts:
+          - "identity-proof"
+          - "privacy-approval"
+          - "export-checksum"
+        escalationTarget: "privacy-counsel"
+        completionState: "approved-for-transfer"
+    localDraft:
+      workflowId: "regulated-export-v4"
+      orderedActions:
+        - "verify-requester-identity"
+        - "apply-data-minimization"
+        - "obtain-privacy-approval"
+        - "record-export-checksum"
+      requiredArtifacts:
+        - "identity-proof"
+        - "privacy-approval"
+        - "export-checksum"
+      escalationTarget: "data-operations"
+      completionState: "approved-for-transfer"
+    mismatch:
+      fieldPath: "escalationTarget"
+      notice: >-
+        The local draft uses a non-canonical escalation target. Rehydrate the
+        referenced workflow and repair the escalation target before submission.
+    validator:
+      version: "workflow-exact-validator-v1"
+      expected:
+        workflowId: "regulated-export-v4"
+        orderedActions:
+          - "verify-requester-identity"
+          - "apply-data-minimization"
+          - "obtain-privacy-approval"
+          - "record-export-checksum"
+        requiredArtifacts:
+          - "identity-proof"
+          - "privacy-approval"
+          - "export-checksum"
+        escalationTarget: "privacy-counsel"
+        completionState: "approved-for-transfer"

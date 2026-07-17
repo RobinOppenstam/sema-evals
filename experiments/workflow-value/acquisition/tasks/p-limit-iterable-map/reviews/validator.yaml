@@ -1,0 +1,26 @@
+schemaVersion: workflow-validator-review-v1
+taskId: p-limit-iterable-map
+status: pass
+hiddenValidatorPath: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/hidden-validator.mjs
+hiddenValidatorDigest: 01276cc0e7a2bd759264a3ca91cee63801e7f7cadae6b95126191bdff3744a98
+deterministic: true
+agentVisible: false
+preFixExitCode: 1
+postFixExitCode: 0
+preFixOutputDigest: 24253ea21343245b6a265a87500f5388708774074b4a930054c9f5390dc7aff4
+postFixOutputDigest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+visibleChecks:
+  - name: visible-smoke
+    preFixExitCode: 0
+    postFixExitCode: 0
+    preFixOutputDigest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    postFixOutputDigest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+falsePositiveChecks:
+  - The pre-fix array behavior passes visibly while the hidden Set behavior fails.
+  - A custom Symbol.iterator object passes after the fix, preventing a Set-specific workaround from satisfying generic-iterable behavior.
+reviewer: /root/terra/security_forecasting
+reviewedAt: 2026-07-17T01:55:10+07:00
+notes:
+  - Independent replay restored the sealed pre-fix digest after mutation, reproduced visible 0 to 0 and hidden 1 to 0 exits, and matched the patched workspace to the sealed post-fix digest.
+  - The validator imports runtime behavior only and does not compare source text, patch content, or workspace digests.
+  - The hidden check covers both Set and a custom Symbol.iterator implementation.

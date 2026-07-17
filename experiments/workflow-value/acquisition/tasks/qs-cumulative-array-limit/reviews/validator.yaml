@@ -1,0 +1,28 @@
+schemaVersion: workflow-validator-review-v1
+taskId: qs-cumulative-array-limit
+status: pass
+hiddenValidatorPath: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/hidden-validator.cjs
+hiddenValidatorDigest: 9ff28eb66ebd6b15b52e00285ea10dedf8db36d0d9d457d653f6d36666ea1cd6
+deterministic: true
+agentVisible: false
+preFixExitCode: 1
+postFixExitCode: 0
+preFixOutputDigest: 6efea6fd8cff592b278fae00da44c475e81f74394f9ae5364c9124b710dadace
+postFixOutputDigest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+visibleChecks:
+  - name: visible-array-limit-regression
+    preFixExitCode: 1
+    postFixExitCode: 0
+    preFixOutputDigest: 316fd0ca63e82b19788d1af524f2cbe9a3d1903b65b2dccf45124dc4b234936b
+    postFixOutputDigest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+falsePositiveChecks:
+  - The visible duplicate-key case and hidden cumulative comma-growth case fail before the fix and pass afterward.
+  - The mixed index/key case already throws before the fix and remains a passing no-regression control afterward.
+  - A cumulative array that remains within the limit parses successfully both before and after the patch.
+  - Applying only lib/parse.js or only lib/utils.js leaves both visible and hidden validators failing; applying both files makes both pass.
+reviewer: /root/terra/security_forecasting
+reviewedAt: 2026-07-17T01:55:10+07:00
+notes:
+  - Independent replay restored the sealed pre-fix digest after mutation, reproduced visible 1 to 0 and hidden 1 to 0 exits, and matched the patched workspace to the sealed post-fix digest.
+  - The applied task patch changes exactly lib/parse.js and lib/utils.js; partial-patch probes demonstrate that both files are necessary.
+  - The validator imports runtime behavior only and does not compare source text, patch content, or workspace digests.

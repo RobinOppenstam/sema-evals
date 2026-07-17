@@ -1,0 +1,18 @@
+schemaVersion: workflow-license-review-v1
+taskId: p-map-out-of-order-index
+status: pass
+licenseName: MIT
+spdxId: MIT
+primaryLicenseUrl: https://github.com/sindresorhus/p-map/blob/65aaa8f4d7e757a5254a146c4c39403efa9e2139/license
+licenseFilePath: license
+redistributionMode: metadata-only
+redistributionPermitted: true
+modificationPermitted: true
+retainCopyrightNotice: true
+retainLicenseText: true
+attributionRequirements:
+  - Retain the MIT copyright and permission notice in redistributed copies.
+reviewer: /root/terra/a2a_sema_tax
+reviewedAt: 2026-07-17T01:47:52+07:00
+notes:
+  - Source remains untracked under .cache; the repository records metadata and hashes only.

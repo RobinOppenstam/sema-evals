@@ -1,0 +1,22 @@
+schemaVersion: workflow-acquisition-review-v1
+taskId: p-map-out-of-order-index
+status: pass
+repositoryUrl: https://github.com/sindresorhus/p-map
+sourceCommit: 65aaa8f4d7e757a5254a146c4c39403efa9e2139
+upstreamPatchUrl: https://github.com/sindresorhus/p-map/commit/1af51b57534b284ead73cca65f26b56bb9390768
+upstreamPatchDigest: ddb9b3a321da1fc60f1c1232110d6d5e7bf61af7632d014c8f7bbb3062b4d140
+acquiredAt: 2026-07-17T01:39:22+07:00
+acquisitionInstructionsPath: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/acquisition.md
+sourceArchiveUrl: https://github.com/sindresorhus/p-map/archive/65aaa8f4d7e757a5254a146c4c39403efa9e2139.tar.gz
+sourceArchiveDigest: 871e6163d560d8342a0df9341f57f839a8314e1ea91fb75768b44476fd1cc5d0
+preFixSnapshotPath: .cache/workflow-value/tasks/p-map-out-of-order-index/pristine
+preFixSnapshotDigest: d2080f26cef5a9203675d0f44a2b25aa88d64448dbe8d7560ccc9853efcede7c
+postFixSnapshotDigest: 1a0199ed59ba1079450e155ab4579bc4807cd62bc6aa23f25571f522284ed49c
+resetProofDigest: d2080f26cef5a9203675d0f44a2b25aa88d64448dbe8d7560ccc9853efcede7c
+immutableSourceEvidence:
+  - https://github.com/sindresorhus/p-map/tree/65aaa8f4d7e757a5254a146c4c39403efa9e2139
+  - https://github.com/sindresorhus/p-map/commit/1af51b57534b284ead73cca65f26b56bb9390768
+reviewer: /root/terra/a2a_sema_tax
+reviewedAt: 2026-07-17T01:47:52+07:00
+notes:
+  - The applied task patch is the index.js portion of the immutable upstream commit.

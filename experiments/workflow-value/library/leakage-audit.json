@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "workflow-library-leakage-audit-v1",
+  "status": "provisional-agent-review",
+  "reviewScope": [
+    "pattern titles, purposes, steps, and guards",
+    "condition renderers",
+    "task mapping rule"
+  ],
+  "assertions": {
+    "usesOnlyGeneralSoftwareWorkMechanisms": true,
+    "containsNoTaskIds": true,
+    "containsNoRepositoryNames": true,
+    "containsNoIssueText": true,
+    "containsNoExpectedPatches": true,
+    "containsNoHiddenValidatorFacts": true,
+    "mappingDoesNotUseHeldoutOutcomes": true
+  },
+  "reviewer": "/root/terra",
+  "notes": [
+    "The library was frozen from general software-engineering mechanisms and train/dev policy only.",
+    "A future held-out seal must record this library root before task details become available.",
+    "The required documented human review has not occurred; held-out and confirmatory gates remain closed."
+  ]
+}

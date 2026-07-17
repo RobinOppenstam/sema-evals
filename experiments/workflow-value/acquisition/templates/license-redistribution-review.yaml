@@ -1,0 +1,17 @@
+schemaVersion: workflow-license-review-v1
+taskId: replace-me
+status: pending
+licenseName: replace-me
+spdxId: null
+primaryLicenseUrl: https://example.invalid/replace-with-primary-license-source
+licenseFilePath: LICENSE
+redistributionMode: metadata-only
+redistributionPermitted: false
+modificationPermitted: false
+retainCopyrightNotice: true
+retainLicenseText: true
+attributionRequirements: []
+reviewer: unassigned
+reviewedAt: 1970-01-01T00:00:00.000Z
+notes:
+  - Template only; do not treat as acquisition evidence.

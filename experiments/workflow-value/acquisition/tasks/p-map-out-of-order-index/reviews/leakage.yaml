@@ -1,0 +1,15 @@
+schemaVersion: workflow-leakage-review-v1
+taskId: p-map-out-of-order-index
+status: pass
+taskRequestContainsSolution: false
+visibleChecksContainHiddenAssertions: false
+workspaceContainsPostFixPatch: false
+workspaceContainsValidatorSource: false
+filenamesRevealSolution: false
+commentsRevealSolution: false
+automatedScanDigest: 3b3a9656e3356484647042451df8e0010c099504c564aa3d2fa857cd17ee9017
+reviewer: /root/terra/security_forecasting
+reviewedAt: 2026-07-17T01:55:10+07:00
+notes:
+  - Independent filename and content scans found no hidden validator, patch, answer, or solution artifact in the materialized workspace.
+  - The visible check uses immediate values and does not contain the hidden delayed-promise settlement assertion.

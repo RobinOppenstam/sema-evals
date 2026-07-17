@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "workflow-library-mapping-v1",
+  "mappingId": "domain-general-default-v1",
+  "selectionRule": "All software repository tasks receive the complete frozen core library; no task ID, repository, issue text, hidden validator, or upstream patch influences selection.",
+  "handles": [
+    "EvidenceFirstDiagnosis",
+    "MinimalBehavioralPatch",
+    "LayeredValidation",
+    "FailureInformedRetry"
+  ]
+}

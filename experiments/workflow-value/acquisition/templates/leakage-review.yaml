@@ -1,0 +1,14 @@
+schemaVersion: workflow-leakage-review-v1
+taskId: replace-me
+status: pending
+taskRequestContainsSolution: false
+visibleChecksContainHiddenAssertions: false
+workspaceContainsPostFixPatch: false
+workspaceContainsValidatorSource: false
+filenamesRevealSolution: false
+commentsRevealSolution: false
+automatedScanDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+reviewer: unassigned
+reviewedAt: 1970-01-01T00:00:00.000Z
+notes:
+  - Template only; false values are not evidence until an independent review passes.

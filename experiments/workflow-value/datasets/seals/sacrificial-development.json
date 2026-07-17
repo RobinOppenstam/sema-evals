@@ -1,0 +1,225 @@
+{
+  "schemaVersion": "workflow-corpus-seal-v1",
+  "corpusId": "workflow-value-sacrificial-development",
+  "sealClass": "exploratory",
+  "readyForConfirmatoryRun": false,
+  "manifestDigest": "717498aff2f6ddc21864e0641f2a47f2ae86e5295be79094c37d2809a0a841a1",
+  "corpusDigest": "25b8b406c9e1fa38a1ead22b8e8c8b747714fba9b4933ab9b5c5929480994265",
+  "sealedAt": "2026-07-17T02:01:24+07:00",
+  "taskDigests": [
+    {
+      "taskId": "p-limit-iterable-map",
+      "digest": "7b7ffccd61937807d05e7639004447cecbdb441b52f4ea228177c3d8a9aa208d"
+    },
+    {
+      "taskId": "p-map-out-of-order-index",
+      "digest": "535073efc023e2ed9979444d42b337f48e2a4214555e634e36f8c34b09866e5d"
+    },
+    {
+      "taskId": "qs-cumulative-array-limit",
+      "digest": "fb5c6f49ed8732dd30f2cefba554296a92398f791122f9b9e674ab8efbb99b3e"
+    },
+    {
+      "taskId": "qs-empty-array-cycle",
+      "digest": "e723f46565e0322b5e810dc21781ab807c89f69113413f9942a7499558460273"
+    }
+  ],
+  "evidenceDigests": [
+    {
+      "path": ".cache/workflow-value/tasks/p-limit-iterable-map/offline-cache",
+      "digest": "c3d5a7913930a39369f13677a37d7c6269d618b259a35344a505a3756e608a77"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/p-limit-iterable-map/pristine",
+      "digest": "3340ca785adc63618d86987d335727cab5672debd39bf1b50b123cd22a4c45dc"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/p-limit-iterable-map/pristine/package-lock.json",
+      "digest": "84d220427befd69833c825460d277385a19102ba4fb237231879b3b0e0551a64"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/p-map-out-of-order-index/offline-cache",
+      "digest": "089dbdb8c3bbf2f3fb2f7b49b0208ba6a51527b18ff180268ae5174133576c93"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/p-map-out-of-order-index/pristine",
+      "digest": "d2080f26cef5a9203675d0f44a2b25aa88d64448dbe8d7560ccc9853efcede7c"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/p-map-out-of-order-index/pristine/.workflow-dependency-lock.json",
+      "digest": "f0dd150af1679588c9a98116bab5bbe0ca90908509088573c57998109f2ea42d"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/qs-cumulative-array-limit/offline-cache",
+      "digest": "b6fc2fbc70cbb499861901a06282d9944cdb87ed13b8c2e43a0a22b652e46aac"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/qs-cumulative-array-limit/pristine",
+      "digest": "135eb1ed12c924e22f0c382fcf4ba7256a764aa6daaf3ac89f975468c2d92432"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/qs-cumulative-array-limit/pristine/package-lock.json",
+      "digest": "ab13b2f8cddc8cb0fa31b117010bb44d21ff5a7edecccf361273dc694625f631"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/qs-empty-array-cycle/offline-cache",
+      "digest": "dfb8db62c85262ac16ebb8450a098fcbe596e4a2649cc8c14d578885466bf708"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/qs-empty-array-cycle/pristine",
+      "digest": "c7576db831d7b1fd96b49a6ec5a004c22916216afabd10dffcce9f924da16978"
+    },
+    {
+      "path": ".cache/workflow-value/tasks/qs-empty-array-cycle/pristine/package-lock.json",
+      "digest": "9222e96703ab4e5e7db3a23732977613e07c97d4a68a34b839318e65397be763"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/reviews/sacrificial-development-deduplication.yaml",
+      "digest": "1fafa57e7e03091835eb671b442ae7ee5970a4aa7112e6c45506c5a609303276"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/acquisition.md",
+      "digest": "7117fac7e1fcf792f2a8965ffd20b4ba010e3402a62c1c0a36412f153a29bb76"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/hidden-validator.mjs",
+      "digest": "01276cc0e7a2bd759264a3ca91cee63801e7f7cadae6b95126191bdff3744a98"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/materialize.mjs",
+      "digest": "b3772062405857193aa31001e18aa70e61b5475968076a2861fcab8073c2295f"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/acquisition.yaml",
+      "digest": "f29912f635b494b805b5e28ced681770f0a074f394453e61c6b95b97d0e013ad"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/contamination.yaml",
+      "digest": "3a5745afaf07ffc7b19f0331fcbb548b3de8d7b62d4d0e58075536cba38d3a52"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/leakage.yaml",
+      "digest": "ff36c4dd8af1d88913e3050d49330e0ff0966cbec35360461d79a20df0d94e7c"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/license.yaml",
+      "digest": "ae30ae31d633262f5fed8cc632fdd6b8d5dad290e3e1f14fb3d6b3d5560bace2"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/task-family.yaml",
+      "digest": "71faf1c46fb80b3b5dae8ad0db6d0f2fe8bc5a8c7c20e1914d164cb36314d63e"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/validator.yaml",
+      "digest": "3e1545481a33f734af678f5d06c6d4569667eb4a7f1c25fad29c61d744085d6f"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/acquisition.md",
+      "digest": "d917eeb6e1fd4d5d01f19b07709224e975f2025136abcb88de6e0d818cde23ce"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/hidden-validator.mjs",
+      "digest": "0d3da3d70e19c8fc6921692d16f0eafb50c8c6696ece91bb03be8503c76bcea5"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/materialize.mjs",
+      "digest": "a041d59d4704292abcd3c0cf3c3f6fe3e6cc90672ca87596d8c7c011cb89f3f7"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/acquisition.yaml",
+      "digest": "ebf1ab163758276404b007aa9d40eca5ce78c0f11ae9f2d4e597007fbdbce9a1"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/contamination.yaml",
+      "digest": "0748cba97f6a9ec147b5921f3baef7480c397c80abc9a11af6237edbb8542e12"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/leakage.yaml",
+      "digest": "2de9e0593a327f3f8352dbfae0149bf11c065667487afb670779adf6b5b7fd55"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/license.yaml",
+      "digest": "b4ab3774de89bbc2543a4d12d37b21f60e677b6449c4ebd9f794c2a4bf2637c1"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/task-family.yaml",
+      "digest": "d774a98103617af1f946eaa955060339185e1b2769b6d38e6c96f4869e1a9be1"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/validator.yaml",
+      "digest": "65da9556b2c4d50f6612fd99a54bee71e1b982a3ccbb7633a6d861d27e38013e"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/acquisition.md",
+      "digest": "3944ff02b392bf2184eb47ac9c2c156f41b0307681b787fcd6cf4457b3ae325c"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/hidden-validator.cjs",
+      "digest": "9ff28eb66ebd6b15b52e00285ea10dedf8db36d0d9d457d653f6d36666ea1cd6"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/materialize.mjs",
+      "digest": "85b1893345f98f5383c22833f3bbdbe6f8caf71a85d2be512a5f7158c38ccde9"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/acquisition.yaml",
+      "digest": "30b372e01495008a44a15c7076ae502b93a08a9db7e4bd34b7af21988018528c"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/contamination.yaml",
+      "digest": "2564234d37071460d0ae5776cc36b491697dacf7e5a04f8bf65b7b41da8fde34"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/leakage.yaml",
+      "digest": "c804b1d184865c048018872bba6126f4715412bd37788ca41ade821db91f1e40"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/license.yaml",
+      "digest": "b1801297edfdf4354088a3f97ee4762757f7b1abcaae5430c2d1c83eeb901b38"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/task-family.yaml",
+      "digest": "1c943df3ed2756003768842c9031854ca640ba5f34ae0b29393cc8ea78daf3c3"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/validator.yaml",
+      "digest": "bf7b59f4d591f504eaf2c8d3e16f60035780f09e6b6a9d4d70c7aa07e1648dde"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/acquisition.md",
+      "digest": "fad16529cfc0e7ac520ac1848f23415f85c95f8b6999b608b4b8b3bc05d8b63d"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/hidden-validator.cjs",
+      "digest": "eb55f1a5daede9fa2340851a021084f828814b0010b6f9b72dc0c73702121b89"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/materialize.mjs",
+      "digest": "aa544e9054d666354ff0d789559b2bc758dc7ab5031412fb4b7bd5a6dc2b134f"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/acquisition.yaml",
+      "digest": "39f76a05584bafddbac9268380a8b1909578ccadbbf5d2ecf47daed5a998c1c5"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/contamination.yaml",
+      "digest": "a935ca5442113432d3d924822c197580a2ede654171eafea21ac63d04ed12ab9"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/leakage.yaml",
+      "digest": "6eb13f24cbe99109c2d556ce25dd799cfff16faa38b8847139c60df527c32b1a"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/license.yaml",
+      "digest": "2a3f00e0f423ed963b7aa673b57761efe659bc02a23aab8ada00bf9623ead52b"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/task-family.yaml",
+      "digest": "c4c545bb4fecf0a5fcf64d7230758e790217c1202f54a0b3abb719e4dbf09e25"
+    },
+    {
+      "path": "experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/validator.yaml",
+      "digest": "4746fcbf4574e6a6fee87a930bf2a425e1fb38724bd13896a507e5cf6f6603fd"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+schemaVersion: workflow-validator-review-v1
+taskId: replace-me
+status: pending
+hiddenValidatorPath: replace-me/hidden-validator.mjs
+hiddenValidatorDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+deterministic: true
+agentVisible: false
+preFixExitCode: 1
+postFixExitCode: 0
+preFixOutputDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+postFixOutputDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+visibleChecks:
+  - name: replace-me
+    preFixExitCode: 0
+    postFixExitCode: 0
+    preFixOutputDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+    postFixOutputDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+falsePositiveChecks:
+  - Replace with a documented mutation or negative-control check.
+reviewer: unassigned
+reviewedAt: 1970-01-01T00:00:00.000Z
+notes:
+  - Template only; validator evidence must come from an offline replay.

@@ -1,0 +1,22 @@
+schemaVersion: workflow-acquisition-review-v1
+taskId: qs-cumulative-array-limit
+status: pass
+repositoryUrl: https://github.com/ljharb/qs
+sourceCommit: 59da434d5de8c3d2564e4d75aeedde2e8af72369
+upstreamPatchUrl: https://github.com/ljharb/qs/commit/963e538c740961a35ecaa0b38ee1f5c16697e208
+upstreamPatchDigest: 919065249c2b8d185a8f0e0686d34e63545f2feef5a055bae882c8944b61b0c7
+acquiredAt: 2026-07-17T01:43:32+07:00
+acquisitionInstructionsPath: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/acquisition.md
+sourceArchiveUrl: https://github.com/ljharb/qs/archive/59da434d5de8c3d2564e4d75aeedde2e8af72369.tar.gz
+sourceArchiveDigest: 968316eb29265041c5a7225d3ff06e529263773399f8fd0688bb2b67c29a73a2
+preFixSnapshotPath: .cache/workflow-value/tasks/qs-cumulative-array-limit/pristine
+preFixSnapshotDigest: 135eb1ed12c924e22f0c382fcf4ba7256a764aa6daaf3ac89f975468c2d92432
+postFixSnapshotDigest: 5cb3e311f5265c83c14619994673f3df9e8d9a34f10cce9a0b5eeb16173f27ce
+resetProofDigest: 135eb1ed12c924e22f0c382fcf4ba7256a764aa6daaf3ac89f975468c2d92432
+immutableSourceEvidence:
+  - https://github.com/ljharb/qs/tree/59da434d5de8c3d2564e4d75aeedde2e8af72369
+  - https://github.com/ljharb/qs/commit/963e538c740961a35ecaa0b38ee1f5c16697e208
+reviewer: /root/terra/a2a_sema_tax
+reviewedAt: 2026-07-17T01:48:33+07:00
+notes:
+  - The applied task patch contains both lib/parse.js and lib/utils.js changes.
