@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { mkdirSync } from "node:fs";
 
 import type {
   Transcript,
@@ -71,6 +72,7 @@ export type ClaudeCodeRunner = (
   bin: string,
   args: readonly string[],
   timeoutMs: number,
+  options?: { cwd?: string },
 ) => Promise<ClaudeCodeSpawnResult>;
 
 export interface ClaudeCodeModelAdapterConfig {
@@ -78,6 +80,8 @@ export interface ClaudeCodeModelAdapterConfig {
   systemPrompt: string;
   /** Path or name of the Claude Code CLI binary. Defaults to `claude`. */
   claudeBin?: string;
+  /** Working directory isolated for this harness invocation. */
+  workingDirectory?: string;
   model?: string;
   /**
    * Accepted for interface parity with the other providers. Claude Code print
@@ -209,9 +213,18 @@ function completionStatus(
  * Spawns `bin` with `args`, kills on timeout, and returns captured streams.
  * Stdin is ignored so the CLI does not wait for piped input.
  */
-export const runClaudeCodeProcess: ClaudeCodeRunner = (bin, args, timeoutMs) =>
+export const runClaudeCodeProcess: ClaudeCodeRunner = (
+  bin,
+  args,
+  timeoutMs,
+  options,
+) =>
   new Promise((resolve, reject) => {
+    if (options?.cwd) {
+      mkdirSync(options.cwd, { recursive: true });
+    }
     const child = spawn(bin, [...args], {
+      cwd: options?.cwd,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
@@ -284,8 +297,11 @@ export const runClaudeCodeProcess: ClaudeCodeRunner = (bin, args, timeoutMs) =>
 async function defaultVersionRunner(
   bin: string,
   runner: ClaudeCodeRunner,
+  workingDirectory: string | undefined,
 ): Promise<string> {
-  const result = await runner(bin, ["--version"], 10_000);
+  const result = await runner(bin, ["--version"], 10_000, {
+    ...(workingDirectory === undefined ? {} : { cwd: workingDirectory }),
+  });
   if (result.timedOut) {
     throw new Error(
       `Claude Code version probe timed out after 10000 ms using ${bin}.`,
@@ -328,6 +344,7 @@ export class ClaudeCodeModelAdapter implements ModelAgentAdapter<
   public readonly descriptor: AgentDescriptor;
   public readonly systemPrompt: string;
   public readonly claudeBin: string;
+  public readonly workingDirectory: string | undefined;
   public readonly model: string;
   public readonly maxTokens: number;
   public readonly maxRetries: number;
@@ -342,6 +359,7 @@ export class ClaudeCodeModelAdapter implements ModelAgentAdapter<
   public constructor(config: ClaudeCodeModelAdapterConfig) {
     this.systemPrompt = config.systemPrompt;
     this.claudeBin = config.claudeBin ?? DEFAULT_CLAUDE_BIN;
+    this.workingDirectory = config.workingDirectory;
     this.model = config.model ?? DEFAULT_MODEL;
     this.maxTokens = config.maxTokens ?? DEFAULT_MAX_TOKENS;
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
@@ -350,7 +368,12 @@ export class ClaudeCodeModelAdapter implements ModelAgentAdapter<
     this.runner = config.runner ?? runClaudeCodeProcess;
     this.versionRunner =
       config.versionRunner ??
-      (() => defaultVersionRunner(this.claudeBin, this.runner));
+      (() =>
+        defaultVersionRunner(
+          this.claudeBin,
+          this.runner,
+          this.workingDirectory,
+        ));
     this.sleep = config.sleep ?? realSleep;
     this.descriptor = {
       id: `claude-code:${this.model}`,
@@ -487,7 +510,11 @@ export class ClaudeCodeModelAdapter implements ModelAgentAdapter<
 
     let spawnResult: ClaudeCodeSpawnResult;
     try {
-      spawnResult = await this.runner(this.claudeBin, args, this.timeoutMs);
+      spawnResult = await this.runner(this.claudeBin, args, this.timeoutMs, {
+        ...(this.workingDirectory === undefined
+          ? {}
+          : { cwd: this.workingDirectory }),
+      });
     } catch (error) {
       const message = errorMessage(error);
       return {
