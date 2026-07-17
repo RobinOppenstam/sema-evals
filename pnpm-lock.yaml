@@ -126,6 +126,27 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
 
+  experiments/workflow-value:
+    dependencies:
+      '@sema-evals/adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
+      '@sema-evals/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@sema-evals/reporters':
+        specifier: workspace:*
+        version: link:../../packages/reporters
+      '@sema-evals/workflow-runner':
+        specifier: workspace:*
+        version: link:../../packages/workflow-runner
+      yaml:
+        specifier: ^2.8.0
+        version: 2.9.0
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+
   experiments/x402-contract-drift:
     dependencies:
       '@sema-evals/adapters':

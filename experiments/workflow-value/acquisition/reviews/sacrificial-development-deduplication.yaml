@@ -1,0 +1,13 @@
+schemaVersion: workflow-deduplication-report-v1
+corpusId: workflow-value-sacrificial-development
+status: pass
+exactDuplicateGroups: []
+nearDuplicateGroups: []
+familyConflicts: []
+excludedTaskIds: []
+method: Compare source commit, patch digest, edited path set, repository, subsystem, root-cause, validator behavior, and ancestry group; require every family dimension to remain within one split.
+reviewer: /root/terra/a2a_sema_tax
+reviewedAt: 2026-07-17T01:50:43+07:00
+notes:
+  - The two qs tasks share a repository and train split but edit distinct subsystems and have different root causes and validators.
+  - The cumulative array-limit task is the required cross-file behavior task.

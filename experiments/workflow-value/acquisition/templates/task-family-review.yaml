@@ -1,0 +1,14 @@
+schemaVersion: workflow-task-family-review-v1
+taskId: replace-me
+status: pending
+repositoryFamily: replace-me
+subsystemFamily: replace-me
+rootCauseFamily: replace-me
+validatorFamily: replace-me
+ancestryGroup: replace-me
+sharedAncestryTaskIds: []
+assignedSplit: train
+reviewer: unassigned
+reviewedAt: 1970-01-01T00:00:00.000Z
+rationale: Template only; document an independent family assignment.
+notes: []

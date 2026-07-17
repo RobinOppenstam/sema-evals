@@ -1,0 +1,22 @@
+schemaVersion: workflow-acquisition-review-v1
+taskId: replace-me
+status: pending
+repositoryUrl: https://example.invalid/replace-with-primary-repository
+sourceCommit: "0000000000000000000000000000000000000000"
+upstreamPatchUrl: https://example.invalid/replace-with-immutable-upstream-patch
+upstreamPatchDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+acquiredAt: 1970-01-01T00:00:00.000Z
+acquisitionInstructionsPath: replace-me/acquisition.md
+sourceArchiveUrl: https://example.invalid/replace-with-immutable-source-archive
+sourceArchiveDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+preFixSnapshotPath: replace-me/snapshot
+preFixSnapshotDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+postFixSnapshotDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+resetProofDigest: "0000000000000000000000000000000000000000000000000000000000000000"
+immutableSourceEvidence:
+  - https://example.invalid/replace-with-immutable-commit
+  - https://example.invalid/replace-with-immutable-patch
+reviewer: unassigned
+reviewedAt: 1970-01-01T00:00:00.000Z
+notes:
+  - Template only; acquire and hash real artifacts before changing status.

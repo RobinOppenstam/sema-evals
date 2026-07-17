@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "workflow-offline-dependencies-v1",
+  "packageManager": "npm",
+  "runtimeDependencies": [],
+  "restoreCommand": ["node", "--version"],
+  "networkRequired": false
+}

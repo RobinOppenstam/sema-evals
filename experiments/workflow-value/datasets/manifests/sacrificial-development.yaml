@@ -1,0 +1,542 @@
+schemaVersion: workflow-corpus-manifest-v1
+corpusId: workflow-value-sacrificial-development
+purpose: sacrificial-development
+sealClass: exploratory
+status: sealed
+ecosystem: typescript-javascript
+createdAt: 2026-07-17T00:00:00.000Z
+sealedAt: 2026-07-17T02:01:24+07:00
+taskFamilySplitMethod: Keep repository, subsystem, root-cause, validator, and ancestry families within one split; both qs tasks are grouped in train.
+taskFamilyIndex:
+  - taskId: p-limit-iterable-map
+    split: train
+    repository: sindresorhus/p-limit
+    subsystem: limit-map
+    rootCause: array-only-assumption
+    validator: generic-iterable-behavior
+    ancestryGroup: p-limit-map-2025
+  - taskId: p-map-out-of-order-index
+    split: dev
+    repository: sindresorhus/p-map
+    subsystem: p-map-iterable
+    rootCause: index-assigned-after-await
+    validator: out-of-order-promise-index
+    ancestryGroup: p-map-iterable-2026
+  - taskId: qs-empty-array-cycle
+    split: train
+    repository: ljharb/qs
+    subsystem: stringify-empty-array
+    rootCause: early-return-before-cycle-bookkeeping
+    validator: empty-array-own-key-cycle
+    ancestryGroup: qs-stringify-2026
+  - taskId: qs-cumulative-array-limit
+    split: train
+    repository: ljharb/qs
+    subsystem: parse-array-limit
+    rootCause: missing-option-threading-across-merge
+    validator: cumulative-array-limit
+    ancestryGroup: qs-parse-array-limit-2026
+tasks:
+  - schemaVersion: workflow-corpus-task-v1
+    id: p-limit-iterable-map
+    title: Accept generic iterables in limit.map
+    split: train
+    snapshotDirectory: .cache/workflow-value/tasks/p-limit-iterable-map/pristine
+    snapshotDigest: 3340ca785adc63618d86987d335727cab5672debd39bf1b50b123cd22a4c45dc
+    postFixSnapshotDigest: b543acdc9db2ecd1dd80d7ff15832428ac3d4a880f7ed26f1aa9be350670e333
+    resetProofDigest: 3340ca785adc63618d86987d335727cab5672debd39bf1b50b123cd22a4c45dc
+    taskRequest: Update limit.map to accept generic iterables such as Set while preserving input order and mapper indexes.
+    setupCommand:
+      - npm
+      - ci
+      - --offline
+      - --ignore-scripts
+      - --omit=dev
+      - --cache
+      - /workflow-cache
+    visibleChecks:
+      - name: visible-smoke
+        command:
+          - node
+          - .workflow-visible/check.mjs
+        expectedExitCode: 0
+    hiddenValidator:
+      command:
+        - node
+        - /scorer/hidden-validator.mjs
+        - /workspace
+      sourcePath: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/hidden-validator.mjs
+      sourceDigest: 01276cc0e7a2bd759264a3ca91cee63801e7f7cadae6b95126191bdff3744a98
+      deterministic: true
+      agentVisible: false
+      expectedPreFixExitCode: 1
+      expectedPostFixExitCode: 0
+      outputSchemaVersion: node-assert-exit-v1
+    allowedPaths:
+      - index.js
+    prohibitedPaths:
+      - .workflow-visible
+      - package.json
+      - package-lock.json
+      - node_modules
+      - license
+    secrets: none
+    limits:
+      runtimeSeconds: 180
+      diskMegabytes: 1024
+      memoryMegabytes: 512
+      maxProcesses: 64
+      cpus: 1
+      maxCommands: 20
+      maxTurns: 10
+    offlineDependencies:
+      packageManager: npm
+      nodeVersion: 24.12.0
+      lockfilePath: .cache/workflow-value/tasks/p-limit-iterable-map/pristine/package-lock.json
+      lockfileDigest: 84d220427befd69833c825460d277385a19102ba4fb237231879b3b0e0551a64
+      cacheKind: npm-cache
+      cachePath: .cache/workflow-value/tasks/p-limit-iterable-map/offline-cache
+      cacheDigest: c3d5a7913930a39369f13677a37d7c6269d618b259a35344a505a3756e608a77
+      restoreCommand:
+        - npm
+        - ci
+        - --offline
+        - --ignore-scripts
+        - --omit=dev
+        - --cache
+        - /workflow-cache
+      setupWritablePaths:
+        - node_modules
+      networkRequired: false
+    resetVerification:
+      materializeCommand:
+        - node
+        - experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/materialize.mjs
+      resetCommand:
+        - node
+        - experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/materialize.mjs
+      mutationProbePath: index.js
+      evidenceFiles:
+        - path: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/materialize.mjs
+          digest: b3772062405857193aa31001e18aa70e61b5475968076a2861fcab8073c2295f
+    provenance:
+      repositoryUrl: https://github.com/sindresorhus/p-limit
+      sourceCommit: 9da5934aaf15c22fceca470ad28ed5720b3c7340
+      upstreamPatchUrl: https://github.com/sindresorhus/p-limit/commit/d76231b44ec6693212bcf245e57b7b95cfc93297
+      upstreamPatchDigest: 14d20246416fc0bee53b6b793de6d9c32bfde3ad6e6c83b73af34ce2d8e122ca
+      upstreamPatchMergedAt: 2025-10-19T22:16:26+07:00
+      acquiredAt: 2026-07-17T01:39:22+07:00
+      sourceArchiveUrl: https://github.com/sindresorhus/p-limit/archive/9da5934aaf15c22fceca470ad28ed5720b3c7340.tar.gz
+      sourceArchiveDigest: cf7e325b1f0f4e179faafea7778655c2c6328290c4e48dfa7631f29c06ac440f
+      acquisitionInstructionsPath: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/acquisition.md
+      licenseName: MIT
+      licenseSpdx: MIT
+      primaryLicenseUrl: https://github.com/sindresorhus/p-limit/blob/9da5934aaf15c22fceca470ad28ed5720b3c7340/license
+      redistributionMode: metadata-only
+    family:
+      repository: sindresorhus/p-limit
+      subsystem: limit-map
+      rootCause: array-only-assumption
+      validator: generic-iterable-behavior
+      ancestryGroup: p-limit-map-2025
+      sharedAncestryTaskIds: []
+    inclusionRationale: Small independent repository behavior change with deterministic iterable validation.
+    preFixFails: true
+    postFixPasses: true
+    resetByteIdentical: true
+    reviewDocuments:
+      - kind: license
+        path: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/license.yaml
+        digest: ae30ae31d633262f5fed8cc632fdd6b8d5dad290e3e1f14fb3d6b3d5560bace2
+      - kind: acquisition
+        path: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/acquisition.yaml
+        digest: f29912f635b494b805b5e28ced681770f0a074f394453e61c6b95b97d0e013ad
+      - kind: validator
+        path: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/validator.yaml
+        digest: 3e1545481a33f734af678f5d06c6d4569667eb4a7f1c25fad29c61d744085d6f
+      - kind: task-family
+        path: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/task-family.yaml
+        digest: 71faf1c46fb80b3b5dae8ad0db6d0f2fe8bc5a8c7c20e1914d164cb36314d63e
+      - kind: contamination
+        path: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/contamination.yaml
+        digest: 3a5745afaf07ffc7b19f0331fcbb548b3de8d7b62d4d0e58075536cba38d3a52
+      - kind: leakage
+        path: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/reviews/leakage.yaml
+        digest: ff36c4dd8af1d88913e3050d49330e0ff0966cbec35360461d79a20df0d94e7c
+  - schemaVersion: workflow-corpus-task-v1
+    id: p-map-out-of-order-index
+    title: Preserve input indexes for out-of-order promise inputs
+    split: dev
+    snapshotDirectory: .cache/workflow-value/tasks/p-map-out-of-order-index/pristine
+    snapshotDigest: d2080f26cef5a9203675d0f44a2b25aa88d64448dbe8d7560ccc9853efcede7c
+    postFixSnapshotDigest: 1a0199ed59ba1079450e155ab4579bc4807cd62bc6aa23f25571f522284ed49c
+    resetProofDigest: d2080f26cef5a9203675d0f44a2b25aa88d64448dbe8d7560ccc9853efcede7c
+    taskRequest: Ensure pMapIterable supplies mapper indexes from input order when promise inputs settle out of order.
+    setupCommand:
+      - node
+      - --version
+    visibleChecks:
+      - name: visible-smoke
+        command:
+          - node
+          - .workflow-visible/check.mjs
+        expectedExitCode: 0
+    hiddenValidator:
+      command:
+        - node
+        - /scorer/hidden-validator.mjs
+        - /workspace
+      sourcePath: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/hidden-validator.mjs
+      sourceDigest: 0d3da3d70e19c8fc6921692d16f0eafb50c8c6696ece91bb03be8503c76bcea5
+      deterministic: true
+      agentVisible: false
+      expectedPreFixExitCode: 1
+      expectedPostFixExitCode: 0
+      outputSchemaVersion: node-assert-exit-v1
+    allowedPaths:
+      - index.js
+    prohibitedPaths:
+      - .workflow-visible
+      - package.json
+      - .workflow-dependency-lock.json
+      - license
+    secrets: none
+    limits:
+      runtimeSeconds: 120
+      diskMegabytes: 512
+      memoryMegabytes: 512
+      maxProcesses: 32
+      cpus: 1
+      maxCommands: 20
+      maxTurns: 10
+    offlineDependencies:
+      packageManager: npm
+      nodeVersion: 24.12.0
+      lockfilePath: .cache/workflow-value/tasks/p-map-out-of-order-index/pristine/.workflow-dependency-lock.json
+      lockfileDigest: f0dd150af1679588c9a98116bab5bbe0ca90908509088573c57998109f2ea42d
+      cacheKind: npm-cache
+      cachePath: .cache/workflow-value/tasks/p-map-out-of-order-index/offline-cache
+      cacheDigest: 089dbdb8c3bbf2f3fb2f7b49b0208ba6a51527b18ff180268ae5174133576c93
+      restoreCommand:
+        - node
+        - --version
+      setupWritablePaths: []
+      networkRequired: false
+    resetVerification:
+      materializeCommand:
+        - node
+        - experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/materialize.mjs
+      resetCommand:
+        - node
+        - experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/materialize.mjs
+      mutationProbePath: index.js
+      evidenceFiles:
+        - path: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/materialize.mjs
+          digest: a041d59d4704292abcd3c0cf3c3f6fe3e6cc90672ca87596d8c7c011cb89f3f7
+    provenance:
+      repositoryUrl: https://github.com/sindresorhus/p-map
+      sourceCommit: 65aaa8f4d7e757a5254a146c4c39403efa9e2139
+      upstreamPatchUrl: https://github.com/sindresorhus/p-map/commit/1af51b57534b284ead73cca65f26b56bb9390768
+      upstreamPatchDigest: ddb9b3a321da1fc60f1c1232110d6d5e7bf61af7632d014c8f7bbb3062b4d140
+      upstreamPatchMergedAt: 2026-06-30T00:22:19+02:00
+      acquiredAt: 2026-07-17T01:39:22+07:00
+      sourceArchiveUrl: https://github.com/sindresorhus/p-map/archive/65aaa8f4d7e757a5254a146c4c39403efa9e2139.tar.gz
+      sourceArchiveDigest: 871e6163d560d8342a0df9341f57f839a8314e1ea91fb75768b44476fd1cc5d0
+      acquisitionInstructionsPath: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/acquisition.md
+      licenseName: MIT
+      licenseSpdx: MIT
+      primaryLicenseUrl: https://github.com/sindresorhus/p-map/blob/65aaa8f4d7e757a5254a146c4c39403efa9e2139/license
+      redistributionMode: metadata-only
+    family:
+      repository: sindresorhus/p-map
+      subsystem: p-map-iterable
+      rootCause: index-assigned-after-await
+      validator: out-of-order-promise-index
+      ancestryGroup: p-map-iterable-2026
+      sharedAncestryTaskIds: []
+    inclusionRationale: Independent asynchronous ordering regression with deterministic delayed inputs.
+    preFixFails: true
+    postFixPasses: true
+    resetByteIdentical: true
+    reviewDocuments:
+      - kind: license
+        path: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/license.yaml
+        digest: b4ab3774de89bbc2543a4d12d37b21f60e677b6449c4ebd9f794c2a4bf2637c1
+      - kind: acquisition
+        path: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/acquisition.yaml
+        digest: ebf1ab163758276404b007aa9d40eca5ce78c0f11ae9f2d4e597007fbdbce9a1
+      - kind: validator
+        path: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/validator.yaml
+        digest: 65da9556b2c4d50f6612fd99a54bee71e1b982a3ccbb7633a6d861d27e38013e
+      - kind: task-family
+        path: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/task-family.yaml
+        digest: d774a98103617af1f946eaa955060339185e1b2769b6d38e6c96f4869e1a9be1
+      - kind: contamination
+        path: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/contamination.yaml
+        digest: 0748cba97f6a9ec147b5921f3baef7480c397c80abc9a11af6237edbb8542e12
+      - kind: leakage
+        path: experiments/workflow-value/acquisition/tasks/p-map-out-of-order-index/reviews/leakage.yaml
+        digest: 2de9e0593a327f3f8352dbfae0149bf11c065667487afb670779adf6b5b7fd55
+  - schemaVersion: workflow-corpus-task-v1
+    id: qs-empty-array-cycle
+    title: Preserve empty-array own keys and cycle detection
+    split: train
+    snapshotDirectory: .cache/workflow-value/tasks/qs-empty-array-cycle/pristine
+    snapshotDigest: c7576db831d7b1fd96b49a6ec5a004c22916216afabd10dffcce9f924da16978
+    postFixSnapshotDigest: 5236c848d4155bedd5adb8b2cea18e0e7e05017996a645b8a51db8aeaaf9b0f5
+    resetProofDigest: c7576db831d7b1fd96b49a6ec5a004c22916216afabd10dffcce9f924da16978
+    taskRequest: When allowEmptyArrays is enabled, preserve enumerable own keys and cycle detection on zero-length arrays.
+    setupCommand:
+      - npm
+      - ci
+      - --offline
+      - --ignore-scripts
+      - --omit=dev
+      - --cache
+      - /workflow-cache
+    visibleChecks:
+      - name: visible-smoke
+        command:
+          - node
+          - .workflow-visible/check.cjs
+        expectedExitCode: 0
+    hiddenValidator:
+      command:
+        - node
+        - /scorer/hidden-validator.cjs
+        - /workspace
+      sourcePath: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/hidden-validator.cjs
+      sourceDigest: eb55f1a5daede9fa2340851a021084f828814b0010b6f9b72dc0c73702121b89
+      deterministic: true
+      agentVisible: false
+      expectedPreFixExitCode: 1
+      expectedPostFixExitCode: 0
+      outputSchemaVersion: node-assert-exit-v1
+    allowedPaths:
+      - lib/stringify.js
+    prohibitedPaths:
+      - .workflow-visible
+      - package.json
+      - package-lock.json
+      - node_modules
+      - LICENSE.md
+    secrets: none
+    limits:
+      runtimeSeconds: 180
+      diskMegabytes: 1024
+      memoryMegabytes: 512
+      maxProcesses: 64
+      cpus: 1
+      maxCommands: 20
+      maxTurns: 10
+    offlineDependencies:
+      packageManager: npm
+      nodeVersion: 24.12.0
+      lockfilePath: .cache/workflow-value/tasks/qs-empty-array-cycle/pristine/package-lock.json
+      lockfileDigest: 9222e96703ab4e5e7db3a23732977613e07c97d4a68a34b839318e65397be763
+      cacheKind: npm-cache
+      cachePath: .cache/workflow-value/tasks/qs-empty-array-cycle/offline-cache
+      cacheDigest: dfb8db62c85262ac16ebb8450a098fcbe596e4a2649cc8c14d578885466bf708
+      restoreCommand:
+        - npm
+        - ci
+        - --offline
+        - --ignore-scripts
+        - --omit=dev
+        - --cache
+        - /workflow-cache
+      setupWritablePaths:
+        - node_modules
+      networkRequired: false
+    resetVerification:
+      materializeCommand:
+        - node
+        - experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/materialize.mjs
+      resetCommand:
+        - node
+        - experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/materialize.mjs
+      mutationProbePath: lib/stringify.js
+      evidenceFiles:
+        - path: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/materialize.mjs
+          digest: aa544e9054d666354ff0d789559b2bc758dc7ab5031412fb4b7bd5a6dc2b134f
+    provenance:
+      repositoryUrl: https://github.com/ljharb/qs
+      sourceCommit: f3dc5b026c944906b4d132bd6ae5485c0617c07d
+      upstreamPatchUrl: https://github.com/ljharb/qs/commit/b433a9b1633e1c3348aa53c513589a5bfe47f113
+      upstreamPatchDigest: d52bb2628d305b47660c498b7c6dc60b8dbe1c53a7d39c7eb1aafa199bb4c936
+      upstreamPatchMergedAt: 2026-07-10T23:15:56-07:00
+      acquiredAt: 2026-07-17T01:39:24+07:00
+      sourceArchiveUrl: https://github.com/ljharb/qs/archive/f3dc5b026c944906b4d132bd6ae5485c0617c07d.tar.gz
+      sourceArchiveDigest: b6b21420eaed17161c07c6f2f83e88097bd785532f7ad710047cca297c1130c7
+      acquisitionInstructionsPath: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/acquisition.md
+      licenseName: BSD-3-Clause
+      licenseSpdx: BSD-3-Clause
+      primaryLicenseUrl: https://github.com/ljharb/qs/blob/f3dc5b026c944906b4d132bd6ae5485c0617c07d/LICENSE.md
+      redistributionMode: metadata-only
+    family:
+      repository: ljharb/qs
+      subsystem: stringify-empty-array
+      rootCause: early-return-before-cycle-bookkeeping
+      validator: empty-array-own-key-cycle
+      ancestryGroup: qs-stringify-2026
+      sharedAncestryTaskIds: []
+    inclusionRationale: Independent stringify regression with own-key and cycle negative controls.
+    preFixFails: true
+    postFixPasses: true
+    resetByteIdentical: true
+    reviewDocuments:
+      - kind: license
+        path: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/license.yaml
+        digest: 2a3f00e0f423ed963b7aa673b57761efe659bc02a23aab8ada00bf9623ead52b
+      - kind: acquisition
+        path: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/acquisition.yaml
+        digest: 39f76a05584bafddbac9268380a8b1909578ccadbbf5d2ecf47daed5a998c1c5
+      - kind: validator
+        path: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/validator.yaml
+        digest: 4746fcbf4574e6a6fee87a930bf2a425e1fb38724bd13896a507e5cf6f6603fd
+      - kind: task-family
+        path: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/task-family.yaml
+        digest: c4c545bb4fecf0a5fcf64d7230758e790217c1202f54a0b3abb719e4dbf09e25
+      - kind: contamination
+        path: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/contamination.yaml
+        digest: a935ca5442113432d3d924822c197580a2ede654171eafea21ac63d04ed12ab9
+      - kind: leakage
+        path: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/reviews/leakage.yaml
+        digest: 6eb13f24cbe99109c2d556ce25dd799cfff16faa38b8847139c60df527c32b1a
+  - schemaVersion: workflow-corpus-task-v1
+    id: qs-cumulative-array-limit
+    title: Enforce cumulative array limits across parse and merge
+    split: train
+    snapshotDirectory: .cache/workflow-value/tasks/qs-cumulative-array-limit/pristine
+    snapshotDigest: 135eb1ed12c924e22f0c382fcf4ba7256a764aa6daaf3ac89f975468c2d92432
+    postFixSnapshotDigest: 5cb3e311f5265c83c14619994673f3df9e8d9a34f10cce9a0b5eeb16173f27ce
+    resetProofDigest: 135eb1ed12c924e22f0c382fcf4ba7256a764aa6daaf3ac89f975468c2d92432
+    taskRequest: Make throwOnLimitExceeded apply when arrays grow cumulatively through duplicate, comma, and mixed index/key notation.
+    setupCommand:
+      - npm
+      - ci
+      - --offline
+      - --ignore-scripts
+      - --omit=dev
+      - --cache
+      - /workflow-cache
+    visibleChecks:
+      - name: visible-array-limit-regression
+        command:
+          - node
+          - .workflow-visible/check.cjs
+        expectedExitCode: 0
+    hiddenValidator:
+      command:
+        - node
+        - /scorer/hidden-validator.cjs
+        - /workspace
+      sourcePath: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/hidden-validator.cjs
+      sourceDigest: 9ff28eb66ebd6b15b52e00285ea10dedf8db36d0d9d457d653f6d36666ea1cd6
+      deterministic: true
+      agentVisible: false
+      expectedPreFixExitCode: 1
+      expectedPostFixExitCode: 0
+      outputSchemaVersion: node-assert-exit-v1
+    allowedPaths:
+      - lib/parse.js
+      - lib/utils.js
+    prohibitedPaths:
+      - .workflow-visible
+      - package.json
+      - package-lock.json
+      - node_modules
+      - LICENSE.md
+    secrets: none
+    limits:
+      runtimeSeconds: 180
+      diskMegabytes: 1024
+      memoryMegabytes: 512
+      maxProcesses: 64
+      cpus: 1
+      maxCommands: 30
+      maxTurns: 12
+    offlineDependencies:
+      packageManager: npm
+      nodeVersion: 24.12.0
+      lockfilePath: .cache/workflow-value/tasks/qs-cumulative-array-limit/pristine/package-lock.json
+      lockfileDigest: ab13b2f8cddc8cb0fa31b117010bb44d21ff5a7edecccf361273dc694625f631
+      cacheKind: npm-cache
+      cachePath: .cache/workflow-value/tasks/qs-cumulative-array-limit/offline-cache
+      cacheDigest: b6fc2fbc70cbb499861901a06282d9944cdb87ed13b8c2e43a0a22b652e46aac
+      restoreCommand:
+        - npm
+        - ci
+        - --offline
+        - --ignore-scripts
+        - --omit=dev
+        - --cache
+        - /workflow-cache
+      setupWritablePaths:
+        - node_modules
+      networkRequired: false
+    resetVerification:
+      materializeCommand:
+        - node
+        - experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/materialize.mjs
+      resetCommand:
+        - node
+        - experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/materialize.mjs
+      mutationProbePath: lib/parse.js
+      evidenceFiles:
+        - path: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/materialize.mjs
+          digest: 85b1893345f98f5383c22833f3bbdbe6f8caf71a85d2be512a5f7158c38ccde9
+    provenance:
+      repositoryUrl: https://github.com/ljharb/qs
+      sourceCommit: 59da434d5de8c3d2564e4d75aeedde2e8af72369
+      upstreamPatchUrl: https://github.com/ljharb/qs/commit/963e538c740961a35ecaa0b38ee1f5c16697e208
+      upstreamPatchDigest: 919065249c2b8d185a8f0e0686d34e63545f2feef5a055bae882c8944b61b0c7
+      upstreamPatchMergedAt: 2026-06-22T17:48:03-07:00
+      acquiredAt: 2026-07-17T01:43:32+07:00
+      sourceArchiveUrl: https://github.com/ljharb/qs/archive/59da434d5de8c3d2564e4d75aeedde2e8af72369.tar.gz
+      sourceArchiveDigest: 968316eb29265041c5a7225d3ff06e529263773399f8fd0688bb2b67c29a73a2
+      acquisitionInstructionsPath: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/acquisition.md
+      licenseName: BSD-3-Clause
+      licenseSpdx: BSD-3-Clause
+      primaryLicenseUrl: https://github.com/ljharb/qs/blob/59da434d5de8c3d2564e4d75aeedde2e8af72369/LICENSE.md
+      redistributionMode: metadata-only
+    family:
+      repository: ljharb/qs
+      subsystem: parse-array-limit
+      rootCause: missing-option-threading-across-merge
+      validator: cumulative-array-limit
+      ancestryGroup: qs-parse-array-limit-2026
+      sharedAncestryTaskIds: []
+    inclusionRationale: Cross-file behavior repair with observed visible and hidden pre-fix failures.
+    preFixFails: true
+    postFixPasses: true
+    resetByteIdentical: true
+    reviewDocuments:
+      - kind: license
+        path: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/license.yaml
+        digest: b1801297edfdf4354088a3f97ee4762757f7b1abcaae5430c2d1c83eeb901b38
+      - kind: acquisition
+        path: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/acquisition.yaml
+        digest: 30b372e01495008a44a15c7076ae502b93a08a9db7e4bd34b7af21988018528c
+      - kind: validator
+        path: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/validator.yaml
+        digest: bf7b59f4d591f504eaf2c8d3e16f60035780f09e6b6a9d4d70c7aa07e1648dde
+      - kind: task-family
+        path: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/task-family.yaml
+        digest: 1c943df3ed2756003768842c9031854ca640ba5f34ae0b29393cc8ea78daf3c3
+      - kind: contamination
+        path: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/contamination.yaml
+        digest: 2564234d37071460d0ae5776cc36b491697dacf7e5a04f8bf65b7b41da8fde34
+      - kind: leakage
+        path: experiments/workflow-value/acquisition/tasks/qs-cumulative-array-limit/reviews/leakage.yaml
+        digest: c804b1d184865c048018872bba6126f4715412bd37788ca41ade821db91f1e40
+exclusions:
+  - candidateId: node-lru-cache-autopurge-reschedule
+    repositoryUrl: https://github.com/isaacs/node-lru-cache
+    reasonCode: validator
+    evidence: The upstream regression depends on timer scheduling under load; it was rejected in favor of deterministic validators.
+corpusReviews:
+  - kind: deduplication
+    path: experiments/workflow-value/acquisition/reviews/sacrificial-development-deduplication.yaml
+    digest: 1fafa57e7e03091835eb671b442ae7ee5970a4aa7112e6c45506c5a609303276
+residualGatePath: null

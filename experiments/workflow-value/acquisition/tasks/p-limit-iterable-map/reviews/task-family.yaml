@@ -1,0 +1,14 @@
+schemaVersion: workflow-task-family-review-v1
+taskId: p-limit-iterable-map
+status: pass
+repositoryFamily: sindresorhus/p-limit
+subsystemFamily: limit-map
+rootCauseFamily: array-only-assumption
+validatorFamily: generic-iterable-behavior
+ancestryGroup: p-limit-map-2025
+sharedAncestryTaskIds: []
+assignedSplit: train
+reviewer: /root/terra/a2a_sema_tax
+reviewedAt: 2026-07-17T01:47:52+07:00
+rationale: Independent repository and behavior family assigned to sacrificial training.
+notes: []

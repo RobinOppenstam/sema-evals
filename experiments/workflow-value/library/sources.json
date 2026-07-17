@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "workflow-library-sources-v1",
+  "status": "provisional",
+  "createdAt": "2026-07-17T00:00:00.000Z",
+  "sources": [
+    {
+      "kind": "repository-policy",
+      "locator": "AGENTS.md",
+      "usedFor": [
+        "failure preservation",
+        "deterministic validation",
+        "separate telemetry channels"
+      ]
+    },
+    {
+      "kind": "repository-policy",
+      "locator": "docs/EXPERIMENT_STANDARD.md",
+      "usedFor": [
+        "evidence-first diagnosis",
+        "layered validation",
+        "bounded retries"
+      ]
+    },
+    {
+      "kind": "official-documentation",
+      "locator": "https://git-scm.com/docs/git-diff",
+      "usedFor": ["minimal diff review", "unrelated-change audit"]
+    },
+    {
+      "kind": "official-documentation",
+      "locator": "https://nodejs.org/api/test.html",
+      "usedFor": [
+        "focused executable checks",
+        "deterministic regression validation"
+      ]
+    },
+    {
+      "kind": "official-documentation",
+      "locator": "https://www.typescriptlang.org/docs/handbook/intro.html",
+      "usedFor": ["type-checking as layered validation"]
+    }
+  ],
+  "heldoutDataUsed": false,
+  "humanReview": {
+    "status": "pending",
+    "reviewer": null,
+    "reviewedAt": null
+  }
+}

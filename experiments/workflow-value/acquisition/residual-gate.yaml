@@ -1,0 +1,13 @@
+schemaVersion: workflow-corpus-residual-gate-v1
+phase: sacrificial-development-tasks
+status: satisfied
+requiredAcceptedTaskCount: 3
+acceptedTaskCount: 4
+acceptedTaskIds:
+  - p-limit-iterable-map
+  - p-map-out-of-order-index
+  - qs-empty-array-cycle
+  - qs-cumulative-array-limit
+candidateInventoryPath: experiments/workflow-value/acquisition/candidate-repositories.yaml
+blockers: []
+nextAction: Treat these tasks as sacrificial train/dev material only; freeze prompts and protocol before acquiring a separate 30-task held-out confirmatory corpus.

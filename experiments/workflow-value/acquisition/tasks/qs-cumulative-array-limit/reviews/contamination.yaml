@@ -1,0 +1,15 @@
+schemaVersion: workflow-contamination-review-v1
+taskId: qs-cumulative-array-limit
+status: pass
+upstreamPatchMergedAt: 2026-06-22T17:48:03-07:00
+modelCutoffComparisons:
+  - model: unselected-sacrificial-pilot-model
+    cutoffDate: null
+    relation: unknown
+    evidenceUrl: https://github.com/RobinOppenstam/sema-evals/blob/main/docs/WORKFLOW_VALUE_BUILD_PLAN.md
+    rationale: No pilot model is frozen; this train task is sacrificial and cannot support held-out claims.
+searchablePatchTextRemovedFromPrompt: true
+reviewer: /root/terra/a2a_sema_tax
+reviewedAt: 2026-07-17T01:48:33+07:00
+notes:
+  - Re-evaluate against the selected model before any non-sacrificial use.

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "workflow-library-v1",
+  "libraryId": "sema-workflow-core",
+  "version": "2026-07-17.1",
+  "patterns": [
+    {
+      "handle": "EvidenceFirstDiagnosis",
+      "title": "Evidence-first diagnosis",
+      "purpose": "Reduce speculative edits by grounding the change in repository evidence.",
+      "steps": [
+        "Restate the requested behavior and identify the observable acceptance boundary.",
+        "Inspect the smallest relevant code path and existing tests before editing.",
+        "Run a focused visible check to reproduce or characterize the current behavior.",
+        "Record the evidence that distinguishes the likely cause from nearby alternatives."
+      ],
+      "guards": [
+        "Do not infer hidden validator details.",
+        "Do not broaden the requested behavior without repository evidence."
+      ]
+    },
+    {
+      "handle": "MinimalBehavioralPatch",
+      "title": "Minimal behavioral patch",
+      "purpose": "Change the narrowest implementation surface that satisfies the documented behavior.",
+      "steps": [
+        "Preserve public contracts and unrelated behavior.",
+        "Prefer a small coherent change over repository-wide rewriting.",
+        "Keep generated, vendored, lock, and configuration files unchanged unless the task requires them.",
+        "Review the final diff for unrelated changes before completion."
+      ],
+      "guards": [
+        "A historical patch is not the only valid solution.",
+        "Do not encode a task-specific answer from examples or fixtures."
+      ]
+    },
+    {
+      "handle": "LayeredValidation",
+      "title": "Layered validation",
+      "purpose": "Use progressively broader checks while preserving a fixed work budget.",
+      "steps": [
+        "Run the narrowest visible check after the first coherent edit.",
+        "If it fails, use the visible failure to revise the causal hypothesis rather than patching the assertion text.",
+        "Run relevant type, lint, build, or regression checks when available and within budget.",
+        "Stop only after the visible checks pass or the resource budget is exhausted."
+      ],
+      "guards": [
+        "Hidden validators remain scorer-side and provide no iterative feedback.",
+        "Preserve every failed check and retry in the run transcript."
+      ]
+    },
+    {
+      "handle": "FailureInformedRetry",
+      "title": "Failure-informed retry",
+      "purpose": "Turn a visible failed attempt into bounded new evidence.",
+      "steps": [
+        "Classify the failure as setup, syntax, type, behavioral, regression, or resource related.",
+        "Reinspect the smallest code and state surface implicated by that failure.",
+        "Make one causally motivated revision before rerunning the focused check.",
+        "Avoid repeating an unchanged action after the same failure."
+      ],
+      "guards": [
+        "Do not use network access or external production state.",
+        "Do not treat a timeout or malformed tool result as task evidence."
+      ]
+    }
+  ]
+}

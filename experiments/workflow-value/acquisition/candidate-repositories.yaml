@@ -1,0 +1,38 @@
+schemaVersion: workflow-candidate-inventory-v1
+status: sacrificial-tasks-acquired
+updatedAt: 2026-07-17T00:00:00.000Z
+acceptedTaskCount: 4
+notice: Four sacrificial train/dev tasks have immutable source, offline replay, independent validator review, and executable reset evidence; this is not held-out evidence.
+candidates:
+  - id: p-limit
+    repositoryUrl: https://github.com/sindresorhus/p-limit
+    primaryLicenseUrl: https://github.com/sindresorhus/p-limit/blob/main/license
+    licenseName: MIT
+    ecosystem: typescript-javascript
+    screeningStatus: tasks-acquired
+    taskIds:
+      - p-limit-iterable-map
+  - id: p-map
+    repositoryUrl: https://github.com/sindresorhus/p-map
+    primaryLicenseUrl: https://github.com/sindresorhus/p-map/blob/main/license
+    licenseName: MIT
+    ecosystem: typescript-javascript
+    screeningStatus: tasks-acquired
+    taskIds:
+      - p-map-out-of-order-index
+  - id: node-lru-cache
+    repositoryUrl: https://github.com/isaacs/node-lru-cache
+    primaryLicenseUrl: https://github.com/isaacs/node-lru-cache/blob/main/LICENSE.md
+    licenseName: BlueOak-1.0.0
+    ecosystem: typescript-javascript
+    screeningStatus: task-not-selected
+    taskIds: []
+  - id: qs
+    repositoryUrl: https://github.com/ljharb/qs
+    primaryLicenseUrl: https://github.com/ljharb/qs/blob/main/LICENSE.md
+    licenseName: BSD-3-Clause
+    ecosystem: typescript-javascript
+    screeningStatus: tasks-acquired
+    taskIds:
+      - qs-empty-array-cycle
+      - qs-cumulative-array-limit

@@ -1,0 +1,22 @@
+schemaVersion: workflow-acquisition-review-v1
+taskId: qs-empty-array-cycle
+status: pass
+repositoryUrl: https://github.com/ljharb/qs
+sourceCommit: f3dc5b026c944906b4d132bd6ae5485c0617c07d
+upstreamPatchUrl: https://github.com/ljharb/qs/commit/b433a9b1633e1c3348aa53c513589a5bfe47f113
+upstreamPatchDigest: d52bb2628d305b47660c498b7c6dc60b8dbe1c53a7d39c7eb1aafa199bb4c936
+acquiredAt: 2026-07-17T01:39:24+07:00
+acquisitionInstructionsPath: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/acquisition.md
+sourceArchiveUrl: https://github.com/ljharb/qs/archive/f3dc5b026c944906b4d132bd6ae5485c0617c07d.tar.gz
+sourceArchiveDigest: b6b21420eaed17161c07c6f2f83e88097bd785532f7ad710047cca297c1130c7
+preFixSnapshotPath: .cache/workflow-value/tasks/qs-empty-array-cycle/pristine
+preFixSnapshotDigest: c7576db831d7b1fd96b49a6ec5a004c22916216afabd10dffcce9f924da16978
+postFixSnapshotDigest: 5236c848d4155bedd5adb8b2cea18e0e7e05017996a645b8a51db8aeaaf9b0f5
+resetProofDigest: c7576db831d7b1fd96b49a6ec5a004c22916216afabd10dffcce9f924da16978
+immutableSourceEvidence:
+  - https://github.com/ljharb/qs/tree/f3dc5b026c944906b4d132bd6ae5485c0617c07d
+  - https://github.com/ljharb/qs/commit/b433a9b1633e1c3348aa53c513589a5bfe47f113
+reviewer: /root/terra/a2a_sema_tax
+reviewedAt: 2026-07-17T01:48:33+07:00
+notes:
+  - The applied task patch is the lib/stringify.js portion of the immutable upstream commit.

@@ -1,0 +1,24 @@
+schemaVersion: workflow-validator-review-v1
+taskId: qs-empty-array-cycle
+status: pass
+hiddenValidatorPath: experiments/workflow-value/acquisition/tasks/qs-empty-array-cycle/hidden-validator.cjs
+hiddenValidatorDigest: eb55f1a5daede9fa2340851a021084f828814b0010b6f9b72dc0c73702121b89
+deterministic: true
+agentVisible: false
+preFixExitCode: 1
+postFixExitCode: 0
+preFixOutputDigest: d6616cf346650b41f260d9b2f08dd742d97b344a95244dd4934f8239ef28286e
+postFixOutputDigest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+visibleChecks:
+  - name: visible-smoke
+    preFixExitCode: 0
+    postFixExitCode: 0
+    preFixOutputDigest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    postFixOutputDigest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+falsePositiveChecks:
+  - A genuinely empty array passes visibly while own-key serialization and cycle detection fail pre-fix.
+reviewer: /root/terra/security_forecasting
+reviewedAt: 2026-07-17T01:55:10+07:00
+notes:
+  - Independent replay restored the sealed pre-fix digest after mutation, reproduced visible 0 to 0 and hidden 1 to 0 exits, and matched the patched workspace to the sealed post-fix digest.
+  - The validator imports runtime behavior only and does not compare source text, patch content, or workspace digests.

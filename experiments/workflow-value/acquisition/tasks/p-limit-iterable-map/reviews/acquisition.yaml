@@ -1,0 +1,22 @@
+schemaVersion: workflow-acquisition-review-v1
+taskId: p-limit-iterable-map
+status: pass
+repositoryUrl: https://github.com/sindresorhus/p-limit
+sourceCommit: 9da5934aaf15c22fceca470ad28ed5720b3c7340
+upstreamPatchUrl: https://github.com/sindresorhus/p-limit/commit/d76231b44ec6693212bcf245e57b7b95cfc93297
+upstreamPatchDigest: 14d20246416fc0bee53b6b793de6d9c32bfde3ad6e6c83b73af34ce2d8e122ca
+acquiredAt: 2026-07-17T01:39:22+07:00
+acquisitionInstructionsPath: experiments/workflow-value/acquisition/tasks/p-limit-iterable-map/acquisition.md
+sourceArchiveUrl: https://github.com/sindresorhus/p-limit/archive/9da5934aaf15c22fceca470ad28ed5720b3c7340.tar.gz
+sourceArchiveDigest: cf7e325b1f0f4e179faafea7778655c2c6328290c4e48dfa7631f29c06ac440f
+preFixSnapshotPath: .cache/workflow-value/tasks/p-limit-iterable-map/pristine
+preFixSnapshotDigest: 3340ca785adc63618d86987d335727cab5672debd39bf1b50b123cd22a4c45dc
+postFixSnapshotDigest: b543acdc9db2ecd1dd80d7ff15832428ac3d4a880f7ed26f1aa9be350670e333
+resetProofDigest: 3340ca785adc63618d86987d335727cab5672debd39bf1b50b123cd22a4c45dc
+immutableSourceEvidence:
+  - https://github.com/sindresorhus/p-limit/tree/9da5934aaf15c22fceca470ad28ed5720b3c7340
+  - https://github.com/sindresorhus/p-limit/commit/d76231b44ec6693212bcf245e57b7b95cfc93297
+reviewer: /root/terra/a2a_sema_tax
+reviewedAt: 2026-07-17T01:47:52+07:00
+notes:
+  - The applied task patch is the index.js portion of the immutable upstream commit.

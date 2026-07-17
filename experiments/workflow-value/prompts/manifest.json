@@ -1,0 +1,9 @@
+{
+  "snapshotVersion": "2026-07-16",
+  "prompts": {
+    "workflow-executor": {
+      "file": "workflow-executor.md",
+      "sha256": "a9d5e0426bd1fee69d1280215550eb7028e60886ab7b1e5135cf0cdedc295d5d"
+    }
+  }
+}

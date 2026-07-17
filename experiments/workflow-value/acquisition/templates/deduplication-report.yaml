@@ -1,0 +1,12 @@
+schemaVersion: workflow-deduplication-report-v1
+corpusId: replace-me
+status: pending
+exactDuplicateGroups: []
+nearDuplicateGroups: []
+familyConflicts: []
+excludedTaskIds: []
+method: Template only; replace with the deterministic comparison method and thresholds.
+reviewer: unassigned
+reviewedAt: 1970-01-01T00:00:00.000Z
+notes:
+  - No corpus may be sealed while this report is pending.
