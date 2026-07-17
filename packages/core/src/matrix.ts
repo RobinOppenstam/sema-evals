@@ -105,7 +105,10 @@ export interface ExecuteMatrixOptions<Scenario, Condition, Record> {
    * must not mutate the returned array, whose ordering is fixed to planned
    * order regardless of when trials complete.
    */
-  onComplete?: (record: Record, cell: MatrixCell<Scenario, Condition>) => void;
+  onComplete?: (
+    record: Record,
+    cell: MatrixCell<Scenario, Condition>,
+  ) => void | Promise<void>;
 }
 
 /**
@@ -144,7 +147,7 @@ export async function executeMatrix<Scenario, Condition, Record>(
       }
       const record = await execute(cell);
       records[current] = record;
-      options.onComplete?.(record, cell);
+      await options.onComplete?.(record, cell);
     }
   };
 

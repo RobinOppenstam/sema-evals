@@ -182,6 +182,17 @@ export const resultManifestSchema = z.object({
   scenarioCount: z.number().int().positive(),
   trialCount: z.number().int().positive(),
   fixtureDigest: z.string().length(64),
+  /** Additive provenance fields introduced after artifact schema 0.3.0.
+   * Optional so already-published bundles remain valid; all newly-created
+   * bundles populate them. */
+  scorer: z
+    .object({
+      version: z.string().min(1),
+      fingerprint: z.string().length(64),
+    })
+    .optional(),
+  protocolFingerprint: z.string().length(64).optional(),
+  runConfiguration: z.record(z.string(), z.unknown()).optional(),
   provenance: trialProvenanceSchema,
 });
 
