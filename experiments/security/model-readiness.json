@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "security-model-readiness-v1",
+  "ready": false,
+  "corpusReady": false,
+  "modelConfigured": false,
+  "writableHarnessVerified": false,
+  "repositoryExecutorWired": false,
+  "blockReasons": [
+    "held-out-security-corpus-not-acquired",
+    "model-provider-not-configured",
+    "security-writable-harness-not-verified",
+    "security-repository-executor-not-wired"
+  ]
+}

@@ -17,6 +17,7 @@ import {
   ARTIFACT_SCHEMA_VERSION,
   PROTOCOL_VERSION,
   executeMatrix,
+  fingerprint,
   planPairedMatrix,
   type MatrixCell,
   type TrialProvenance,
@@ -176,6 +177,8 @@ async function run(
   id: string,
   condition: A2aDriftCondition,
   decisionText: string,
+  usage: UsageTelemetry = usageOf(),
+  status: ModelCompletionStatus = "completed",
 ) {
   const scenario = await scenarioById(id);
   return runModelA2aDriftTrial(cellFor(scenario, condition), {
@@ -183,7 +186,7 @@ async function run(
     referenceProvider: new FixtureReferenceProvider(),
     vocabularyRoot: "",
     provenance,
-    adapter: scriptedAdapter(decisionText),
+    adapter: scriptedAdapter(decisionText, usage, status),
   });
 }
 
@@ -270,10 +273,52 @@ describe("runModelA2aDriftTrial (scripted adapter)", () => {
       "I am unsure what to do.",
     );
     expect(record.modelDecision).toBe("malformed");
+    expect(record.modelCompletionStatus).toBe("completed");
+    expect(record.metrics.silentExecution).toBe(false);
+    expect(record.finalTaskState).toBe("failed");
+    expect(record.metrics.failureReason).toBe(
+      "model-worker-malformed-decision",
+    );
     expect(record.metrics.taskSuccess).toBe(false);
     expect(record.transcript).not.toBeNull();
     expect(record.usage).not.toBeNull();
   });
+
+  for (const status of ["refused", "truncated", "error"] as const) {
+    it(`preserves ${status} as a failed task that never counts as silent execution`, async () => {
+      const stopReason =
+        status === "refused"
+          ? "refusal"
+          : status === "truncated"
+            ? "max_tokens"
+            : null;
+      const record = await run(
+        "settlement-drift",
+        "baseline",
+        "Partial work without a valid terminal decision.",
+        usageOf({
+          stopReason,
+          errors: status === "error" ? ["provider unavailable"] : [],
+        }),
+        status,
+      );
+
+      expect(record.modelCompletionStatus).toBe(status);
+      expect(record.modelDecision).toBe("malformed");
+      expect(record.metrics.silentExecution).toBe(false);
+      expect(record.finalTaskState).toBe("failed");
+      expect(record.metrics.failureReason).toBe(`model-worker-${status}`);
+      expect(record.metrics.halted).toBe(false);
+      expect(record.metrics.correctHalt).toBe(false);
+      expect(record.metrics.taskSuccess).toBe(false);
+      expect(record.events.at(-1)?.type).toBe("completion");
+      expect(record.events.at(-1)?.details).toMatchObject({
+        finalTaskState: "failed",
+        modelStatus: status,
+        failureReason: `model-worker-${status}`,
+      });
+    });
+  }
 });
 
 describe("model-pilot record schema and bundle", () => {
@@ -356,6 +401,22 @@ describe("model-pilot record schema and bundle", () => {
         cleanScenarioCount,
         trialCount: records.length,
         fixtureDigest,
+        scorer: {
+          version: A2A_DECISION_PARSER_VERSION,
+          fingerprint: fingerprint(A2A_DECISION_PARSER_VERSION),
+        },
+        protocolFingerprint: fingerprint("a2a-model-pilot-test"),
+        runConfiguration: {
+          provider: "fake",
+          model: "scripted-worker",
+          seeds: [0],
+          concurrency: 1,
+          maxTokens: 4096,
+          semanticBackend: provenance.semanticBackend,
+          thinking: null,
+          endpointHost: null,
+          orderSeed: 20_260_714,
+        },
         provenance: { ...provenance, fixtureDigest },
       },
       records,
@@ -383,6 +444,7 @@ describe("model-pilot record schema and bundle", () => {
     expect(rawRecords).toHaveLength(3);
     for (const record of rawRecords) {
       expect(record.decisionParserVersion).toBe(A2A_DECISION_PARSER_VERSION);
+      expect(record.modelCompletionStatus).toBe("completed");
       expect(record.usage).not.toBeNull();
       expect(record.transcript).not.toBeNull();
     }

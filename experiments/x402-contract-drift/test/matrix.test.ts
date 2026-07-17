@@ -45,7 +45,7 @@ const provenance: TrialProvenance = {
   vocabularyRoot: "",
   semanticBackend: "fixture-sha256-stable-json-v1",
   modelProvider: "deterministic",
-  modelName: "x402-contract-drift-demo-v1",
+  modelName: "x402-contract-drift-demo-v2",
 };
 
 const temporaryDirectories: string[] = [];
@@ -160,6 +160,15 @@ describe("bundle validity", () => {
         cleanScenarioCount,
         trialCount: records.length,
         fixtureDigest,
+        scorer: {
+          version: "test-scorer",
+          fingerprint: "d".repeat(64),
+        },
+        protocolFingerprint: "e".repeat(64),
+        runConfiguration: {
+          mode: "deterministic-harness",
+          repetitionCount: 1,
+        },
         provenance,
       },
       records,

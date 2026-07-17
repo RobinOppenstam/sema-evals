@@ -1,3 +1,5 @@
+import { fingerprint } from "@sema-evals/core";
+
 import type { ExpectedFinding, VulnerabilityClass } from "./schemas.js";
 import { vulnerabilityClassSchema } from "./schemas.js";
 
@@ -6,6 +8,14 @@ import { vulnerabilityClassSchema } from "./schemas.js";
  * rule or TP/FP matching rule changes.
  */
 export const SECURITY_SCORER_VERSION = "security-scorer-v1";
+export const SECURITY_SCORER_FINGERPRINT = fingerprint({
+  version: SECURITY_SCORER_VERSION,
+  findingGrammar: "FINDING:<class>@<function>",
+  decisionGrammar: "NONE|SUBMIT|ADDRESS<sha256-digests>",
+  matchRule: "exact-class-and-function",
+  parseFailureRule: "zero-tp-all-expected-fn-not-within-budget",
+  falsePositiveRule: "every-unmatched-emitted-finding",
+});
 
 /** Parsed finding line: `FINDING: <class> @ <function>`. */
 export interface ParsedFinding {

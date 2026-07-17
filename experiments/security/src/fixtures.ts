@@ -9,6 +9,7 @@ import {
   type CannedFindings,
   type LoadedSecurityCase,
   type SecurityCase,
+  type SecurityTrialScenario,
 } from "./schemas.js";
 
 export interface LoadedSecurityFixtures {
@@ -162,8 +163,54 @@ export async function loadCannedFindings(
   return cannedFindingsSchema.parse(JSON.parse(raw));
 }
 
-export function cannedKey(caseId: string, condition: string): string {
-  return `${caseId}::${condition}`;
+/** Expands every mutation pair into one vulnerable and one patched scenario. */
+export function buildSecurityTrialScenarios(
+  cases: readonly LoadedSecurityCase[],
+): SecurityTrialScenario[] {
+  return cases.flatMap((entry) => [
+    {
+      scenarioId: `${entry.meta.id}--vulnerable`,
+      meta: entry.meta,
+      sourceVariant: "vulnerable" as const,
+      source: entry.vulnerableSource,
+      expectedFindings: [...entry.meta.expectedFindings],
+    },
+    {
+      scenarioId: `${entry.meta.id}--patched`,
+      meta: entry.meta,
+      sourceVariant: "patched" as const,
+      source: entry.patchedSource,
+      expectedFindings: [],
+    },
+  ]);
+}
+
+export function cannedKey(
+  caseId: string,
+  condition: string,
+  sourceVariant: "vulnerable" | "patched" = "vulnerable",
+): string {
+  if (sourceVariant === "vulnerable") {
+    return `${caseId}::${condition}`;
+  }
+  return `${caseId}::patched::${condition}`;
+}
+
+export function cannedOutputFor(
+  entries: Readonly<Record<string, string>>,
+  caseId: string,
+  condition: string,
+  sourceVariant: "vulnerable" | "patched",
+): string | undefined {
+  const explicit = entries[cannedKey(caseId, condition, sourceVariant)];
+  if (explicit !== undefined) {
+    return explicit;
+  }
+  // Clean negatives default to an explicit no-finding scripted response.
+  if (sourceVariant === "patched") {
+    return "DECISION: NONE\n";
+  }
+  return undefined;
 }
 
 /** Stable definition object for a Pattern Card (reference-provider input). */

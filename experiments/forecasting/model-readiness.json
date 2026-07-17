@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "forecasting-model-readiness-v1",
+  "ready": false,
+  "realQuestionsReady": false,
+  "leakageAuditComplete": false,
+  "modelConfigured": false,
+  "blockReasons": [
+    "real-polymarket-question-set-not-acquired",
+    "model-specific-leakage-audit-not-complete",
+    "model-provider-not-configured"
+  ]
+}

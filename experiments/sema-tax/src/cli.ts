@@ -4,13 +4,18 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
-  AnthropicModelAdapter,
+  MODEL_PROVIDER_NAMES,
   FixtureReferenceProvider,
-  OpenAiCompatibleModelAdapter,
   SemaPythonReferenceProvider,
+  createModelProvider,
+  isModelProvider,
+  isSubscriptionHarnessProvider,
+  modelProviderRequiresApiKey,
   type AnthropicThinkingMode,
+  type CreatedModelProvider,
   type ModelAgentAdapter,
   type ModelCompletion,
+  type ModelProvider,
   type ModelPromptInput,
   type SemanticReferenceProvider,
 } from "@sema-evals/adapters";
@@ -25,11 +30,12 @@ import {
   type PromptSnapshot,
   type TrialProvenance,
 } from "@sema-evals/core";
-import { writeResultBundleWith } from "@sema-evals/reporters";
+import { createResultJournalWith } from "@sema-evals/reporters";
 
 import { SEMA_TAX_PATTERN_COUNTS, buildConditions } from "./conditions.js";
 import { loadFixtureFile } from "./fixtures.js";
 import { runModelTaxTrial } from "./model-tax.js";
+import { SEMA_TAX_SCORER_VERSION } from "./scorer.js";
 import {
   semaTaxResultManifestSchema,
   semaTaxTrialRecordSchema,
@@ -70,10 +76,10 @@ const DEFAULT_MODEL_PILOT_REPETITIONS = 5;
 const DEFAULT_ANTHROPIC_KEY_ENV = "ANTHROPIC_API_KEY";
 const DEFAULT_OPENAI_KEY_ENV = "CHUTES_API_KEY";
 const SUGGESTED_CHUTES_BASE_URL = "https://llm.chutes.ai/v1";
+const DEFAULT_HARNESS_WORKSPACE = join(REPO_ROOT, "results/.harness-workspace");
 const MAX_CONCURRENCY = 32;
 
 type RunMode = "deterministic" | "model-pilot";
-type ModelProvider = "anthropic" | "openai-compatible";
 type ExperimentArm = "default" | "size-reuse";
 
 const DEFAULT_FIXTURE_RELATIVE =
@@ -96,6 +102,8 @@ interface CliOptions {
   host: string;
   apiKeyEnv: string;
   model: string;
+  harnessBin: string;
+  harnessWorkingDirectory: string;
   thinking: AnthropicThinkingMode;
   maxTokens: number;
   concurrency: number;
@@ -128,6 +136,9 @@ function hostOf(baseUrl: string): string {
  * unset. Presence-only: the value is never read beyond truthiness.
  */
 export function assertProviderApiKey(options: CliOptions): void {
+  if (!modelProviderRequiresApiKey(options.provider)) {
+    return;
+  }
   if (!process.env[options.apiKeyEnv]) {
     throw new Error(
       `model-pilot mode with provider ${options.provider} requires ${options.apiKeyEnv} to be set. Export it before running.`,
@@ -150,21 +161,25 @@ function usage(): string {
     "  --repetitions <n>   Alias for --seeds (model-pilot default: 5)",
     "  --semantic-backend  fixture or sema-python (default: fixture)",
     "  --sema-python <cmd> Python executable with semahash installed",
-    "  --provider <p>      anthropic or openai-compatible (default: anthropic)",
+    `  --provider <p>      ${MODEL_PROVIDER_NAMES} (default: anthropic)`,
     "  --base-url <url>    OpenAI-compatible endpoint base URL (required for",
     `                      openai-compatible; e.g. ${SUGGESTED_CHUTES_BASE_URL})`,
     "  --api-key-env <n>   Env var holding the API key (default:",
     "                      ANTHROPIC_API_KEY for anthropic, CHUTES_API_KEY for",
     "                      openai-compatible)",
     "  --model <id>        Model id (anthropic default: claude-sonnet-5;",
-    "                      required for openai-compatible)",
+    "                      required for openai-compatible and CLI harnesses",
+    "                      except claude-code)",
+    "  --harness-bin <p>   Override subscription-harness CLI binary",
+    "  --harness-cwd <p>   Working directory for subscription-harness calls",
     "  --thinking <m>      adaptive or none (default: adaptive; anthropic only)",
     "  --max-tokens <n>    Max output tokens (default: 4096)",
     `  --concurrency <n>   Trials in flight at once (default: 1, max: ${MAX_CONCURRENCY};`,
     "                      model-pilot only; ignored in deterministic mode)",
     "  --help              Show this help",
     "",
-    "model-pilot mode requires the selected provider's API key env var to be set.",
+    "API providers require their selected key env var; subscription harnesses",
+    "use ambient CLI authentication.",
   ].join("\n");
 }
 
@@ -217,6 +232,8 @@ export function parseArgs(args: readonly string[]): CliOptions {
     host: "",
     apiKeyEnv: "",
     model: DEFAULT_MODEL,
+    harnessBin: "",
+    harnessWorkingDirectory: DEFAULT_HARNESS_WORKSPACE,
     thinking: "adaptive",
     maxTokens: DEFAULT_MAX_TOKENS,
     concurrency: 1,
@@ -225,6 +242,8 @@ export function parseArgs(args: readonly string[]): CliOptions {
   let thinkingExplicit = false;
   let apiKeyEnvExplicit = false;
   let fixtureExplicit = false;
+  let harnessBinExplicit = false;
+  let harnessCwdExplicit = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -287,8 +306,10 @@ export function parseArgs(args: readonly string[]): CliOptions {
     }
     if (argument === "--provider") {
       const provider = args[++index];
-      if (provider !== "anthropic" && provider !== "openai-compatible") {
-        throw new Error(`${argument} requires anthropic or openai-compatible.`);
+      if (!provider || !isModelProvider(provider)) {
+        throw new Error(
+          `${argument} requires one of: ${MODEL_PROVIDER_NAMES}.`,
+        );
       }
       options.provider = provider;
       continue;
@@ -317,6 +338,24 @@ export function parseArgs(args: readonly string[]): CliOptions {
       }
       options.model = model;
       modelExplicit = true;
+      continue;
+    }
+    if (argument === "--harness-bin") {
+      const harnessBin = args[++index];
+      if (!harnessBin) {
+        throw new Error(`${argument} requires a path or binary name.`);
+      }
+      options.harnessBin = resolveFromRepoRoot(harnessBin);
+      harnessBinExplicit = true;
+      continue;
+    }
+    if (argument === "--harness-cwd") {
+      const harnessCwd = args[++index];
+      if (!harnessCwd) {
+        throw new Error(`${argument} requires a directory.`);
+      }
+      options.harnessWorkingDirectory = resolve(REPO_ROOT, harnessCwd);
+      harnessCwdExplicit = true;
       continue;
     }
     if (argument === "--thinking") {
@@ -374,11 +413,43 @@ export function parseArgs(args: readonly string[]): CliOptions {
     options.apiKeyEnv = apiKeyEnvExplicit
       ? options.apiKeyEnv
       : DEFAULT_OPENAI_KEY_ENV;
-  } else {
+    if (harnessBinExplicit || harnessCwdExplicit) {
+      throw new Error(
+        "--harness-bin and --harness-cwd apply only to subscription CLI harness providers.",
+      );
+    }
+  } else if (options.provider === "anthropic") {
+    if (harnessBinExplicit || harnessCwdExplicit) {
+      throw new Error(
+        "--harness-bin and --harness-cwd apply only to subscription CLI harness providers.",
+      );
+    }
     validateThinkingForModel(options.model, options.thinking);
     options.apiKeyEnv = apiKeyEnvExplicit
       ? options.apiKeyEnv
       : DEFAULT_ANTHROPIC_KEY_ENV;
+  } else {
+    if (thinkingExplicit) {
+      throw new Error(
+        `--thinking applies only to the anthropic provider. Remove it for ${options.provider}.`,
+      );
+    }
+    if (options.baseUrl) {
+      throw new Error(
+        `--base-url applies only to openai-compatible. Remove it for ${options.provider}.`,
+      );
+    }
+    if (apiKeyEnvExplicit) {
+      throw new Error(
+        `--api-key-env is unused for ${options.provider}; subscription auth is ambient in the CLI.`,
+      );
+    }
+    if (options.provider !== "claude-code" && !modelExplicit) {
+      throw new Error(
+        `--model is required for provider ${options.provider}; harness model names vary.`,
+      );
+    }
+    options.apiKeyEnv = "";
   }
 
   return options;
@@ -394,25 +465,23 @@ function requireWorksheetPrompt(snapshot: PromptSnapshot): string {
   return prompt.content;
 }
 
-function createModelAdapter(
+function createExperimentModelProvider(
   snapshot: PromptSnapshot,
   options: CliOptions,
-): ModelAgentAdapter<ModelPromptInput, ModelCompletion> {
-  const systemPrompt = requireWorksheetPrompt(snapshot);
-  return options.provider === "openai-compatible"
-    ? new OpenAiCompatibleModelAdapter({
-        systemPrompt,
-        baseUrl: options.baseUrl,
-        apiKeyEnvVar: options.apiKeyEnv,
-        model: options.model,
-        maxTokens: options.maxTokens,
-      })
-    : new AnthropicModelAdapter({
-        systemPrompt,
-        model: options.model,
-        maxTokens: options.maxTokens,
-        thinkingMode: options.thinking,
-      });
+): CreatedModelProvider {
+  return createModelProvider({
+    provider: options.provider,
+    systemPrompt: requireWorksheetPrompt(snapshot),
+    model: options.model,
+    maxTokens: options.maxTokens,
+    thinking: options.thinking,
+    ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+    ...(options.apiKeyEnv ? { apiKeyEnv: options.apiKeyEnv } : {}),
+    ...(options.harnessBin ? { harnessBin: options.harnessBin } : {}),
+    ...(isSubscriptionHarnessProvider(options.provider)
+      ? { harnessWorkingDirectory: options.harnessWorkingDirectory }
+      : {}),
+  });
 }
 
 function createReferenceProvider(
@@ -473,6 +542,21 @@ function trialProgressLine(
   );
 }
 
+function sizeReuseTrialProgressLine(
+  record: SemaTaxSizeReuseTrialRecord,
+  done: number,
+  total: number,
+): string {
+  const elapsed = (record.metrics.elapsedMs / 1000).toFixed(1);
+  const calls = record.usage?.attempts ?? 0;
+  return (
+    `trial ${done}/${total} ${record.scenarioId} ${record.condition} ` +
+    `seed=${record.seed} -> score=${record.metrics.score.toFixed(2)} ` +
+    `failedCalls=${record.metrics.modelFailureMessages} ` +
+    `tok=${record.metrics.totalModelTokens} (${elapsed}s, ${calls} attempts)`
+  );
+}
+
 /**
  * Runs the size/reuse follow-up arm (ADR 0013): a 27-condition grid crossing
  * three definition size tiers with three reuse factors and three delivery arms,
@@ -496,10 +580,18 @@ async function runSizeReuseArm(options: CliOptions): Promise<void> {
 
   let promptSnapshot: PromptSnapshot | undefined;
   let adapter: ModelAgentAdapter<ModelPromptInput, ModelCompletion> | undefined;
+  let providerLabel = "";
+  let harnessMetadata: Readonly<Record<string, string>> | null = null;
   const isModelPilot = options.mode === "model-pilot";
   if (isModelPilot) {
     promptSnapshot = await loadPromptSnapshot(PROMPTS_DIR);
-    adapter = createModelAdapter(promptSnapshot, options);
+    const createdProvider = createExperimentModelProvider(
+      promptSnapshot,
+      options,
+    );
+    adapter = createdProvider.adapter;
+    providerLabel = await createdProvider.providerLabel();
+    harnessMetadata = createdProvider.harnessMetadata;
     const scenarioCount = fixtureSet.scenarios.length;
     const trialCount = scenarioCount * conditions.length * options.seedCount;
     // Each condition's R sequential messages; summed over the grid per block.
@@ -543,9 +635,7 @@ async function runSizeReuseArm(options: CliOptions): Promise<void> {
     vocabularyRoot: process.env.SEMA_VOCABULARY_ROOT ?? "",
     semanticBackend: semanticMetadata.backend,
     modelProvider: isModelPilot
-      ? options.provider === "openai-compatible"
-        ? options.host
-        : "anthropic"
+      ? providerLabel
       : (process.env.MODEL_PROVIDER ?? "deterministic"),
     modelName: isModelPilot
       ? options.model
@@ -561,68 +651,133 @@ async function runSizeReuseArm(options: CliOptions): Promise<void> {
     seeds,
     orderSeed: options.orderSeed,
   });
+  const scorer = {
+    version: SEMA_TAX_SCORER_VERSION,
+    fingerprint: fingerprint({
+      version: SEMA_TAX_SCORER_VERSION,
+      answerGrammar: "ITEM <id>: yes|no",
+      missingAnswerPolicy: "incorrect",
+    }),
+  };
+  const protocolFingerprint = fingerprint({
+    experimentId: EXPERIMENT_ID,
+    arm: "size-reuse",
+    protocolVersion: PROTOCOL_VERSION,
+    conditions,
+    patternCount: SEMA_TAX_SIZE_REUSE_PATTERN_COUNT,
+    sizes: SEMA_TAX_SIZE_TIERS,
+    reuseFactors: SEMA_TAX_REUSE_FACTORS,
+    scorerVersion: scorer.version,
+  });
+  const runConfiguration = {
+    arm: "size-reuse" as const,
+    provider: provenance.modelProvider,
+    model: provenance.modelName,
+    seeds,
+    concurrency,
+    maxTokens: isModelPilot ? options.maxTokens : null,
+    semanticBackend: semanticMetadata.backend,
+    thinking:
+      isModelPilot && options.provider === "anthropic"
+        ? options.thinking
+        : null,
+    endpointHost:
+      isModelPilot && options.provider === "openai-compatible"
+        ? options.host
+        : null,
+    harness: isModelPilot ? harnessMetadata : null,
+    orderSeed: options.orderSeed,
+  };
+  const createdAt = new Date();
+  const runId = `${timestampId(createdAt)}-size-reuse-order-${options.orderSeed}`;
+  const outputDirectory = join(options.outputRoot, runId);
+  const manifest = semaTaxSizeReuseResultManifestSchema.parse({
+    artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
+    protocolVersion: PROTOCOL_VERSION,
+    experimentId: EXPERIMENT_ID,
+    runId,
+    arm: "size-reuse" as const,
+    mode: isModelPilot
+      ? ("model-pilot" as const)
+      : ("deterministic-harness" as const),
+    evidenceClaim: isModelPilot
+      ? "Exploratory model pilot of the size/reuse arm (ADR 0013). Not preregistered, not confirmatory evidence. Provider cached-token telemetry is observational only (ADR 0011); the reported tokens are a growing multi-turn conversation."
+      : "Validates the size/reuse condition grid, per-message and cumulative byte/token accounting, one-time resolver hydration, the size-tier byte bands, scoring, randomization, and reporting only. Deterministic outcomes and token prices are scripted; the token model attributes each definition ingestion once per wire delivery (see ADR 0013).",
+    createdAt: createdAt.toISOString(),
+    orderSeed: options.orderSeed,
+    seeds,
+    conditions,
+    patternCount: SEMA_TAX_SIZE_REUSE_PATTERN_COUNT,
+    sizes: [...SEMA_TAX_SIZE_TIERS],
+    reuseFactors: [...SEMA_TAX_REUSE_FACTORS],
+    scenarioCount: fixtureSet.scenarios.length,
+    trialCount: cells.length,
+    fixtureDigest,
+    scorer,
+    protocolFingerprint,
+    runConfiguration,
+    provenance,
+  });
+  const journal = await createResultJournalWith(outputDirectory, manifest, {
+    manifestSchema: semaTaxSizeReuseResultManifestSchema,
+    recordSchema: semaTaxSizeReuseTrialRecordSchema,
+    summarize: summarizeSizeReuse,
+    renderMarkdown: (summary) =>
+      sizeReuseSummaryMarkdown(
+        summary,
+        isModelPilot ? "model-pilot" : "deterministic-harness",
+      ),
+  });
 
-  const records = await executeMatrix<
-    (typeof cells)[number]["scenario"],
-    (typeof cells)[number]["condition"],
-    SemaTaxSizeReuseTrialRecord
-  >(
-    cells,
-    (cell) => {
-      if (isModelPilot && adapter) {
-        return runModelSizeReuseTrial(cell, {
+  const total = cells.length;
+  let completed = 0;
+  if (isModelPilot) {
+    console.error(`Running ${total} trials, concurrency ${concurrency}...`);
+  }
+
+  let records: SemaTaxSizeReuseTrialRecord[];
+  try {
+    records = await executeMatrix<
+      (typeof cells)[number]["scenario"],
+      (typeof cells)[number]["condition"],
+      SemaTaxSizeReuseTrialRecord
+    >(
+      cells,
+      (cell) => {
+        if (isModelPilot && adapter) {
+          return runModelSizeReuseTrial(cell, {
+            experimentId: EXPERIMENT_ID,
+            referenceProvider,
+            patternsByHandle,
+            provenance,
+            adapter,
+          });
+        }
+        return runSimulatedSizeReuseTrial(cell, {
           experimentId: EXPERIMENT_ID,
           referenceProvider,
           patternsByHandle,
           provenance,
-          adapter,
         });
-      }
-      return runSimulatedSizeReuseTrial(cell, {
-        experimentId: EXPERIMENT_ID,
-        referenceProvider,
-        patternsByHandle,
-        provenance,
-      });
-    },
-    { concurrency },
-  );
-
-  const createdAt = new Date();
-  const runId = `${timestampId(createdAt)}-size-reuse-order-${options.orderSeed}`;
-  const outputDirectory = join(options.outputRoot, runId);
-  const bundle = await writeResultBundleWith(
-    outputDirectory,
-    {
-      artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
-      protocolVersion: PROTOCOL_VERSION,
-      experimentId: EXPERIMENT_ID,
-      runId,
-      arm: "size-reuse" as const,
-      mode: isModelPilot ? "model-pilot" : "deterministic-harness",
-      evidenceClaim: isModelPilot
-        ? "Exploratory model pilot of the size/reuse arm (ADR 0013). Not preregistered, not confirmatory evidence. Provider cached-token telemetry is observational only (ADR 0011); the reported tokens are a growing multi-turn conversation."
-        : "Validates the size/reuse condition grid, per-message and cumulative byte/token accounting, one-time resolver hydration, the size-tier byte bands, scoring, randomization, and reporting only. Deterministic outcomes and token prices are scripted; the token model attributes each definition ingestion once per wire delivery (see ADR 0013).",
-      createdAt: createdAt.toISOString(),
-      orderSeed: options.orderSeed,
-      seeds,
-      conditions,
-      patternCount: SEMA_TAX_SIZE_REUSE_PATTERN_COUNT,
-      sizes: [...SEMA_TAX_SIZE_TIERS],
-      reuseFactors: [...SEMA_TAX_REUSE_FACTORS],
-      scenarioCount: fixtureSet.scenarios.length,
-      trialCount: records.length,
-      fixtureDigest,
-      provenance,
-    },
-    records,
-    {
-      manifestSchema: semaTaxSizeReuseResultManifestSchema,
-      recordSchema: semaTaxSizeReuseTrialRecordSchema,
-      summarize: summarizeSizeReuse,
-      renderMarkdown: sizeReuseSummaryMarkdown,
-    },
-  );
+      },
+      {
+        concurrency,
+        onComplete: async (
+          record: SemaTaxSizeReuseTrialRecord,
+        ): Promise<void> => {
+          await journal.append(record);
+          if (isModelPilot) {
+            completed += 1;
+            console.error(sizeReuseTrialProgressLine(record, completed, total));
+          }
+        },
+      },
+    );
+  } catch (error) {
+    await journal.fail(error);
+    throw error;
+  }
+  const bundle = await journal.finalize(records);
 
   const summary = summarizeSizeReuse(records);
   console.log(
@@ -669,23 +824,29 @@ async function main(): Promise<void> {
 
   let promptSnapshot: PromptSnapshot | undefined;
   let adapter: ModelAgentAdapter<ModelPromptInput, ModelCompletion> | undefined;
+  let providerLabel = "";
+  let harnessMetadata: Readonly<Record<string, string>> | null = null;
   const isModelPilot = options.mode === "model-pilot";
   if (isModelPilot) {
     promptSnapshot = await loadPromptSnapshot(PROMPTS_DIR);
-    adapter = createModelAdapter(promptSnapshot, options);
+    const createdProvider = createExperimentModelProvider(
+      promptSnapshot,
+      options,
+    );
+    adapter = createdProvider.adapter;
+    providerLabel = await createdProvider.providerLabel();
+    harnessMetadata = createdProvider.harnessMetadata;
 
     const scenarioCount = fixtureSet.scenarios.length;
     const trialCount = scenarioCount * conditions.length * options.seedCount;
     console.log("Sema tax curve model pilot (exploratory, not confirmatory).");
-    console.log(
-      options.provider === "openai-compatible"
-        ? `Provider: openai-compatible (${options.baseUrl}, host=${options.host})`
-        : "Provider: anthropic",
-    );
+    console.log(`Provider: ${providerLabel}`);
     const modelSuffix =
       options.provider === "openai-compatible"
         ? `max-tokens=${options.maxTokens}`
-        : `thinking=${options.thinking}, max-tokens=${options.maxTokens}`;
+        : options.provider === "anthropic"
+          ? `thinking=${options.thinking}, max-tokens=${options.maxTokens}`
+          : `max-tokens=${options.maxTokens} (harness-controlled)`;
     console.log(`Model: ${options.model} (${modelSuffix})`);
     console.log(
       `Planned: ${scenarioCount} scenarios x ${conditions.length} conditions x ` +
@@ -724,9 +885,7 @@ async function main(): Promise<void> {
     vocabularyRoot: process.env.SEMA_VOCABULARY_ROOT ?? "",
     semanticBackend: semanticMetadata.backend,
     modelProvider: isModelPilot
-      ? options.provider === "openai-compatible"
-        ? options.host
-        : "anthropic"
+      ? providerLabel
       : (process.env.MODEL_PROVIDER ?? "deterministic"),
     modelName: isModelPilot
       ? options.model
@@ -742,6 +901,78 @@ async function main(): Promise<void> {
     seeds,
     orderSeed: options.orderSeed,
   });
+  const scorer = {
+    version: SEMA_TAX_SCORER_VERSION,
+    fingerprint: fingerprint({
+      version: SEMA_TAX_SCORER_VERSION,
+      answerGrammar: "ITEM <id>: yes|no",
+      missingAnswerPolicy: "incorrect",
+    }),
+  };
+  const protocolFingerprint = fingerprint({
+    experimentId: EXPERIMENT_ID,
+    arm: "default",
+    protocolVersion: PROTOCOL_VERSION,
+    conditions,
+    patternCounts: SEMA_TAX_PATTERN_COUNTS,
+    scorerVersion: scorer.version,
+  });
+  const runConfiguration = {
+    arm: "default" as const,
+    provider: provenance.modelProvider,
+    model: provenance.modelName,
+    seeds,
+    concurrency,
+    maxTokens: isModelPilot ? options.maxTokens : null,
+    semanticBackend: semanticMetadata.backend,
+    thinking:
+      isModelPilot && options.provider === "anthropic"
+        ? options.thinking
+        : null,
+    endpointHost:
+      isModelPilot && options.provider === "openai-compatible"
+        ? options.host
+        : null,
+    harness: isModelPilot ? harnessMetadata : null,
+    orderSeed: options.orderSeed,
+  };
+  const createdAt = new Date();
+  const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
+  const outputDirectory = join(options.outputRoot, runId);
+  const manifest = semaTaxResultManifestSchema.parse({
+    artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
+    protocolVersion: PROTOCOL_VERSION,
+    experimentId: EXPERIMENT_ID,
+    runId,
+    mode: isModelPilot
+      ? ("model-pilot" as const)
+      : ("deterministic-harness" as const),
+    evidenceClaim: isModelPilot
+      ? "Exploratory model pilot. Not preregistered, not confirmatory evidence. Provider cached-token telemetry is observational only: the cold/warm axis controls harness-level hydration bytes, not the provider's automatic prompt-prefix caching, which may be active in both arms (see ADR 0011)."
+      : "Validates the tax-curve condition matrix, byte/token accounting, hydration cold/warm split, scoring, randomization, and reporting only. Deterministic outcomes and token prices are scripted, and the simulated cached-token accounting models an idealized provider (see ADR 0011).",
+    createdAt: createdAt.toISOString(),
+    orderSeed: options.orderSeed,
+    seeds,
+    conditions,
+    patternCounts: [...SEMA_TAX_PATTERN_COUNTS],
+    scenarioCount: fixtureSet.scenarios.length,
+    trialCount: cells.length,
+    fixtureDigest,
+    scorer,
+    protocolFingerprint,
+    runConfiguration,
+    provenance,
+  });
+  const journal = await createResultJournalWith(outputDirectory, manifest, {
+    manifestSchema: semaTaxResultManifestSchema,
+    recordSchema: semaTaxTrialRecordSchema,
+    summarize: summarizeSemaTax,
+    renderMarkdown: (summary) =>
+      semaTaxSummaryMarkdown(
+        summary,
+        isModelPilot ? "model-pilot" : "deterministic-harness",
+      ),
+  });
 
   const total = cells.length;
   let completed = 0;
@@ -749,74 +980,47 @@ async function main(): Promise<void> {
     console.error(`Running ${total} trials, concurrency ${concurrency}...`);
   }
 
-  const records = await executeMatrix<
-    (typeof cells)[number]["scenario"],
-    (typeof cells)[number]["condition"],
-    SemaTaxTrialRecord
-  >(
-    cells,
-    (cell) => {
-      if (isModelPilot && adapter) {
-        return runModelTaxTrial(cell, {
+  let records: SemaTaxTrialRecord[];
+  try {
+    records = await executeMatrix<
+      (typeof cells)[number]["scenario"],
+      (typeof cells)[number]["condition"],
+      SemaTaxTrialRecord
+    >(
+      cells,
+      (cell) => {
+        if (isModelPilot && adapter) {
+          return runModelTaxTrial(cell, {
+            experimentId: EXPERIMENT_ID,
+            referenceProvider,
+            patternsByHandle,
+            provenance,
+            adapter,
+          });
+        }
+        return runSimulatedTaxTrial(cell, {
           experimentId: EXPERIMENT_ID,
           referenceProvider,
           patternsByHandle,
           provenance,
-          adapter,
         });
-      }
-      return runSimulatedTaxTrial(cell, {
-        experimentId: EXPERIMENT_ID,
-        referenceProvider,
-        patternsByHandle,
-        provenance,
-      });
-    },
-    {
-      concurrency,
-      ...(isModelPilot
-        ? {
-            onComplete: (record: SemaTaxTrialRecord): void => {
-              completed += 1;
-              console.error(trialProgressLine(record, completed, total));
-            },
+      },
+      {
+        concurrency,
+        onComplete: async (record: SemaTaxTrialRecord): Promise<void> => {
+          await journal.append(record);
+          if (isModelPilot) {
+            completed += 1;
+            console.error(trialProgressLine(record, completed, total));
           }
-        : {}),
-    },
-  );
-
-  const createdAt = new Date();
-  const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
-  const outputDirectory = join(options.outputRoot, runId);
-  const bundle = await writeResultBundleWith(
-    outputDirectory,
-    {
-      artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
-      protocolVersion: PROTOCOL_VERSION,
-      experimentId: EXPERIMENT_ID,
-      runId,
-      mode: isModelPilot ? "model-pilot" : "deterministic-harness",
-      evidenceClaim: isModelPilot
-        ? "Exploratory model pilot. Not preregistered, not confirmatory evidence. Provider cached-token telemetry is observational only: the cold/warm axis controls harness-level hydration bytes, not the provider's automatic prompt-prefix caching, which may be active in both arms (see ADR 0011)."
-        : "Validates the tax-curve condition matrix, byte/token accounting, hydration cold/warm split, scoring, randomization, and reporting only. Deterministic outcomes and token prices are scripted, and the simulated cached-token accounting models an idealized provider (see ADR 0011).",
-      createdAt: createdAt.toISOString(),
-      orderSeed: options.orderSeed,
-      seeds,
-      conditions,
-      patternCounts: [...SEMA_TAX_PATTERN_COUNTS],
-      scenarioCount: fixtureSet.scenarios.length,
-      trialCount: records.length,
-      fixtureDigest,
-      provenance,
-    },
-    records,
-    {
-      manifestSchema: semaTaxResultManifestSchema,
-      recordSchema: semaTaxTrialRecordSchema,
-      summarize: summarizeSemaTax,
-      renderMarkdown: semaTaxSummaryMarkdown,
-    },
-  );
+        },
+      },
+    );
+  } catch (error) {
+    await journal.fail(error);
+    throw error;
+  }
+  const bundle = await journal.finalize(records);
 
   const summary = summarizeSemaTax(records);
   console.log(`Sema tax curve completed: ${summary.trialCount} trials.`);

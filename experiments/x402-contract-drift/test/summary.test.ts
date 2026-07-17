@@ -24,17 +24,15 @@ const provenance = {
   vocabularyRoot: "",
   semanticBackend: "fixture-sha256-stable-json-v1",
   modelProvider: "deterministic",
-  modelName: "x402-contract-drift-demo-v1",
+  modelName: "x402-contract-drift-demo-v2",
 };
 
 const requirements = {
   scheme: "exact",
-  network: "base-sepolia",
-  maxAmountRequired: "1000",
+  network: "eip155:84532",
+  amount: "1000",
   asset: "0xasset",
   payTo: "0xpayto",
-  resource: "https://api.example.com/r",
-  description: "d",
   maxTimeoutSeconds: 60,
 };
 
@@ -81,6 +79,17 @@ function record(
     completedAt: new Date().toISOString(),
     driftInjected,
     finalPaymentState,
+    paymentRequired: {
+      x402Version: 2,
+      error: "PAYMENT-SIGNATURE header is required",
+      resource: {
+        url: "https://api.example.com/r",
+        description: "d",
+        mimeType: "application/json",
+      },
+      accepts: [requirements],
+      extensions: {},
+    },
     paymentRequirements: requirements,
     paymentPayload: null,
     settlement: null,

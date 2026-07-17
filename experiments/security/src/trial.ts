@@ -9,18 +9,18 @@ import {
 
 import { conditionPolicy } from "./conditions.js";
 import { applyEnforcementGate } from "./gate.js";
-import { cardDefinition, cannedKey } from "./fixtures.js";
+import { cannedKey, cannedOutputFor, cardDefinition } from "./fixtures.js";
 import {
   parseAuditorOutput,
   scoreFindings,
   SECURITY_SCORER_VERSION,
 } from "./scorer.js";
 import type {
-  LoadedSecurityCase,
   PatternCard,
   SecurityCondition,
   SecurityMetrics,
   SecurityTrialRecord,
+  SecurityTrialScenario,
 } from "./schemas.js";
 import { securityTrialRecordSchema } from "./schemas.js";
 
@@ -31,17 +31,6 @@ export interface SecurityTrialOptions {
   cannedEntries: Readonly<Record<string, string>>;
   provenance: TrialProvenance;
   fpBudget: number;
-}
-
-function cardForClass(
-  cards: readonly PatternCard[],
-  vulnerabilityClass: string,
-): PatternCard {
-  const card = cards.find((entry) => entry.class === vulnerabilityClass);
-  if (!card) {
-    throw new Error(`No Pattern Card for class ${vulnerabilityClass}.`);
-  }
-  return card;
 }
 
 /**
@@ -86,7 +75,7 @@ function renderInlineCards(cards: readonly PatternCard[]): string {
  * and scores against case.json labels. No model is called.
  */
 export async function runSecurityTrial(
-  cell: MatrixCell<LoadedSecurityCase, SecurityCondition>,
+  cell: MatrixCell<SecurityTrialScenario, SecurityCondition>,
   options: SecurityTrialOptions,
 ): Promise<SecurityTrialRecord> {
   const started = performance.now();
@@ -97,19 +86,15 @@ export async function runSecurityTrial(
   const events: TrialEvent[] = [];
   let sequence = 0;
 
-  const relevantCard = cardForClass(options.cards, scenario.meta.class);
   const deliveredCards = policy.deliversCards ? options.cards : [];
 
   let wireBytes = 0;
   let hydrationBytes = 0;
-  const requiredDigests: string[] = [];
+  const digestsByClass = new Map<string, string>();
 
-  // Task payload always includes the vulnerable source under audit.
-  const taskPayload = {
-    caseId: scenario.meta.id,
-    class: scenario.meta.class,
-    source: scenario.vulnerableSource,
-  };
+  // The model-facing task contains source only. Case id, variant, class, split,
+  // mutation metadata, and labels are scorer-side ground truth.
+  const taskPayload = { source: scenario.source };
   wireBytes += utf8Bytes(taskPayload);
 
   if (policy.onWire === "inline-definitions") {
@@ -133,9 +118,7 @@ export async function runSecurityTrial(
         const definitionBytes = utf8Bytes(cardDefinition(card));
         hydrationBytes += definitionBytes;
       }
-      if (card.handle === relevantCard.handle) {
-        requiredDigests.push(reference.digest);
-      }
+      digestsByClass.set(card.class, reference.digest);
     }
     events.push({
       sequence: sequence++,
@@ -146,7 +129,6 @@ export async function runSecurityTrial(
         transport: "content-references",
         wireBytes,
         hydrationBytes,
-        requiredDigests,
       },
     });
   } else {
@@ -159,10 +141,17 @@ export async function runSecurityTrial(
     });
   }
 
-  const key = cannedKey(scenario.meta.id, condition);
-  const template = options.cannedEntries[key];
+  const key = cannedKey(scenario.meta.id, condition, scenario.sourceVariant);
+  const template = cannedOutputFor(
+    options.cannedEntries,
+    scenario.meta.id,
+    condition,
+    scenario.sourceVariant,
+  );
   if (template === undefined) {
-    throw new Error(`Missing canned findings for ${key}.`);
+    throw new Error(
+      `Missing canned findings for ${scenario.meta.id} (${scenario.sourceVariant})::${condition}.`,
+    );
   }
 
   const { text: auditorOutput } = await materializeCannedOutput(
@@ -188,7 +177,19 @@ export async function runSecurityTrial(
   let admitted = parsed;
 
   if (policy.enforcesDecisionRefs) {
-    // Enforced arm requires the digest of the card matching this case's class.
+    // Require references for the classes the auditor actually claimed. This
+    // avoids using case ground truth to decide which references are required.
+    const requiredDigests = [
+      ...new Set(
+        parsed.findings.map((finding) => {
+          const digest = digestsByClass.get(finding.class);
+          if (!digest) {
+            throw new Error(`No Pattern Card for class ${finding.class}.`);
+          }
+          return digest;
+        }),
+      ),
+    ];
     const gate = applyEnforcementGate(parsed, requiredDigests);
     enforcementRefused = gate.refused;
     admitted = gate.admitted;
@@ -206,13 +207,14 @@ export async function runSecurityTrial(
   }
 
   const score = scoreFindings(
-    scenario.meta.expectedFindings,
+    scenario.expectedFindings,
     admitted,
     options.fpBudget,
   );
 
   const metrics: SecurityMetrics = {
     split: scenario.meta.split,
+    sourceVariant: scenario.sourceVariant,
     vulnerabilityClass: scenario.meta.class,
     parseFailure: score.parseFailure || !parsed.parseable,
     enforcementRefused,
@@ -233,6 +235,8 @@ export async function runSecurityTrial(
     trialId: cell.trialId,
     experimentId: options.experimentId,
     scenarioId: cell.scenarioId,
+    caseId: scenario.meta.id,
+    sourceVariant: scenario.sourceVariant,
     condition,
     seed: cell.seed,
     executionIndex: cell.executionIndex,

@@ -1,6 +1,8 @@
 import { buildConditions } from "./conditions.js";
 import type { X402DriftCondition, X402DriftTrialRecord } from "./schemas.js";
 
+export const X402_DRIFT_SCORER_VERSION = "x402-contract-drift-scorer-v2";
+
 export interface X402DriftConditionSummary {
   condition: X402DriftCondition;
   trials: number;

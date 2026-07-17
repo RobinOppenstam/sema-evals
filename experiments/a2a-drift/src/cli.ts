@@ -4,13 +4,18 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
-  AnthropicModelAdapter,
+  MODEL_PROVIDER_NAMES,
   FixtureReferenceProvider,
-  OpenAiCompatibleModelAdapter,
   SemaPythonReferenceProvider,
+  createModelProvider,
+  isModelProvider,
+  isSubscriptionHarnessProvider,
+  modelProviderRequiresApiKey,
   type AnthropicThinkingMode,
+  type CreatedModelProvider,
   type ModelAgentAdapter,
   type ModelCompletion,
+  type ModelProvider,
   type ModelPromptInput,
   type SemanticReferenceProvider,
 } from "@sema-evals/adapters";
@@ -25,7 +30,7 @@ import {
   type PromptSnapshot,
   type TrialProvenance,
 } from "@sema-evals/core";
-import { writeResultBundleWith } from "@sema-evals/reporters";
+import { createResultJournalWith } from "@sema-evals/reporters";
 
 import { buildConditions } from "./conditions.js";
 import { A2A_DECISION_PARSER_VERSION } from "./decision.js";
@@ -52,10 +57,10 @@ const DEFAULT_MODEL_PILOT_REPETITIONS = 5;
 const DEFAULT_ANTHROPIC_KEY_ENV = "ANTHROPIC_API_KEY";
 const DEFAULT_OPENAI_KEY_ENV = "CHUTES_API_KEY";
 const SUGGESTED_CHUTES_BASE_URL = "https://llm.chutes.ai/v1";
+const DEFAULT_HARNESS_WORKSPACE = join(REPO_ROOT, "results/.harness-workspace");
 const MAX_CONCURRENCY = 32;
 
 type RunMode = "deterministic" | "model-pilot";
-type ModelProvider = "anthropic" | "openai-compatible";
 
 interface CliOptions {
   mode: RunMode;
@@ -73,6 +78,8 @@ interface CliOptions {
   /** Env var name checked for presence and read by the adapter (never here). */
   apiKeyEnv: string;
   model: string;
+  harnessBin: string;
+  harnessWorkingDirectory: string;
   thinking: AnthropicThinkingMode;
   maxTokens: number;
   /** Trials in flight at once. Only meaningful in model-pilot mode; a value
@@ -112,6 +119,9 @@ function hostOf(baseUrl: string): string {
  * unset. Presence-only: the value is never read beyond truthiness.
  */
 export function assertProviderApiKey(options: CliOptions): void {
+  if (!modelProviderRequiresApiKey(options.provider)) {
+    return;
+  }
   if (!process.env[options.apiKeyEnv]) {
     throw new Error(
       `model-pilot mode with provider ${options.provider} requires ${options.apiKeyEnv} to be set. Export it before running.`,
@@ -132,14 +142,17 @@ function usage(): string {
     "  --repetitions <n>   Alias for --seeds (model-pilot default: 5)",
     "  --semantic-backend  fixture or sema-python (default: fixture)",
     "  --sema-python <cmd> Python executable with semahash installed",
-    "  --provider <p>      anthropic or openai-compatible (default: anthropic)",
+    `  --provider <p>      ${MODEL_PROVIDER_NAMES} (default: anthropic)`,
     "  --base-url <url>    OpenAI-compatible endpoint base URL (required for",
     `                      openai-compatible; e.g. ${SUGGESTED_CHUTES_BASE_URL})`,
     "  --api-key-env <n>   Env var holding the API key (default:",
     "                      ANTHROPIC_API_KEY for anthropic, CHUTES_API_KEY for",
     "                      openai-compatible)",
     "  --model <id>        Model id (anthropic default: claude-sonnet-5;",
-    "                      required for openai-compatible)",
+    "                      required for openai-compatible and CLI harnesses",
+    "                      except claude-code)",
+    "  --harness-bin <p>   Override subscription-harness CLI binary",
+    "  --harness-cwd <p>   Working directory for subscription-harness calls",
     "  --thinking <m>      adaptive or none (default: adaptive; anthropic only)",
     "  --max-tokens <n>    Max output tokens (default: 4096)",
     `  --concurrency <n>   Trials in flight at once (default: 1, max: ${MAX_CONCURRENCY};`,
@@ -148,7 +161,8 @@ function usage(): string {
     "",
     "model-pilot mode drives only the worker through a real model adapter;",
     "requester, transport, registries, drift injection, and middleware stay",
-    "deterministic. Requires the selected provider's API key env var.",
+    "deterministic. API providers require their selected key env var;",
+    "subscription harnesses use ambient CLI authentication.",
     `Decision parser: ${A2A_DECISION_PARSER_VERSION}.`,
   ].join("\n");
 }
@@ -204,6 +218,8 @@ export function parseArgs(args: readonly string[]): CliOptions {
     host: "",
     apiKeyEnv: "",
     model: DEFAULT_MODEL,
+    harnessBin: "",
+    harnessWorkingDirectory: DEFAULT_HARNESS_WORKSPACE,
     thinking: "adaptive",
     maxTokens: DEFAULT_MAX_TOKENS,
     concurrency: 1,
@@ -211,6 +227,8 @@ export function parseArgs(args: readonly string[]): CliOptions {
   let modelExplicit = false;
   let thinkingExplicit = false;
   let apiKeyEnvExplicit = false;
+  let harnessBinExplicit = false;
+  let harnessCwdExplicit = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -264,8 +282,10 @@ export function parseArgs(args: readonly string[]): CliOptions {
     }
     if (argument === "--provider") {
       const provider = args[++index];
-      if (provider !== "anthropic" && provider !== "openai-compatible") {
-        throw new Error(`${argument} requires anthropic or openai-compatible.`);
+      if (!provider || !isModelProvider(provider)) {
+        throw new Error(
+          `${argument} requires one of: ${MODEL_PROVIDER_NAMES}.`,
+        );
       }
       options.provider = provider;
       continue;
@@ -294,6 +314,24 @@ export function parseArgs(args: readonly string[]): CliOptions {
       }
       options.model = model;
       modelExplicit = true;
+      continue;
+    }
+    if (argument === "--harness-bin") {
+      const harnessBin = args[++index];
+      if (!harnessBin) {
+        throw new Error(`${argument} requires a path or binary name.`);
+      }
+      options.harnessBin = resolveFromRepoRoot(harnessBin);
+      harnessBinExplicit = true;
+      continue;
+    }
+    if (argument === "--harness-cwd") {
+      const harnessCwd = args[++index];
+      if (!harnessCwd) {
+        throw new Error(`${argument} requires a directory.`);
+      }
+      options.harnessWorkingDirectory = resolve(REPO_ROOT, harnessCwd);
+      harnessCwdExplicit = true;
       continue;
     }
     if (argument === "--thinking") {
@@ -345,11 +383,43 @@ export function parseArgs(args: readonly string[]): CliOptions {
     options.apiKeyEnv = apiKeyEnvExplicit
       ? options.apiKeyEnv
       : DEFAULT_OPENAI_KEY_ENV;
-  } else {
+    if (harnessBinExplicit || harnessCwdExplicit) {
+      throw new Error(
+        "--harness-bin and --harness-cwd apply only to subscription CLI harness providers.",
+      );
+    }
+  } else if (options.provider === "anthropic") {
+    if (harnessBinExplicit || harnessCwdExplicit) {
+      throw new Error(
+        "--harness-bin and --harness-cwd apply only to subscription CLI harness providers.",
+      );
+    }
     validateThinkingForModel(options.model, options.thinking);
     options.apiKeyEnv = apiKeyEnvExplicit
       ? options.apiKeyEnv
       : DEFAULT_ANTHROPIC_KEY_ENV;
+  } else {
+    if (thinkingExplicit) {
+      throw new Error(
+        `--thinking applies only to the anthropic provider. Remove it for ${options.provider}.`,
+      );
+    }
+    if (options.baseUrl) {
+      throw new Error(
+        `--base-url applies only to openai-compatible. Remove it for ${options.provider}.`,
+      );
+    }
+    if (apiKeyEnvExplicit) {
+      throw new Error(
+        `--api-key-env is unused for ${options.provider}; subscription auth is ambient in the CLI.`,
+      );
+    }
+    if (options.provider !== "claude-code" && !modelExplicit) {
+      throw new Error(
+        `--model is required for provider ${options.provider}; harness model names vary.`,
+      );
+    }
+    options.apiKeyEnv = "";
   }
 
   return options;
@@ -365,25 +435,22 @@ function requireWorkerPrompt(snapshot: PromptSnapshot): string {
   return prompt.content;
 }
 
-function createModelAdapter(
+function createExperimentModelProvider(
   snapshot: PromptSnapshot,
   options: CliOptions,
-): ModelAgentAdapter<ModelPromptInput, ModelCompletion> {
-  const systemPrompt = requireWorkerPrompt(snapshot);
-  if (options.provider === "openai-compatible") {
-    return new OpenAiCompatibleModelAdapter({
-      systemPrompt,
-      baseUrl: options.baseUrl,
-      apiKeyEnvVar: options.apiKeyEnv,
-      model: options.model,
-      maxTokens: options.maxTokens,
-    });
-  }
-  return new AnthropicModelAdapter({
-    systemPrompt,
+): CreatedModelProvider {
+  return createModelProvider({
+    provider: options.provider,
+    systemPrompt: requireWorkerPrompt(snapshot),
     model: options.model,
     maxTokens: options.maxTokens,
-    thinkingMode: options.thinking,
+    thinking: options.thinking,
+    ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+    ...(options.apiKeyEnv ? { apiKeyEnv: options.apiKeyEnv } : {}),
+    ...(options.harnessBin ? { harnessBin: options.harnessBin } : {}),
+    ...(isSubscriptionHarnessProvider(options.provider)
+      ? { harnessWorkingDirectory: options.harnessWorkingDirectory }
+      : {}),
   });
 }
 
@@ -473,23 +540,29 @@ async function main(): Promise<void> {
 
   let promptSnapshot: PromptSnapshot | undefined;
   let adapter: ModelAgentAdapter<ModelPromptInput, ModelCompletion> | undefined;
+  let providerLabel = "";
+  let harnessMetadata: Readonly<Record<string, string>> | null = null;
   if (isModelRun) {
     promptSnapshot = await loadPromptSnapshot(PROMPTS_DIR);
-    adapter = createModelAdapter(promptSnapshot, options);
+    const createdProvider = createExperimentModelProvider(
+      promptSnapshot,
+      options,
+    );
+    adapter = createdProvider.adapter;
+    providerLabel = await createdProvider.providerLabel();
+    harnessMetadata = createdProvider.harnessMetadata;
 
     const scenarioCount = fixtureSet.scenarios.length;
     const conditionCount = conditions.length;
     const trialCount = scenarioCount * conditionCount * options.seedCount;
     console.log("A2A drift model pilot (exploratory, not confirmatory).");
-    console.log(
-      options.provider === "openai-compatible"
-        ? `Provider: openai-compatible (${options.baseUrl}, host=${options.host})`
-        : "Provider: anthropic",
-    );
+    console.log(`Provider: ${providerLabel}`);
     const modelSuffix =
       options.provider === "openai-compatible"
         ? `max-tokens=${options.maxTokens}`
-        : `thinking=${options.thinking}, max-tokens=${options.maxTokens}`;
+        : options.provider === "anthropic"
+          ? `thinking=${options.thinking}, max-tokens=${options.maxTokens}`
+          : `max-tokens=${options.maxTokens} (harness-controlled)`;
     console.log(`Model: ${options.model} (${modelSuffix})`);
     console.log(
       `Planned: ${scenarioCount} scenarios x ${conditionCount} conditions x ` +
@@ -530,9 +603,7 @@ async function main(): Promise<void> {
     vocabularyRoot,
     semanticBackend: semanticMetadata.backend,
     modelProvider: isModelRun
-      ? options.provider === "openai-compatible"
-        ? options.host
-        : "anthropic"
+      ? providerLabel
       : (process.env.MODEL_PROVIDER ?? "deterministic"),
     modelName: isModelRun
       ? options.model
@@ -548,6 +619,78 @@ async function main(): Promise<void> {
     seeds,
     orderSeed: options.orderSeed,
   });
+  const scorer = {
+    version: A2A_DECISION_PARSER_VERSION,
+    fingerprint: fingerprint({
+      version: A2A_DECISION_PARSER_VERSION,
+      terminalDecisions: ["proceed", "halt", "malformed"],
+      malformedPolicy: "failed-trial",
+    }),
+  };
+  const protocolFingerprint = fingerprint({
+    experimentId: EXPERIMENT_ID,
+    protocolVersion: PROTOCOL_VERSION,
+    a2aProtocolVersion: A2A_PROTOCOL_VERSION,
+    extensionUri: SEMANTIC_EXTENSION_URI,
+    conditions,
+    scorerVersion: scorer.version,
+  });
+  const runConfiguration = {
+    provider: provenance.modelProvider,
+    model: provenance.modelName,
+    seeds,
+    concurrency,
+    maxTokens: isModelRun ? options.maxTokens : null,
+    semanticBackend: semanticMetadata.backend,
+    thinking:
+      isModelRun && options.provider === "anthropic" ? options.thinking : null,
+    endpointHost:
+      isModelRun && options.provider === "openai-compatible"
+        ? options.host
+        : null,
+    harness: isModelRun ? harnessMetadata : null,
+    orderSeed: options.orderSeed,
+  };
+  const createdAt = new Date();
+  const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
+  const outputDirectory = join(options.outputRoot, runId);
+  const manifest = a2aDriftResultManifestSchema.parse({
+    artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
+    protocolVersion: PROTOCOL_VERSION,
+    a2aProtocolVersion: A2A_PROTOCOL_VERSION,
+    extensionUri: SEMANTIC_EXTENSION_URI,
+    experimentId: EXPERIMENT_ID,
+    runId,
+    mode: isModelRun
+      ? ("model-pilot" as const)
+      : ("deterministic-harness" as const),
+    evidenceClaim: isModelRun
+      ? "Exploratory model pilot. Not preregistered, not confirmatory evidence. Worker is model-driven; requester, transport, registries, drift injection, and middleware remain deterministic. Ground-truth driftDetected is middleware-only (ADR 0015)."
+      : "Validates the A2A semantic-extension middleware and two-agent demo: Agent Card extension advertisement, acceptance-contract message parts, controlled cross-agent registry drift, silent execution under baseline, voluntary detection, enforced halt, the no-drift false-halt guard, condition pairing, and bundle/summary reproduction. Scripted-agent outcomes are a construction, not evidence about language models, and not conformance evidence against a real A2A SDK (ADR 0012).",
+    createdAt: createdAt.toISOString(),
+    orderSeed: options.orderSeed,
+    seeds,
+    conditions,
+    scenarioCount: fixtureSet.scenarios.length,
+    driftScenarioCount,
+    cleanScenarioCount,
+    trialCount: cells.length,
+    fixtureDigest,
+    scorer,
+    protocolFingerprint,
+    runConfiguration,
+    provenance,
+  });
+  const journal = await createResultJournalWith(outputDirectory, manifest, {
+    manifestSchema: a2aDriftResultManifestSchema,
+    recordSchema: a2aDriftTrialRecordSchema,
+    summarize: summarizeA2aDrift,
+    renderMarkdown: (summary) =>
+      a2aDriftSummaryMarkdown(
+        summary,
+        isModelRun ? "model-pilot" : "deterministic-harness",
+      ),
+  });
 
   const total = cells.length;
   let completed = 0;
@@ -555,75 +698,43 @@ async function main(): Promise<void> {
     console.error(`Running ${total} trials, concurrency ${concurrency}...`);
   }
 
-  const records = await executeMatrix(
-    cells,
-    (cell) => {
-      if (isModelRun && adapter) {
-        return runModelA2aDriftTrial(cell, {
+  let records: A2aDriftTrialRecord[];
+  try {
+    records = await executeMatrix(
+      cells,
+      (cell) => {
+        if (isModelRun && adapter) {
+          return runModelA2aDriftTrial(cell, {
+            experimentId: EXPERIMENT_ID,
+            referenceProvider,
+            vocabularyRoot,
+            provenance,
+            adapter,
+          });
+        }
+        return runA2aDriftTrial(cell, {
           experimentId: EXPERIMENT_ID,
           referenceProvider,
           vocabularyRoot,
           provenance,
-          adapter,
         });
-      }
-      return runA2aDriftTrial(cell, {
-        experimentId: EXPERIMENT_ID,
-        referenceProvider,
-        vocabularyRoot,
-        provenance,
-      });
-    },
-    {
-      concurrency,
-      ...(isModelRun
-        ? {
-            onComplete: (record: A2aDriftTrialRecord): void => {
-              completed += 1;
-              console.error(trialProgressLine(record, completed, total));
-            },
+      },
+      {
+        concurrency,
+        onComplete: async (record: A2aDriftTrialRecord): Promise<void> => {
+          await journal.append(record);
+          if (isModelRun) {
+            completed += 1;
+            console.error(trialProgressLine(record, completed, total));
           }
-        : {}),
-    },
-  );
-
-  const createdAt = new Date();
-  const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
-  const outputDirectory = join(options.outputRoot, runId);
-  const bundle = await writeResultBundleWith(
-    outputDirectory,
-    {
-      artifactSchemaVersion: ARTIFACT_SCHEMA_VERSION,
-      protocolVersion: PROTOCOL_VERSION,
-      a2aProtocolVersion: A2A_PROTOCOL_VERSION,
-      extensionUri: SEMANTIC_EXTENSION_URI,
-      experimentId: EXPERIMENT_ID,
-      runId,
-      mode: isModelRun
-        ? ("model-pilot" as const)
-        : ("deterministic-harness" as const),
-      evidenceClaim: isModelRun
-        ? "Exploratory model pilot. Not preregistered, not confirmatory evidence. Worker is model-driven; requester, transport, registries, drift injection, and middleware remain deterministic. Ground-truth driftDetected is middleware-only (ADR 0015)."
-        : "Validates the A2A semantic-extension middleware and two-agent demo: Agent Card extension advertisement, acceptance-contract message parts, controlled cross-agent registry drift, silent execution under baseline, voluntary detection, enforced halt, the no-drift false-halt guard, condition pairing, and bundle/summary reproduction. Scripted-agent outcomes are a construction, not evidence about language models, and not conformance evidence against a real A2A SDK (ADR 0012).",
-      createdAt: createdAt.toISOString(),
-      orderSeed: options.orderSeed,
-      seeds,
-      conditions,
-      scenarioCount: fixtureSet.scenarios.length,
-      driftScenarioCount,
-      cleanScenarioCount,
-      trialCount: records.length,
-      fixtureDigest,
-      provenance,
-    },
-    records,
-    {
-      manifestSchema: a2aDriftResultManifestSchema,
-      recordSchema: a2aDriftTrialRecordSchema,
-      summarize: summarizeA2aDrift,
-      renderMarkdown: a2aDriftSummaryMarkdown,
-    },
-  );
+        },
+      },
+    );
+  } catch (error) {
+    await journal.fail(error);
+    throw error;
+  }
+  const bundle = await journal.finalize(records);
 
   const summary = summarizeA2aDrift(records);
   console.log(

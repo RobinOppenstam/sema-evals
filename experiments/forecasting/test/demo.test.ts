@@ -107,7 +107,8 @@ describe("addressed-voluntary: detection without exclusion", () => {
     expect(record.metrics.corruptedAggregation).toBe(false);
     expect(record.metrics.forecastsExcluded).toBe(0);
     expect(record.metrics.driftedForecastIncluded).toBe(true);
-    expect(record.metrics.aggregateProbability).toBeCloseTo(0.6, 10);
+    expect(record.metrics.aggregateProbability).toBeCloseTo(12.876, 10);
+    expect(record.metrics.brierAggregate).toBeNull();
     const verification = record.events.find(
       (event) => event.type === "verification",
     );
@@ -165,9 +166,9 @@ describe("Brier baselines", () => {
     const record = await run("synthetic-prob-format-drift", "baseline");
     expect(record.metrics.brierMarketPrior).toBeCloseTo((0.48 - 1) ** 2, 10);
     expect(record.metrics.brierIndependentAverage).toBeGreaterThanOrEqual(0);
-    expect(record.metrics.brierAggregate).not.toBeNull();
-    // Garbage aggregate under baseline → huge Brier.
-    expect(record.metrics.brierAggregate!).toBeGreaterThan(100);
+    // The garbage aggregate is retained, but Brier is undefined outside [0,1].
+    expect(record.metrics.aggregateProbability).toBeGreaterThan(1);
+    expect(record.metrics.brierAggregate).toBeNull();
   });
 });
 

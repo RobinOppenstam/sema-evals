@@ -92,12 +92,13 @@ export async function runX402DriftTrial(
     );
   }
 
-  const { requirements } = buildPaymentRequirements(
+  const { requirements, contract: advertisedContract } =
+    buildPaymentRequirements(scenario, condition, references);
+  const response = buildPaymentRequirementsResponse(
+    requirements,
     scenario,
-    condition,
-    references,
+    advertisedContract,
   );
-  const response = buildPaymentRequirementsResponse(requirements);
   const transport = new InProcessX402Transport();
   const delivered = transport.deliverRequirements(response);
   const hydrationBytes = hydrationBytesFor(scenario, payerRegistry);
@@ -119,6 +120,7 @@ export async function runX402DriftTrial(
       wireBytes: delivered.wireBytes,
       requestedHandles: scenario.acceptanceHandles,
       status: 402,
+      header: "PAYMENT-REQUIRED",
     },
   });
 
@@ -165,7 +167,7 @@ export async function runX402DriftTrial(
       "402 response must carry at least one PaymentRequirements.",
     );
   }
-  const contract = extractAcceptanceContract(accepted);
+  const contract = extractAcceptanceContract(delivered.response.extensions);
 
   if (policy.verifies && contract) {
     verification = await verifyAcceptanceContract(
@@ -208,7 +210,12 @@ export async function runX402DriftTrial(
   let settlementWireBytes = 0;
 
   if (paid) {
-    paymentPayload = buildPaymentPayload(accepted, scenario);
+    paymentPayload = buildPaymentPayload(
+      accepted,
+      scenario,
+      delivered.response.resource,
+      delivered.response.extensions,
+    );
     const paymentDelivery = transport.deliverPayment(paymentPayload);
     paymentWireBytes = paymentDelivery.wireBytes;
     settlement = buildSettlementResponse(accepted, paymentPayload);
@@ -224,6 +231,8 @@ export async function runX402DriftTrial(
         finalPaymentState,
         driftDetected,
         paymentWireBytes,
+        paymentHeader: "PAYMENT-SIGNATURE",
+        responseHeader: "PAYMENT-RESPONSE",
         note: driftDetected
           ? "voluntary detection: mismatch surfaced but payment not blocked"
           : "payment emitted",
@@ -283,6 +292,7 @@ export async function runX402DriftTrial(
     completedAt: new Date().toISOString(),
     driftInjected,
     finalPaymentState,
+    paymentRequired: delivered.response,
     paymentRequirements: accepted,
     paymentPayload,
     settlement,

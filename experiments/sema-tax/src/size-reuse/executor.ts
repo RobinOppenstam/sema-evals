@@ -1,6 +1,7 @@
 import {
   type ModelAgentAdapter,
   type ModelCompletion,
+  type ModelCompletionStatus,
   type ModelInputMessage,
   type ModelPromptInput,
   type SemanticReferenceProvider,
@@ -14,7 +15,11 @@ import {
 } from "@sema-evals/core";
 
 import type { SemaTaxScenario } from "../schemas.js";
-import { scoreWorksheet, type WorksheetScore } from "../scorer.js";
+import {
+  SEMA_TAX_SCORER_VERSION,
+  scoreWorksheet,
+  type WorksheetScore,
+} from "../scorer.js";
 import { simulateResponse } from "../tax.js";
 import {
   accountMessage,
@@ -49,13 +54,14 @@ export interface ModelSizeReuseTrialOptions extends SizeReuseTrialOptions {
 interface MessageTokens {
   inputTokens: number;
   outputTokens: number;
-  costUsd: number | null;
 }
 
 function messageMetric(
   account: MessageAccount,
   tokens: MessageTokens,
   score: WorksheetScore,
+  completionStatus: ModelCompletionStatus | null,
+  usage: UsageTelemetry | null,
 ): SemaTaxMessageMetrics {
   return {
     messageIndex: account.messageIndex,
@@ -65,11 +71,15 @@ function messageMetric(
     inputTokens: tokens.inputTokens,
     outputTokens: tokens.outputTokens,
     totalModelTokens: tokens.inputTokens + tokens.outputTokens,
+    completionStatus,
+    usage,
     itemsTotal: score.itemsTotal,
     itemsAnswered: score.itemsAnswered,
     itemsCorrect: score.itemsCorrect,
     score: score.score,
-    taskSuccess: score.taskSuccess,
+    taskSuccess:
+      score.taskSuccess &&
+      (completionStatus === null || completionStatus === "completed"),
   };
 }
 
@@ -91,6 +101,7 @@ function rollup(
   const cumulativeHydrationBytes = sum((m) => m.hydrationBytes);
   const totalInputTokens = sum((m) => m.inputTokens);
   const totalOutputTokens = sum((m) => m.outputTokens);
+  const modelMessages = messages.filter((message) => message.usage !== null);
   return {
     patternCount: parts.patternCount,
     size: parts.size,
@@ -103,6 +114,15 @@ function rollup(
     cumulativeHydrationBytes,
     totalSemanticBytes: cumulativeWireBytes + cumulativeHydrationBytes,
     totalInputTokens,
+    totalCachedInputTokensRead: modelMessages.reduce(
+      (total, message) => total + (message.usage?.cachedInputTokensRead ?? 0),
+      0,
+    ),
+    totalCachedInputTokensWritten: modelMessages.reduce(
+      (total, message) =>
+        total + (message.usage?.cachedInputTokensWritten ?? 0),
+      0,
+    ),
     totalOutputTokens,
     totalModelTokens: totalInputTokens + totalOutputTokens,
     itemsTotal: sum((m) => m.itemsTotal),
@@ -110,6 +130,23 @@ function rollup(
     itemsCorrect: sum((m) => m.itemsCorrect),
     score: messages.length === 0 ? 0 : sum((m) => m.score) / messages.length,
     taskSuccess: messages.every((m) => m.taskSuccess),
+    modelFailureMessages: messages.filter(
+      (message) =>
+        message.completionStatus !== null &&
+        message.completionStatus !== "completed",
+    ).length,
+    totalAttempts: modelMessages.reduce(
+      (total, message) => total + (message.usage?.attempts ?? 0),
+      0,
+    ),
+    totalRetries: modelMessages.reduce(
+      (total, message) => total + (message.usage?.retries ?? 0),
+      0,
+    ),
+    totalProviderErrors: modelMessages.reduce(
+      (total, message) => total + (message.usage?.errors.length ?? 0),
+      0,
+    ),
     reasoningTokens,
     costUsd,
     elapsedMs,
@@ -141,6 +178,8 @@ function buildSizeReuseEvents(
         messageIndex: message.messageIndex,
         wireBytes: message.wireBytes,
         activePatternCount: template.active.length,
+        completionStatus: message.completionStatus,
+        providerErrors: message.usage?.errors ?? [],
       },
     });
     if (message.hydrationBytes > 0) {
@@ -171,9 +210,15 @@ function buildSizeReuseEvents(
       reuse: parts.reuse,
       size: parts.size,
       messageCount: messages.length,
-      scorerVersion: "sema-tax-worksheet-scorer-v2",
+      scorerVersion: SEMA_TAX_SCORER_VERSION,
       itemsCorrect: messages.reduce((t, m) => t + m.itemsCorrect, 0),
       itemsTotal: messages.reduce((t, m) => t + m.itemsTotal, 0),
+      taskSuccess: messages.every((message) => message.taskSuccess),
+      modelFailureMessages: messages.filter(
+        (message) =>
+          message.completionStatus !== null &&
+          message.completionStatus !== "completed",
+      ).length,
     },
   });
 
@@ -254,9 +299,10 @@ export async function runSimulatedSizeReuseTrial(
         {
           inputTokens: account.inputTokens,
           outputTokens: account.outputTokens,
-          costUsd: account.costUsd,
         },
         score,
+        null,
+        null,
       ),
     );
   }
@@ -320,9 +366,7 @@ export async function runModelSizeReuseTrial(
   const turns: ModelInputMessage[] = [];
   const transcriptEntries: Transcript["entries"] = [];
   const messages: SemaTaxMessageMetrics[] = [];
-  let reasoningTokens: number | null = null;
-  let costUsd: number | null = null;
-  let anyCost = false;
+  const messageUsages: UsageTelemetry[] = [];
 
   for (let index = 0; index < parts.reuse; index += 1) {
     const account = accountMessage(template, index, "");
@@ -341,33 +385,29 @@ export async function runModelSizeReuseTrial(
       responseText,
     );
     const usage = response.usage;
-    if (usage.reasoningTokens !== null) {
-      reasoningTokens = (reasoningTokens ?? 0) + usage.reasoningTokens;
-    }
-    if (usage.costUsd !== null) {
-      costUsd = (costUsd ?? 0) + usage.costUsd;
-      anyCost = true;
-    }
+    messageUsages.push(usage);
     messages.push(
       messageMetric(
         account,
         {
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
-          costUsd: usage.costUsd,
         },
         score,
+        response.output.status,
+        usage,
       ),
     );
   }
 
   const completedAt = new Date().toISOString();
+  const mergedUsage = mergeUsageTelemetry(messageUsages);
   const metrics = rollup(
     cell.condition,
     template,
     messages,
-    reasoningTokens,
-    anyCost ? costUsd : null,
+    mergedUsage.reasoningTokens,
+    mergedUsage.costUsd,
     performance.now() - started,
   );
   const events = buildSizeReuseEvents(
@@ -377,21 +417,6 @@ export async function runModelSizeReuseTrial(
     options.referenceProvider.backend,
     MODEL_EXECUTOR,
   );
-
-  // Preserve the full multi-turn conversation as one merged transcript.
-  const mergedUsage: UsageTelemetry = {
-    inputTokens: metrics.totalInputTokens,
-    cachedInputTokensRead: 0,
-    cachedInputTokensWritten: 0,
-    reasoningTokens,
-    outputTokens: metrics.totalOutputTokens,
-    attempts: parts.reuse,
-    retries: 0,
-    errors: [],
-    latencyMs: metrics.elapsedMs,
-    stopReason: null,
-    costUsd: anyCost ? costUsd : null,
-  };
 
   return assembleSizeReuseRecord({
     cell,
@@ -404,4 +429,40 @@ export async function runModelSizeReuseTrial(
     usage: mergedUsage,
     transcript: { entries: transcriptEntries },
   });
+}
+
+/** Merges provider telemetry from the R sequential calls without replacing
+ * observed retry, cache, error, latency, stop, reasoning, or cost fields with
+ * harness defaults. Per-message copies remain in `metrics.messages`. */
+function mergeUsageTelemetry(
+  usages: readonly UsageTelemetry[],
+): UsageTelemetry {
+  const sum = (pick: (usage: UsageTelemetry) => number): number =>
+    usages.reduce((total, usage) => total + pick(usage), 0);
+  const reasoning = usages
+    .map((usage) => usage.reasoningTokens)
+    .filter((value): value is number => value !== null);
+  const costs = usages
+    .map((usage) => usage.costUsd)
+    .filter((value): value is number => value !== null);
+
+  return {
+    inputTokens: sum((usage) => usage.inputTokens),
+    cachedInputTokensRead: sum((usage) => usage.cachedInputTokensRead),
+    cachedInputTokensWritten: sum((usage) => usage.cachedInputTokensWritten),
+    reasoningTokens:
+      reasoning.length === 0
+        ? null
+        : reasoning.reduce((total, value) => total + value, 0),
+    outputTokens: sum((usage) => usage.outputTokens),
+    attempts: sum((usage) => usage.attempts),
+    retries: sum((usage) => usage.retries),
+    errors: usages.flatMap((usage) => usage.errors),
+    latencyMs: sum((usage) => usage.latencyMs),
+    stopReason: usages.at(-1)?.stopReason ?? null,
+    costUsd:
+      costs.length === 0
+        ? null
+        : costs.reduce((total, value) => total + value, 0),
+  };
 }

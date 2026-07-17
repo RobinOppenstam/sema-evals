@@ -13,20 +13,24 @@ export interface SecurityConditionSummary {
   meanRecall: number;
   /** Fraction of trials within the configured FP budget. */
   withinFpBudgetRate: number;
+  /** Aggregate FP allowance: configured per-source budget × evaluated trials. */
+  aggregateFpBudget: number;
+  aggregateWithinFpBudget: boolean;
   /**
-   * Primary endpoint (case-set aggregate): TP / (TP + FN) across trials in this
-   * condition, reported only when total FP <= fpBudget * trialCount is not the
-   * gating rule — instead we report recallAtBudget as mean recall among trials
-   * that are withinFpBudget, or 0 when none qualify.
+   * Primary endpoint: micro recall over vulnerable variants, reported only
+   * when total FP across vulnerable and patched variants is within the
+   * condition's aggregate FP allowance.
    */
-  recallAtFpBudget: number;
+  recallAtFpBudget: number | null;
   meanWireBytes: number;
   meanHydrationBytes: number;
 }
 
 export interface SecuritySummary {
   trialCount: number;
-  scenarioCount: number;
+  caseCount: number;
+  vulnerableScenarioCount: number;
+  cleanNegativeScenarioCount: number;
   trainCaseCount: number;
   heldoutCaseCount: number;
   fpBudget: number;
@@ -51,16 +55,26 @@ export function summarizeSecurity(
     byCondition.set(record.condition, current);
   }
 
-  const scenarioIds = new Set(records.map((record) => record.scenarioId));
+  const caseIds = new Set(records.map((record) => record.caseId));
+  const vulnerableScenarioIds = new Set(
+    records
+      .filter((record) => record.sourceVariant === "vulnerable")
+      .map((record) => record.scenarioId),
+  );
+  const cleanNegativeScenarioIds = new Set(
+    records
+      .filter((record) => record.sourceVariant === "patched")
+      .map((record) => record.scenarioId),
+  );
   const trainIds = new Set(
     records
       .filter((record) => record.metrics.split === "train")
-      .map((record) => record.scenarioId),
+      .map((record) => record.caseId),
   );
   const heldoutIds = new Set(
     records
       .filter((record) => record.metrics.split === "heldout")
-      .map((record) => record.scenarioId),
+      .map((record) => record.caseId),
   );
 
   const conditions = buildConditions()
@@ -82,10 +96,26 @@ export function summarizeSecurity(
       const withinBudget = trials.filter(
         (trial) => trial.metrics.withinFpBudget,
       );
-      const recallAtFpBudget =
-        withinBudget.length === 0
+      const aggregateFpBudget = fpBudget * trials.length;
+      const aggregateWithinFpBudget = totalFalsePositives <= aggregateFpBudget;
+      const vulnerableTrials = trials.filter(
+        (trial) => trial.sourceVariant === "vulnerable",
+      );
+      const vulnerableTruePositives = vulnerableTrials.reduce(
+        (sum, trial) => sum + trial.metrics.truePositives,
+        0,
+      );
+      const vulnerableFalseNegatives = vulnerableTrials.reduce(
+        (sum, trial) => sum + trial.metrics.falseNegatives,
+        0,
+      );
+      const recallDenominator =
+        vulnerableTruePositives + vulnerableFalseNegatives;
+      const microRecall =
+        recallDenominator === 0
           ? 0
-          : mean(withinBudget.map((trial) => trial.metrics.recall));
+          : vulnerableTruePositives / recallDenominator;
+      const recallAtFpBudget = aggregateWithinFpBudget ? microRecall : null;
 
       return {
         condition,
@@ -101,6 +131,8 @@ export function summarizeSecurity(
         meanRecall: mean(trials.map((trial) => trial.metrics.recall)),
         withinFpBudgetRate:
           trials.length === 0 ? 0 : withinBudget.length / trials.length,
+        aggregateFpBudget,
+        aggregateWithinFpBudget,
         recallAtFpBudget,
         meanWireBytes: mean(trials.map((trial) => trial.metrics.wireBytes)),
         meanHydrationBytes: mean(
@@ -111,7 +143,9 @@ export function summarizeSecurity(
 
   return {
     trialCount: records.length,
-    scenarioCount: scenarioIds.size,
+    caseCount: caseIds.size,
+    vulnerableScenarioCount: vulnerableScenarioIds.size,
+    cleanNegativeScenarioCount: cleanNegativeScenarioIds.size,
     trainCaseCount: trainIds.size,
     heldoutCaseCount: heldoutIds.size,
     fpBudget,
@@ -119,8 +153,8 @@ export function summarizeSecurity(
   };
 }
 
-function percent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
+function percent(value: number | null): string {
+  return value === null ? "n/a" : `${(value * 100).toFixed(1)}%`;
 }
 
 function number(value: number): string {
@@ -135,6 +169,7 @@ export function securitySummaryMarkdown(summary: SecuritySummary): string {
       percent(condition.meanRecall),
       percent(condition.recallAtFpBudget),
       percent(condition.withinFpBudgetRate),
+      `${condition.totalFalsePositives}/${condition.aggregateFpBudget}`,
       condition.totalTruePositives,
       condition.totalFalsePositives,
       condition.totalFalseNegatives,
@@ -150,12 +185,12 @@ export function securitySummaryMarkdown(summary: SecuritySummary): string {
     "",
     "> Harness validation only. These deterministic, scripted-auditor outcomes are a construction, not empirical evidence about language models (see ADR 0014).",
     "",
-    `Trials: ${summary.trialCount} across ${summary.scenarioCount} cases (${summary.trainCaseCount} train, ${summary.heldoutCaseCount} heldout). FP budget: ${summary.fpBudget} per case.`,
+    `Trials: ${summary.trialCount} across ${summary.caseCount} mutation pairs (${summary.vulnerableScenarioCount} vulnerable variants, ${summary.cleanNegativeScenarioCount} patched clean negatives; ${summary.trainCaseCount} train, ${summary.heldoutCaseCount} heldout). FP allowance: ${summary.fpBudget} per evaluated source.`,
     "",
-    "Primary endpoint: vulnerability recall at a fixed false-positive budget.",
+    "Primary endpoint: micro vulnerability recall over vulnerable variants, reported only when total false-positive findings across vulnerable and patched variants stay within the aggregate allowance.",
     "",
-    "Condition | Trials | Mean recall | Recall@FP budget | Within budget | TP | FP | FN | Parse fail | Enforced refuse | Mean wire B | Mean hydration B",
-    "--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
+    "Condition | Trials | Mean recall | Recall@FP budget | Per-trial within budget | FP/allowance | TP | FP | FN | Parse fail | Enforced refuse | Mean wire B | Mean hydration B",
+    "--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
     ...rows,
     "",
   ].join("\n");

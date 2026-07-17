@@ -7,8 +7,9 @@ import { X402_DRIFT_CONDITIONS, type X402DriftCondition } from "./schemas.js";
  * - `baseline`: no semantic extension. Requirements carry term names only; the
  *   payer resolves them against its own (possibly drifted) registry and pays.
  *   Nothing can detect the drift — this is the silent-payment failure mode.
- * - `advertised-voluntary`: `extra` carries content-addressed references and an
- *   acceptance contract; the payer MAY verify. Here the payer verifies and
+ * - `advertised-voluntary`: the V2 top-level `extensions` map carries
+ *   content-addressed references and an acceptance contract; the payer MAY
+ *   verify. Here the payer verifies and
  *   surfaces a mismatch, but nothing compels action — payment still emits.
  *   This isolates *voluntary detection*.
  * - `advertised-enforced`: identical wire, but the middleware refuses to emit
@@ -19,7 +20,7 @@ import { X402_DRIFT_CONDITIONS, type X402DriftCondition } from "./schemas.js";
  * conditions too, so the false-refusal guard is measured on the same blocks.
  */
 export interface X402ConditionPolicy {
-  /** PaymentRequirements.extra carries the acceptance contract. */
+  /** PaymentRequired.extensions carries the acceptance contract. */
   advertisesExtension: boolean;
   /** The 402 requirements carry content-addressed references. */
   carriesReferences: boolean;

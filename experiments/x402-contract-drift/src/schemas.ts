@@ -12,18 +12,20 @@ import { z } from "zod";
  * The x402 wire shapes below are modelled faithfully in-repo as typed zod
  * schemas rather than taken from an external SDK: determinism and
  * dependency-lightness win, and real-SDK conformance is future work (see ADR
- * 0016). These are in-repo models of the x402 v1 shapes, not conformance
+ * 0016). These are in-repo models of the x402 v2 shapes, not conformance
  * artifacts. The Sema semantic extension rides ENTIRELY inside x402's own
- * `PaymentRequirements.extra` field — so no core x402 field is ever
- * repurposed.
+ * top-level `extensions` field — so no core x402 field is ever repurposed.
  */
 
 /** The canonicalization/vocabulary-root extension this experiment advertises. */
 export const SEMANTIC_EXTENSION_URI =
   "https://sema-evals.dev/x402/ext/semantic-canonicalization/v0.1";
 
-/** x402 protocol version modelled by these shapes (v1 field names). */
-export const X402_PROTOCOL_VERSION = 1;
+/** x402 protocol version modelled by these shapes. */
+export const X402_PROTOCOL_VERSION = 2;
+export const PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED";
+export const PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE";
+export const PAYMENT_RESPONSE_HEADER = "PAYMENT-RESPONSE";
 
 /* -------------------------------------------------------------------------- */
 /* x402 PaymentRequirements (402 accepts[])                                    */
@@ -42,7 +44,8 @@ export const semanticReferenceSchema = z.object({
 });
 
 /**
- * The acceptance contract the seller attaches in `PaymentRequirements.extra`.
+ * The acceptance contract the seller advertises in the top-level V2
+ * `PaymentRequired.extensions` map.
  * It names the payment-term handles the payer must honor, binds each to a
  * required content-addressed reference, and declares whether the binding is
  * enforced (fail-closed: refuse to emit PaymentPayload) or voluntary.
@@ -54,35 +57,47 @@ export const acceptanceContractSchema = z.object({
   requiredReferences: z.array(semanticReferenceSchema).min(1),
 });
 
+export const semanticExtensionSchema = z.object({
+  info: acceptanceContractSchema,
+  schema: z.record(z.string(), z.unknown()),
+});
+
+export const x402ExtensionsSchema = z.record(
+  z.string(),
+  semanticExtensionSchema,
+);
+
 /**
- * One x402 `PaymentRequirements` object as it appears in a 402 `accepts[]`
- * array. Core fields match the v1 spec; `extra` is the sole extension point
- * and carries the acceptance contract when advertised (omitted entirely under
- * baseline).
+ * One x402 V2 `PaymentRequirements` object as it appears in `accepts[]`.
+ * Networks use CAIP-2 identifiers and the payment amount field is `amount`.
  */
 export const paymentRequirementsSchema = z.object({
   scheme: z.string().min(1),
-  network: z.string().min(1),
-  maxAmountRequired: z.string().min(1),
+  network: z.string().regex(/^[a-z0-9]+:[A-Za-z0-9]+$/),
+  amount: z.string().min(1),
   asset: z.string().min(1),
   payTo: z.string().min(1),
-  resource: z.string().min(1),
-  description: z.string().min(1),
-  mimeType: z.string().min(1).optional(),
-  outputSchema: z.record(z.string(), z.unknown()).nullable().optional(),
   maxTimeoutSeconds: z.number().int().positive(),
-  extra: acceptanceContractSchema.optional(),
+  extra: z.record(z.string(), z.unknown()).optional(),
 });
 
-/** The 402 payment-required envelope. */
+export const resourceInfoSchema = z.object({
+  url: z.string().url(),
+  description: z.string().min(1).optional(),
+  mimeType: z.string().min(1).optional(),
+});
+
+/** The V2 PaymentRequired object carried by the PAYMENT-REQUIRED header. */
 export const paymentRequirementsResponseSchema = z.object({
   x402Version: z.literal(X402_PROTOCOL_VERSION),
-  error: z.string().min(1),
+  error: z.string().min(1).optional(),
+  resource: resourceInfoSchema,
   accepts: z.array(paymentRequirementsSchema).min(1),
+  extensions: x402ExtensionsSchema,
 });
 
 /* -------------------------------------------------------------------------- */
-/* x402 PaymentPayload (X-PAYMENT content) + SettlementResponse                */
+/* x402 PaymentPayload (PAYMENT-SIGNATURE) + SettlementResponse                */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -103,17 +118,20 @@ export const schemePayloadSchema = z.object({
 
 export const paymentPayloadSchema = z.object({
   x402Version: z.literal(X402_PROTOCOL_VERSION),
-  scheme: z.string().min(1),
-  network: z.string().min(1),
+  resource: resourceInfoSchema.optional(),
+  accepted: paymentRequirementsSchema,
   payload: schemePayloadSchema,
+  extensions: x402ExtensionsSchema.optional(),
 });
 
 export const settlementResponseSchema = z.object({
   success: z.boolean(),
   errorReason: z.string().optional(),
-  transaction: z.string().optional(),
-  network: z.string().optional(),
+  transaction: z.string(),
+  network: z.string().regex(/^[a-z0-9]+:[A-Za-z0-9]+$/),
   payer: z.string().optional(),
+  amount: z.string().optional(),
+  extensions: z.record(z.string(), z.unknown()).optional(),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -176,9 +194,11 @@ export const x402DriftTrialRecordSchema = z.object({
   completedAt: z.string().datetime(),
   driftInjected: z.boolean(),
   finalPaymentState: paymentStateSchema,
-  /** Captured 402 requirements (extension present or absent is evidence). */
+  /** Captured V2 PaymentRequired object (extension presence is evidence). */
+  paymentRequired: paymentRequirementsResponseSchema,
+  /** The selected accepts[] entry, retained for analysis convenience. */
   paymentRequirements: paymentRequirementsSchema,
-  /** Emitted X-PAYMENT payload, or null when the middleware refused. */
+  /** Emitted PAYMENT-SIGNATURE payload, or null when middleware refused. */
   paymentPayload: paymentPayloadSchema.nullable(),
   /** Settlement response when paid; null when refused. */
   settlement: settlementResponseSchema.nullable(),
@@ -207,6 +227,12 @@ export const x402DriftResultManifestSchema = z.object({
   cleanScenarioCount: z.number().int().nonnegative(),
   trialCount: z.number().int().positive(),
   fixtureDigest: z.string().length(64),
+  scorer: z.object({
+    version: z.string().min(1),
+    fingerprint: z.string().length(64),
+  }),
+  protocolFingerprint: z.string().length(64),
+  runConfiguration: z.record(z.string(), z.unknown()),
   provenance: trialProvenanceSchema,
 });
 
@@ -240,7 +266,7 @@ export const x402DriftScenarioSchema = z
     resource: z.string().min(1),
     scheme: z.string().min(1),
     network: z.string().min(1),
-    maxAmountRequired: z.string().min(1),
+    amount: z.string().min(1),
     asset: z.string().min(1),
     payTo: z.string().min(1),
     maxTimeoutSeconds: z.number().int().positive(),
@@ -299,6 +325,8 @@ export const x402DriftFixtureSetSchema = z.object({
 
 export type SemanticReference = z.infer<typeof semanticReferenceSchema>;
 export type AcceptanceContract = z.infer<typeof acceptanceContractSchema>;
+export type X402Extensions = z.infer<typeof x402ExtensionsSchema>;
+export type ResourceInfo = z.infer<typeof resourceInfoSchema>;
 export type PaymentRequirements = z.infer<typeof paymentRequirementsSchema>;
 export type PaymentRequirementsResponse = z.infer<
   typeof paymentRequirementsResponseSchema

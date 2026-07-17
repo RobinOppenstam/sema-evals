@@ -23,7 +23,7 @@ import {
   type ForecastingScenario,
   type ForecastingTrialRecord,
 } from "./schemas.js";
-import { brierScore, meanProbability } from "./scoring.js";
+import { brierScore, isUnitProbability, meanProbability } from "./scoring.js";
 
 /**
  * Mandatory independent-agent baseline: round-1 mean over drift-free members,
@@ -180,7 +180,6 @@ export async function runForecastingTrial(
     forecasts: round2Forecasts,
     condition,
     canonicalRegistry,
-    agentRegistries,
     referenceProvider: options.referenceProvider,
   });
 
@@ -219,7 +218,7 @@ export async function runForecastingTrial(
   const marketPrior = scenario.question.marketPrior;
 
   const brierAggregate =
-    aggregateProbability === null
+    aggregateProbability === null || !isUnitProbability(aggregateProbability)
       ? null
       : brierScore(aggregateProbability, outcome);
   const brierMarketPrior = brierScore(marketPrior, outcome);

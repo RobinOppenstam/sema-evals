@@ -8,6 +8,7 @@ import {
   ARTIFACT_SCHEMA_VERSION,
   PROTOCOL_VERSION,
   executeMatrix,
+  fingerprint,
   planPairedMatrix,
   type TrialProvenance,
 } from "@sema-evals/core";
@@ -28,6 +29,10 @@ import {
   recomputeTrialBriers,
   summarizeForecasting,
 } from "../src/summary.js";
+import {
+  FORECASTING_SCORER_FINGERPRINT,
+  FORECASTING_SCORER_VERSION,
+} from "../src/scoring.js";
 import { writeFile } from "node:fs/promises";
 
 const FIXTURE_PATH = resolve(
@@ -145,6 +150,25 @@ describe("full condition matrix", () => {
     }
   });
 
+  it("keeps numeric interpretation identical between baseline and voluntary", async () => {
+    const { records } = await runMatrix([0]);
+    const scenarioId = "synthetic-prob-format-drift";
+    const baseline = records.find(
+      (record) =>
+        record.scenarioId === scenarioId && record.condition === "baseline",
+    );
+    const voluntary = records.find(
+      (record) =>
+        record.scenarioId === scenarioId &&
+        record.condition === "addressed-voluntary",
+    );
+    expect(baseline?.metrics.aggregateProbability).toBe(
+      voluntary?.metrics.aggregateProbability,
+    );
+    expect(baseline?.metrics.brierAggregate).toBeNull();
+    expect(voluntary?.metrics.brierAggregate).toBeNull();
+  });
+
   it("recomputes every trial's Brier values from raw records", async () => {
     const { records } = await runMatrix([0]);
     for (const trial of records) {
@@ -186,6 +210,23 @@ describe("bundle validity", () => {
         trialCount: records.length,
         fixtureDigest,
         leakageAuditPassed: summary.leakageAuditPassed,
+        scorer: {
+          version: FORECASTING_SCORER_VERSION,
+          fingerprint: FORECASTING_SCORER_FINGERPRINT,
+        },
+        protocolFingerprint: fingerprint({
+          experiment: "forecasting",
+          test: true,
+        }),
+        runConfiguration: {
+          mode: "deterministic-harness" as const,
+          seeds: [0],
+          orderSeed: 20_260_716,
+          semanticBackend: "fixture" as const,
+          policy:
+            "deterministic-forecasting-council-demo-v2-canonical-aggregation",
+          aggregationInterpretation: "canonical-probability-format" as const,
+        },
         provenance,
       },
       records,

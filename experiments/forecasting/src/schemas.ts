@@ -167,7 +167,7 @@ export const forecastingMetricsSchema = z.object({
   correctExclusion: z.boolean(),
   /** Secondary endpoint: exclusion on a no-drift control. */
   falseExclusion: z.boolean(),
-  /** Council aggregate after condition-specific inclusion/normalization; null if none included. */
+  /** Raw council aggregate under canonical interpretation; null if none included. */
   aggregateProbability: z.number().nullable(),
   marketPrior: z.number().min(0).max(1),
   /**
@@ -175,7 +175,8 @@ export const forecastingMetricsSchema = z.object({
    * baseline from the research plan).
    */
   independentAverage: z.number().min(0).max(1),
-  brierAggregate: z.number().nullable(),
+  /** Null when no aggregate exists or the aggregate is outside [0, 1]. */
+  brierAggregate: z.number().nonnegative().nullable(),
   brierMarketPrior: z.number().nonnegative(),
   brierIndependentAverage: z.number().nonnegative(),
   outcome: resolvedOutcomeSchema,
@@ -226,6 +227,19 @@ export const forecastingResultManifestSchema = z.object({
   trialCount: z.number().int().positive(),
   fixtureDigest: z.string().length(64),
   leakageAuditPassed: z.boolean(),
+  scorer: z.object({
+    version: z.string().min(1),
+    fingerprint: z.string().length(64),
+  }),
+  protocolFingerprint: z.string().length(64),
+  runConfiguration: z.object({
+    mode: z.literal("deterministic-harness"),
+    seeds: z.array(z.number().int().nonnegative()).min(1),
+    orderSeed: z.number().int().nonnegative(),
+    semanticBackend: z.enum(["fixture", "sema-python"]),
+    policy: z.string().min(1),
+    aggregationInterpretation: z.literal("canonical-probability-format"),
+  }),
   provenance: trialProvenanceSchema,
 });
 

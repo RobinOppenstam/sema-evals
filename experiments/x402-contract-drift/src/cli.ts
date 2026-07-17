@@ -28,7 +28,11 @@ import {
   x402DriftResultManifestSchema,
   x402DriftTrialRecordSchema,
 } from "./schemas.js";
-import { summarizeX402Drift, x402DriftSummaryMarkdown } from "./summary.js";
+import {
+  X402_DRIFT_SCORER_VERSION,
+  summarizeX402Drift,
+  x402DriftSummaryMarkdown,
+} from "./summary.js";
 
 const EXPERIMENT_ID = "x402-contract-drift";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -198,7 +202,7 @@ async function main(): Promise<void> {
   const promptDigest = fingerprint({
     experiment: EXPERIMENT_ID,
     protocolVersion: PROTOCOL_VERSION,
-    policy: "deterministic-x402-contract-drift-demo-v1",
+    policy: "deterministic-x402-contract-drift-demo-v2",
     extensionUri: SEMANTIC_EXTENSION_URI,
   });
 
@@ -214,7 +218,7 @@ async function main(): Promise<void> {
     vocabularyRoot,
     semanticBackend: semanticMetadata.backend,
     modelProvider: process.env.MODEL_PROVIDER ?? "deterministic",
-    modelName: process.env.MODEL_NAME ?? "x402-contract-drift-demo-v1",
+    modelName: process.env.MODEL_NAME ?? "x402-contract-drift-demo-v2",
   };
 
   const cells = planPairedMatrix({
@@ -239,6 +243,23 @@ async function main(): Promise<void> {
   const createdAt = new Date();
   const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
   const outputDirectory = join(options.outputRoot, runId);
+  const scorer = {
+    version: X402_DRIFT_SCORER_VERSION,
+    fingerprint: fingerprint({
+      version: X402_DRIFT_SCORER_VERSION,
+      primaryEndpoint: "silentPayment",
+      cleanEndpoint: "falseHalt",
+    }),
+  };
+  const protocolFingerprint = fingerprint({
+    experimentId: EXPERIMENT_ID,
+    protocolVersion: PROTOCOL_VERSION,
+    x402ProtocolVersion: X402_PROTOCOL_VERSION,
+    extensionUri: SEMANTIC_EXTENSION_URI,
+    conditions,
+    fixtureDigest,
+    scorer,
+  });
   const bundle = await writeResultBundleWith(
     outputDirectory,
     {
@@ -250,7 +271,7 @@ async function main(): Promise<void> {
       runId,
       mode: "deterministic-harness" as const,
       evidenceClaim:
-        "Validates the x402 payment-contract middleware and payer–seller demo: PaymentRequirements.extra acceptance contract, controlled cross-party registry drift, silent payment under baseline, voluntary detection, enforced refusal, the no-drift false-refusal guard, condition pairing, and bundle/summary reproduction. Scripted-agent outcomes are a construction, not evidence about language models, and not conformance evidence against a real x402 SDK (ADR 0016).",
+        "Validates the x402 V2-shaped payment-contract middleware and payer–seller demo: top-level PaymentRequired semantic extension, CAIP-2 network identifiers, PAYMENT-REQUIRED / PAYMENT-SIGNATURE / PAYMENT-RESPONSE headers, controlled cross-party registry drift, silent payment under baseline, voluntary detection, enforced refusal, the no-drift false-refusal guard, condition pairing, and bundle/summary reproduction. Scripted-agent outcomes are a construction, not evidence about language models, and not conformance evidence against a real x402 SDK (ADR 0016).",
       createdAt: createdAt.toISOString(),
       orderSeed: options.orderSeed,
       seeds,
@@ -260,6 +281,23 @@ async function main(): Promise<void> {
       cleanScenarioCount,
       trialCount: records.length,
       fixtureDigest,
+      scorer,
+      protocolFingerprint,
+      runConfiguration: {
+        mode: "deterministic-harness",
+        orderSeed: options.orderSeed,
+        repetitionCount: options.seedCount,
+        semanticBackend: semanticMetadata.backend,
+        semaVersion: semanticMetadata.semaVersion,
+        canonicalizationVersion: semanticMetadata.canonicalizationVersion,
+        vocabularyRoot,
+        x402ProtocolVersion: X402_PROTOCOL_VERSION,
+        wireHeaders: [
+          "PAYMENT-REQUIRED",
+          "PAYMENT-SIGNATURE",
+          "PAYMENT-RESPONSE",
+        ],
+      },
       provenance,
     },
     records,

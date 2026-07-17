@@ -37,7 +37,7 @@ const provenance: TrialProvenance = {
   vocabularyRoot: "",
   semanticBackend: "fixture-sha256-stable-json-v1",
   modelProvider: "deterministic",
-  modelName: "x402-contract-drift-demo-v1",
+  modelName: "x402-contract-drift-demo-v2",
 };
 
 async function scenarioById(id: string): Promise<X402DriftScenario> {
@@ -199,7 +199,11 @@ describe("record shape", () => {
     expect(x402DriftTrialRecordSchema.safeParse(record).success).toBe(true);
     expect(record.usage).toBeNull();
     expect(record.transcript).toBeNull();
-    expect(record.paymentRequirements.extra).toBeDefined();
+    expect(
+      record.paymentRequired.extensions[
+        "https://sema-evals.dev/x402/ext/semantic-canonicalization/v0.1"
+      ],
+    ).toBeDefined();
   });
 
   it("is deterministic across repetition seeds (zero within-condition variance)", async () => {

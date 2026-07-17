@@ -34,6 +34,9 @@ export const SECURITY_CONDITIONS = [
 
 export const securityConditionSchema = z.enum(SECURITY_CONDITIONS);
 
+export const SECURITY_SOURCE_VARIANTS = ["vulnerable", "patched"] as const;
+export const securitySourceVariantSchema = z.enum(SECURITY_SOURCE_VARIANTS);
+
 /** One ground-truth finding the scorer expects on the vulnerable variant. */
 export const expectedFindingSchema = z.object({
   class: vulnerabilityClassSchema,
@@ -106,6 +109,7 @@ export const cannedFindingsSchema = z.object({
 
 export const securityMetricsSchema = z.object({
   split: caseSplitSchema,
+  sourceVariant: securitySourceVariantSchema,
   vulnerabilityClass: vulnerabilityClassSchema,
   parseFailure: z.boolean(),
   enforcementRefused: z.boolean(),
@@ -128,6 +132,8 @@ export const securityTrialRecordSchema = z.object({
   trialId: z.string().length(64),
   experimentId: z.string().min(1),
   scenarioId: z.string().min(1),
+  caseId: z.string().min(1),
+  sourceVariant: securitySourceVariantSchema,
   condition: securityConditionSchema,
   seed: z.number().int().nonnegative(),
   executionIndex: z.number().int().nonnegative(),
@@ -154,11 +160,27 @@ export const securityResultManifestSchema = z.object({
   seeds: z.array(z.number().int().nonnegative()).min(1),
   conditions: z.array(securityConditionSchema).min(1),
   scenarioCount: z.number().int().positive(),
+  caseCount: z.number().int().positive(),
+  cleanNegativeScenarioCount: z.number().int().positive(),
   trainCaseCount: z.number().int().nonnegative(),
   heldoutCaseCount: z.number().int().nonnegative(),
   trialCount: z.number().int().positive(),
   fpBudget: z.number().int().nonnegative(),
   scorerVersion: z.string().min(1),
+  scorer: z.object({
+    version: z.string().min(1),
+    fingerprint: z.string().length(64),
+  }),
+  protocolFingerprint: z.string().length(64),
+  runConfiguration: z.object({
+    mode: z.literal("instrumentation"),
+    seeds: z.array(z.number().int().nonnegative()).min(1),
+    orderSeed: z.number().int().nonnegative(),
+    fpBudgetPerSource: z.number().int().nonnegative(),
+    semanticBackend: z.enum(["fixture", "sema-python"]),
+    policy: z.string().min(1),
+    sourceVariants: z.array(securitySourceVariantSchema).length(2),
+  }),
   fixtureDigest: z.string().length(64),
   provenance: trialProvenanceSchema,
   withFoundry: z.boolean(),
@@ -168,6 +190,7 @@ export const securityResultManifestSchema = z.object({
 export type VulnerabilityClass = z.infer<typeof vulnerabilityClassSchema>;
 export type CaseSplit = z.infer<typeof caseSplitSchema>;
 export type SecurityCondition = z.infer<typeof securityConditionSchema>;
+export type SecuritySourceVariant = z.infer<typeof securitySourceVariantSchema>;
 export type ExpectedFinding = z.infer<typeof expectedFindingSchema>;
 export type Mutation = z.infer<typeof mutationSchema>;
 export type SecurityCase = z.infer<typeof securityCaseSchema>;
@@ -189,4 +212,13 @@ export interface LoadedSecurityCase {
   vulnerableSource: string;
   patchedSource: string;
   directory: string;
+}
+
+/** One model-facing source variant. Ground truth remains in `meta`. */
+export interface SecurityTrialScenario {
+  scenarioId: string;
+  meta: SecurityCase;
+  sourceVariant: SecuritySourceVariant;
+  source: string;
+  expectedFindings: ExpectedFinding[];
 }

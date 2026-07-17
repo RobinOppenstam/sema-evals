@@ -270,6 +270,7 @@ export async function runA2aDriftTrial(
     provenance: options.provenance,
     usage: null,
     transcript: null,
+    modelCompletionStatus: null,
     modelDecision: null,
     decisionParserVersion: null,
   };

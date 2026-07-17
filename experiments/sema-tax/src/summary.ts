@@ -138,7 +138,13 @@ function number(value: number, digits = 1): string {
   return value.toFixed(digits);
 }
 
-export function semaTaxSummaryMarkdown(summary: SemaTaxSummary): string {
+export type SemaTaxSummaryMode =
+  "deterministic-harness" | "model-pilot" | "confirmatory";
+
+export function semaTaxSummaryMarkdown(
+  summary: SemaTaxSummary,
+  mode: SemaTaxSummaryMode = "deterministic-harness",
+): string {
   const rows = summary.conditions.map((condition) =>
     [
       condition.condition,
@@ -158,7 +164,9 @@ export function semaTaxSummaryMarkdown(summary: SemaTaxSummary): string {
   return [
     "# Sema tax curve summary",
     "",
-    "> Harness validation only. Deterministic-mode outcomes are scripted and are not empirical evidence about language models. Token prices in deterministic mode are illustrative, and deterministic cached-token accounting simulates an idealized provider (see ADR 0011).",
+    mode === "deterministic-harness"
+      ? "> Harness validation only. Deterministic-mode outcomes are scripted and are not empirical evidence about language models. Token prices in deterministic mode are illustrative, and deterministic cached-token accounting simulates an idealized provider (see ADR 0011)."
+      : "> Exploratory model-run results, not confirmatory evidence. Model outputs are scored by the frozen deterministic worksheet scorer; provider failures, transcripts, and usage telemetry remain in the raw trial records.",
     "",
     "> Provider cache telemetry is OBSERVATIONAL, not controlled. The cold/warm axis controls harness-level hydration bytes only; a provider (e.g. Chutes) may cache prompt prefixes automatically across both arms, so the `Mean cached tok` column reflects the provider's own caching, not the cold/warm condition. See ADR 0011.",
     "",

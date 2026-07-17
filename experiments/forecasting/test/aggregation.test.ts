@@ -10,11 +10,7 @@ import {
 } from "../src/aggregation.js";
 import { buildForecastObject } from "../src/agents.js";
 import { loadFixtureFile } from "../src/fixtures.js";
-import {
-  buildAgentRegistry,
-  buildCanonicalRegistry,
-  type AgentRegistry,
-} from "../src/registry.js";
+import { buildAgentRegistry, buildCanonicalRegistry } from "../src/registry.js";
 import { SEMANTIC_MISMATCH_REASON } from "../src/schemas.js";
 
 const FIXTURE_PATH = resolve(
@@ -33,11 +29,9 @@ describe("probability-format garbage average", () => {
     }
 
     const provider = new FixtureReferenceProvider();
-    const registries = new Map<string, AgentRegistry>();
     const forecasts = [];
     for (const agent of scenario.agents) {
       const registry = buildAgentRegistry(scenario, agent.id);
-      registries.set(agent.id, registry);
       forecasts.push(
         await buildForecastObject({
           scenario,
@@ -55,7 +49,6 @@ describe("probability-format garbage average", () => {
       forecasts,
       condition: "baseline",
       canonicalRegistry: buildCanonicalRegistry(scenario),
-      agentRegistries: registries,
       referenceProvider: provider,
     });
 
@@ -68,7 +61,7 @@ describe("probability-format garbage average", () => {
     expect(result.excluded).toHaveLength(0);
   });
 
-  it("addressed-voluntary surfaces the mismatch but still aggregates all after normalization", async () => {
+  it("addressed-voluntary surfaces the mismatch without privately repairing the aggregate", async () => {
     const { fixtureSet } = await loadFixtureFile(FIXTURE_PATH);
     const scenario = fixtureSet.scenarios.find(
       (entry) => entry.id === "synthetic-prob-format-drift",
@@ -78,11 +71,9 @@ describe("probability-format garbage average", () => {
     }
 
     const provider = new FixtureReferenceProvider();
-    const registries = new Map<string, AgentRegistry>();
     const forecasts = [];
     for (const agent of scenario.agents) {
       const registry = buildAgentRegistry(scenario, agent.id);
-      registries.set(agent.id, registry);
       forecasts.push(
         await buildForecastObject({
           scenario,
@@ -100,15 +91,14 @@ describe("probability-format garbage average", () => {
       forecasts,
       condition: "addressed-voluntary",
       canonicalRegistry: buildCanonicalRegistry(scenario),
-      agentRegistries: registries,
       referenceProvider: provider,
     });
 
     expect(result.driftDetected).toBe(true);
     expect(result.included).toHaveLength(5);
     expect(result.excluded).toHaveLength(0);
-    // Normalized: (0.55+0.60+0.65+0.58+0.62)/5 = 0.6
-    expect(result.aggregateProbability).toBeCloseTo(0.6, 10);
+    // Same canonical interpretation as baseline: 62 remains incompatible.
+    expect(result.aggregateProbability).toBeCloseTo(12.876, 10);
   });
 
   it("addressed-enforced excludes the drifted forecast with a typed reason", async () => {
@@ -121,11 +111,9 @@ describe("probability-format garbage average", () => {
     }
 
     const provider = new FixtureReferenceProvider();
-    const registries = new Map<string, AgentRegistry>();
     const forecasts = [];
     for (const agent of scenario.agents) {
       const registry = buildAgentRegistry(scenario, agent.id);
-      registries.set(agent.id, registry);
       forecasts.push(
         await buildForecastObject({
           scenario,
@@ -143,7 +131,6 @@ describe("probability-format garbage average", () => {
       forecasts,
       condition: "addressed-enforced",
       canonicalRegistry: buildCanonicalRegistry(scenario),
-      agentRegistries: registries,
       referenceProvider: provider,
     });
 

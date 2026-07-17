@@ -203,6 +203,12 @@ export const a2aDriftMetricsSchema = z.object({
 });
 
 export const workerDecisionSchema = z.enum(["proceed", "halt", "malformed"]);
+export const modelCompletionStatusSchema = z.enum([
+  "completed",
+  "refused",
+  "truncated",
+  "error",
+]);
 
 export const a2aDriftTrialRecordSchema = z.object({
   trialId: z.string().length(64),
@@ -224,6 +230,8 @@ export const a2aDriftTrialRecordSchema = z.object({
   provenance: trialProvenanceSchema,
   usage: usageTelemetrySchema.nullable(),
   transcript: transcriptSchema.nullable(),
+  /** Provider-level completion status; null in the deterministic harness. */
+  modelCompletionStatus: modelCompletionStatusSchema.nullable(),
   /** Parsed worker DECISION line; null in the deterministic harness. */
   modelDecision: workerDecisionSchema.nullable(),
   /** Frozen parser version that produced `modelDecision`; null when unused. */
@@ -248,6 +256,27 @@ export const a2aDriftResultManifestSchema = z.object({
   cleanScenarioCount: z.number().int().nonnegative(),
   trialCount: z.number().int().positive(),
   fixtureDigest: z.string().length(64),
+  scorer: z
+    .object({
+      version: z.string().min(1),
+      fingerprint: z.string().length(64),
+    })
+    .optional(),
+  protocolFingerprint: z.string().length(64).optional(),
+  runConfiguration: z
+    .object({
+      provider: z.string().min(1),
+      model: z.string().min(1),
+      seeds: z.array(z.number().int().nonnegative()).min(1),
+      concurrency: z.number().int().positive(),
+      maxTokens: z.number().int().positive().nullable(),
+      semanticBackend: z.string().min(1),
+      thinking: z.string().min(1).nullable(),
+      endpointHost: z.string().nullable(),
+      harness: z.record(z.string(), z.string()).nullable().optional(),
+      orderSeed: z.number().int().nonnegative(),
+    })
+    .optional(),
   provenance: trialProvenanceSchema,
 });
 
