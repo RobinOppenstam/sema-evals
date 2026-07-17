@@ -4,7 +4,17 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "coverage/**", "results/**"],
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "coverage/**",
+      "results/**",
+      ".cache/**",
+      // Executable acquisition evidence runs against upstream module formats
+      // and is independently hashed/reviewed rather than transformed by lint.
+      "experiments/workflow-value/acquisition/tasks/**/*.cjs",
+      "experiments/workflow-value/acquisition/tasks/**/*.mjs",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

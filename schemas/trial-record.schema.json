@@ -218,6 +218,15 @@
             "modelName": {
               "type": "string",
               "minLength": 1
+            },
+            "preregistrationPath": {
+              "type": "string",
+              "minLength": 1
+            },
+            "preregistrationDigest": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
             }
           },
           "required": [

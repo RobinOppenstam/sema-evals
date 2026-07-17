@@ -71,6 +71,31 @@
           "minLength": 64,
           "maxLength": 64
         },
+        "scorer": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "fingerprint": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            }
+          },
+          "required": ["version", "fingerprint"],
+          "additionalProperties": false
+        },
+        "protocolFingerprint": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "runConfiguration": {
+          "type": "object",
+          "additionalProperties": {}
+        },
         "provenance": {
           "type": "object",
           "properties": {
@@ -123,6 +148,15 @@
             "modelName": {
               "type": "string",
               "minLength": 1
+            },
+            "preregistrationPath": {
+              "type": "string",
+              "minLength": 1
+            },
+            "preregistrationDigest": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
             }
           },
           "required": [
