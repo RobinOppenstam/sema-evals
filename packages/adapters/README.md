@@ -96,6 +96,40 @@ Provenance records `modelProvider` as the base-URL host (for example
 `llm.chutes.ai`) and `modelName` as the exact slug. See
 [ADR 0007](../../docs/adr/0007-openai-compatible-provider-adapter.md).
 
+## Shared API and subscription-harness factory
+
+All model-capable experiments use `createModelProvider`, so new experiments do
+not need provider-specific construction branches:
+
+```ts
+import { createModelProvider } from "@sema-evals/adapters";
+
+const created = createModelProvider({
+  provider: "codex-cli", // or claude-code, grok-build, cursor-agent, opencode
+  systemPrompt: frozenSnapshot,
+  model: "gpt-5.6",
+  maxTokens: 4096,
+  thinking: "none",
+  harnessWorkingDirectory: "results/.harness-workspace",
+});
+
+const response = await created.adapter.invoke({
+  messages: [{ role: "user", content: taskPayload }],
+});
+const pinnedProvider = await created.providerLabel();
+```
+
+`MODEL_PROVIDERS` is the canonical registry. API providers require an API key;
+subscription harnesses use ambient CLI authentication. Each harness is recorded
+as a distinct provider with its binary, CLI version, working directory,
+system-prompt delivery, tool control, and session policy. They are not treated
+as equivalent raw-model transports.
+
+The default experiment workspace is isolated under
+`results/.harness-workspace`, avoiding project instruction and file-context
+leakage. `--harness-bin` and `--harness-cwd` override it when needed. See
+[ADR 0019](../../docs/adr/0019-subscription-cli-harness-adapters.md).
+
 ## Official Sema registry client
 
 `SemaPythonRegistryClient` delegates registry creation, resolution, vocabulary
