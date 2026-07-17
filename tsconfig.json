@@ -17,7 +17,8 @@
     "paths": {
       "@sema-evals/adapters": ["packages/adapters/src/index.ts"],
       "@sema-evals/core": ["packages/core/src/index.ts"],
-      "@sema-evals/reporters": ["packages/reporters/src/index.ts"]
+      "@sema-evals/reporters": ["packages/reporters/src/index.ts"],
+      "@sema-evals/workflow-runner": ["packages/workflow-runner/src/index.ts"]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true,
