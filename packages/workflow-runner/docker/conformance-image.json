@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "workflow-runner-conformance-image-v1",
+  "status": "local-deterministic-conformance-only",
+  "tag": "sema-evals/workflow-runner-conformance:node22",
+  "imageDigest": "sha256:bbf63e8eefa4b687a8d84bfb0f81da72c9f9cc743180f0fd1d3f938effc89033",
+  "baseImage": "node:22.17.1-bookworm-slim@sha256:2fa754a9ba4d7adbd2a51d182eaabbe355c82b673624035a38c0d42b08724854",
+  "dockerfileDigest": "a29f288b38d7d84e3c2052fb93a954c92e968c0a607b8ddcdaae2130d4f46c09",
+  "seccompProfileDigest": "d6c4fc488553395a7c0015906a686551f071b054395bbbe57d785c7803094358",
+  "tools": {
+    "node": "22.17.1",
+    "npm": "10.9.2",
+    "git": "2.39.5",
+    "strace": "6.1",
+    "utilLinux": "2.38.1",
+    "procps": "4.0.2"
+  },
+  "providerHarnessesIncluded": [],
+  "opensPaidRunGate": false
+}
