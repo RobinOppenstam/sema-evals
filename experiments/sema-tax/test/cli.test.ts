@@ -193,8 +193,40 @@ describe("parseArgs provider selection", () => {
 
   it("rejects an unknown provider", () => {
     expect(() => parseArgs(["--provider", "bogus"])).toThrow(
-      /anthropic or openai-compatible/,
+      /codex-cli.*grok-build.*cursor-agent.*opencode/,
     );
+  });
+
+  it.each([
+    "claude-code",
+    "codex-cli",
+    "grok-build",
+    "cursor-agent",
+    "opencode",
+  ])("accepts the %s subscription harness without an API key", (provider) => {
+    const args = ["--mode", "model-pilot", "--provider", provider];
+    if (provider !== "claude-code") {
+      args.push("--model", "provider/model");
+    }
+    const options = parseArgs(args);
+    expect(options.provider).toBe(provider);
+    expect(options.apiKeyEnv).toBe("");
+    expect(() => assertProviderApiKey(options)).not.toThrow();
+  });
+
+  it("honours generic harness binary and cwd overrides", () => {
+    const options = parseArgs([
+      "--provider",
+      "grok-build",
+      "--model",
+      "grok-4.5",
+      "--harness-bin",
+      "/opt/grok",
+      "--harness-cwd",
+      "results",
+    ]);
+    expect(options.harnessBin).toBe("/opt/grok");
+    expect(options.harnessWorkingDirectory).toMatch(/results$/);
   });
 });
 

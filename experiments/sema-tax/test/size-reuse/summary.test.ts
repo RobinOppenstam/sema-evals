@@ -91,6 +91,9 @@ describe("summarizeSizeReuse", () => {
       (summedScore / summedBytes) * 1000,
       8,
     );
+    expect(row.modelMessages).toBe(0);
+    expect(row.modelFailureMessages).toBe(0);
+    expect(row.meanCachedInputTokensRead).toBe(0);
   });
 
   it("computes a crossover surface where content overtakes prose as size×R grows", async () => {
@@ -120,5 +123,18 @@ describe("summarizeSizeReuse", () => {
     expect(markdown).toContain("Total semantic B");
     expect(markdown).toContain("Score / 1k B");
     expect(markdown).toContain("p8-small-r1-prose-cold");
+  });
+
+  it("renders model-pilot caveats and separated provider token channels", async () => {
+    const records = await runMatrix();
+    const markdown = sizeReuseSummaryMarkdown(
+      summarizeSizeReuse(records),
+      "model-pilot",
+    );
+    expect(markdown).toContain("Exploratory model-run results");
+    expect(markdown).toContain("Cached read tok");
+    expect(markdown).toContain("Reasoning tok");
+    expect(markdown).toContain("Failed calls");
+    expect(markdown).not.toContain("Harness validation only");
   });
 });

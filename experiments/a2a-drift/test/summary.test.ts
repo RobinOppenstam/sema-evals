@@ -43,6 +43,10 @@ function record(
   driftInjected: boolean,
   overrides: Partial<A2aDriftMetrics>,
   finalTaskState: TaskState,
+  model: {
+    status: "completed" | "refused" | "truncated" | "error";
+    decision: "proceed" | "halt" | "malformed";
+  } | null = null,
 ): A2aDriftTrialRecord {
   counter += 1;
   const metrics: A2aDriftMetrics = {
@@ -83,10 +87,25 @@ function record(
     events: [],
     metrics,
     provenance,
-    usage: null,
+    usage: model
+      ? {
+          inputTokens: 120,
+          cachedInputTokensRead: 20,
+          cachedInputTokensWritten: 0,
+          reasoningTokens: 4,
+          outputTokens: 30,
+          attempts: 2,
+          retries: 1,
+          errors: model.status === "error" ? ["provider failed"] : [],
+          latencyMs: 10,
+          stopReason: model.status === "completed" ? "end_turn" : null,
+          costUsd: null,
+        }
+      : null,
     transcript: null,
-    modelDecision: null,
-    decisionParserVersion: null,
+    modelCompletionStatus: model?.status ?? null,
+    modelDecision: model?.decision ?? null,
+    decisionParserVersion: model ? "a2a-decision-parser-v1" : null,
   });
 }
 
@@ -174,5 +193,45 @@ describe("summarizeA2aDrift math", () => {
     expect(markdown).toContain("baseline");
     expect(markdown).toContain("advertised-enforced");
     expect(markdown).toContain("Harness validation only");
+  });
+
+  it("reports model failures and token telemetry without counting them as silent execution", () => {
+    const records = [
+      record(
+        "baseline",
+        true,
+        {
+          silentExecution: false,
+          taskSuccess: false,
+          failureReason: "model-worker-error",
+        },
+        "failed",
+        { status: "error", decision: "malformed" },
+      ),
+      record(
+        "baseline",
+        true,
+        { silentExecution: true, taskSuccess: false },
+        "completed",
+        { status: "completed", decision: "proceed" },
+      ),
+    ];
+
+    const summary = summarizeA2aDrift(records);
+    const baseline = summary.conditions[0];
+    expect(baseline?.silentExecutions).toBe(1);
+    expect(baseline?.modelFailures).toBe(1);
+    expect(baseline?.providerFailures).toBe(1);
+    expect(baseline?.modelFailureRate).toBe(0.5);
+    expect(baseline?.meanInputTokens).toBe(120);
+    expect(baseline?.meanCachedInputTokens).toBe(20);
+    expect(baseline?.meanTotalModelTokens).toBe(150);
+    expect(baseline?.totalRetries).toBe(2);
+    expect(baseline?.totalProviderErrors).toBe(1);
+
+    const markdown = a2aDriftSummaryMarkdown(summary, "model-pilot");
+    expect(markdown).toContain("Exploratory model-run results");
+    expect(markdown).toContain("Model failures");
+    expect(markdown).not.toContain("Harness validation only");
   });
 });

@@ -24,8 +24,8 @@ const SCENARIO: X402DriftScenario = {
   resourceDescription: "Unit test resource.",
   resource: "https://api.example.com/unit",
   scheme: "exact",
-  network: "base-sepolia",
-  maxAmountRequired: "1000",
+  network: "eip155:84532",
+  amount: "1000",
   asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
   payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
   maxTimeoutSeconds: 60,
@@ -54,39 +54,47 @@ const REFERENCES: SemanticReference[] = [
 
 describe("x402 wire shape round-trips", () => {
   it("round-trips PaymentRequirements, PaymentPayload, and SettlementResponse", () => {
-    const { requirements } = buildPaymentRequirements(
+    const { requirements, contract } = buildPaymentRequirements(
       SCENARIO,
       "advertised-enforced",
       REFERENCES,
     );
     const parsedRequirements = paymentRequirementsSchema.parse(requirements);
-    expect(parsedRequirements.maxAmountRequired).toBe("1000");
-    expect(parsedRequirements.extra?.extensionUri).toBe(SEMANTIC_EXTENSION_URI);
+    expect(parsedRequirements.amount).toBe("1000");
+    expect(parsedRequirements.network).toBe("eip155:84532");
 
     const envelope = paymentRequirementsResponseSchema.parse(
-      buildPaymentRequirementsResponse(parsedRequirements),
+      buildPaymentRequirementsResponse(parsedRequirements, SCENARIO, contract),
     );
-    expect(envelope.x402Version).toBe(1);
+    expect(envelope.x402Version).toBe(2);
     expect(envelope.accepts).toHaveLength(1);
+    expect(envelope.resource.url).toBe(SCENARIO.resource);
+    expect(extractAcceptanceContract(envelope.extensions)).toEqual(contract);
 
     const payload = paymentPayloadSchema.parse(
-      buildPaymentPayload(parsedRequirements, SCENARIO),
+      buildPaymentPayload(
+        parsedRequirements,
+        SCENARIO,
+        envelope.resource,
+        envelope.extensions,
+      ),
     );
     expect(payload.payload.signature.startsWith("sim-sig-")).toBe(true);
     expect(payload.payload.authorization.value).toBe("1000");
+    expect(payload.accepted).toEqual(parsedRequirements);
 
     const settlement = settlementResponseSchema.parse({
       success: true,
       transaction: "0x" + "c".repeat(64),
-      network: "base-sepolia",
+      network: "eip155:84532",
       payer: payload.payload.authorization.from,
     });
     expect(settlement.success).toBe(true);
   });
 });
 
-describe("extension placement in PaymentRequirements.extra", () => {
-  it("omits extra entirely for baseline requirements", () => {
+describe("extension placement in PaymentRequired.extensions", () => {
+  it("omits the semantic extension for baseline", () => {
     const { requirements, contract } = buildPaymentRequirements(
       SCENARIO,
       "baseline",
@@ -94,11 +102,15 @@ describe("extension placement in PaymentRequirements.extra", () => {
     );
     const parsed = paymentRequirementsSchema.parse(requirements);
     expect(contract).toBeUndefined();
-    expect(parsed.extra).toBeUndefined();
-    expect(extractAcceptanceContract(parsed)).toBeUndefined();
+    const envelope = buildPaymentRequirementsResponse(
+      parsed,
+      SCENARIO,
+      contract,
+    );
+    expect(extractAcceptanceContract(envelope.extensions)).toBeUndefined();
   });
 
-  it("advertised conditions round-trip the acceptance contract in extra", () => {
+  it("advertised conditions round-trip the top-level acceptance extension", () => {
     const { requirements, contract } = buildPaymentRequirements(
       SCENARIO,
       "advertised-voluntary",
@@ -106,7 +118,12 @@ describe("extension placement in PaymentRequirements.extra", () => {
     );
     const parsed = paymentRequirementsSchema.parse(requirements);
     expect(contract).toBeDefined();
-    const extracted = extractAcceptanceContract(parsed);
+    const envelope = buildPaymentRequirementsResponse(
+      parsed,
+      SCENARIO,
+      contract,
+    );
+    const extracted = extractAcceptanceContract(envelope.extensions);
     expect(extracted).toBeDefined();
     const validContract = acceptanceContractSchema.parse(extracted);
     expect(validContract.extensionUri).toBe(SEMANTIC_EXTENSION_URI);
@@ -114,7 +131,7 @@ describe("extension placement in PaymentRequirements.extra", () => {
     expect(validContract.requiredReferences).toHaveLength(2);
     // Core fields stay untouched.
     expect(parsed.scheme).toBe("exact");
-    expect(parsed.maxAmountRequired).toBe("1000");
+    expect(parsed.amount).toBe("1000");
   });
 
   it("marks enforced vs voluntary per condition", () => {

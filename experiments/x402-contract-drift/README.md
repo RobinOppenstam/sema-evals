@@ -3,8 +3,16 @@
 RESEARCH_PLAN parallel infrastructure track. This experiment builds a
 **deterministic payer–seller demo** that measures silent payment under
 payment-contract drift in the x402 protocol, and distinguishes voluntary
-detection from enforced refusal — depending only on whether x402's own `extra`
-extensibility point is honored.
+detection from enforced refusal — depending only on whether x402's V2
+extension mechanism is honored.
+
+## Evidence role
+
+This is **mechanism validation** for an x402-shaped payment flow. The
+deterministic harness validates the in-repo wire model, drift checks, and
+fail-closed transition. Real-SDK, facilitator, transport, and chain conformance
+remain separate future gates; no workflow-utility or live-payment claim follows
+from this demo.
 
 ## Design
 
@@ -15,17 +23,17 @@ the payer's registry holds a mutated definition for exactly one acceptance
 handle. Whether that drift is silent, surfaced, or blocked depends on the
 condition.
 
-### The extension rides in x402's own extensibility point (no fork)
+### V2 wire conventions and extension placement (no fork)
 
-- **402 PaymentRequirements**: core fields (`scheme`, `network`,
-  `maxAmountRequired`, `asset`, `payTo`, `description`, …) are never
-  repurposed. Baseline omits `extra` entirely.
-- **Acceptance contract in `extra`**: under advertised conditions,
-  `PaymentRequirements.extra` carries content-addressed references and an
-  acceptance contract (`contractId`, `extensionUri`, `enforcement`,
-  `requiredReferences`) — the same reference shape as a2a-drift.
-- **PaymentPayload / SettlementResponse**: the payer's X-PAYMENT content is a
-  typed object; signing is simulated deterministically (no crypto, no chain).
+- **PaymentRequired** uses `x402Version: 2`, a separate `resource` object,
+  `PaymentRequirements.amount`, and CAIP-2 network identifiers.
+- **Acceptance contract in `extensions`**: advertised conditions carry the
+  content-addressed acceptance contract in the top-level V2 extensions map.
+  `PaymentRequirements.extra` remains scheme-specific metadata.
+- **HTTP headers**: the in-process transport base64-encodes JSON under
+  `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, and `PAYMENT-RESPONSE`.
+- **PaymentPayload / SettlementResponse**: signing is simulated
+  deterministically (no crypto, no chain).
   Enforcement refuses to emit the payload while any required reference
   mismatches, with the typed reason `semantic-reference-mismatch`.
 
@@ -37,11 +45,11 @@ win, and real-SDK conformance testing is future work (see
 
 ### Conditions
 
-| Condition              | `extra` carries contract | Payer verifies | Middleware enforces |
-| ---------------------- | ------------------------ | -------------- | ------------------- |
-| `baseline`             | no                       | no             | no                  |
-| `advertised-voluntary` | yes                      | yes            | no                  |
-| `advertised-enforced`  | yes                      | yes            | yes                 |
+| Condition              | extension carries contract | Payer verifies | Middleware enforces |
+| ---------------------- | -------------------------- | -------------- | ------------------- |
+| `baseline`             | no                         | no             | no                  |
+| `advertised-voluntary` | yes                        | yes            | no                  |
+| `advertised-enforced`  | yes                        | yes            | yes                 |
 
 No-drift controls (scenarios whose `drift` is null) run under all three
 conditions on the same scenario/seed blocks, so the false-refusal guard is
@@ -70,5 +78,11 @@ Deterministic harness outcomes are constructed and must not be presented as
 evidence about language models, nor as conformance evidence against a real x402
 SDK.
 
-**Model-pilot mode** (real payer agent via model adapters) is future work; see
-ADR 0016.
+**Model-pilot mode** is not runnable yet. It requires an experiment-specific
+payer executor and controlled tool runner; the shared model adapters supply
+invocation and telemetry but not the edit/test workflow. See ADR 0016.
+
+`src/model-executor.ts` now defines the thin payer decision contract. It is
+paper/historical-replay only, records that no production write was attempted,
+and remains blocked by `model-readiness.json` until model configuration and
+real-SDK transport conformance are complete.

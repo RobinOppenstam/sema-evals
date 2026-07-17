@@ -96,6 +96,37 @@ describe("parseArgs", () => {
     ).toThrow(/--model is required/);
   });
 
+  it.each([
+    "claude-code",
+    "codex-cli",
+    "grok-build",
+    "cursor-agent",
+    "opencode",
+  ])("accepts the %s subscription harness without an API key", (provider) => {
+    const args = [
+      "--mode",
+      "model-pilot",
+      "--provider",
+      provider,
+      "--harness-cwd",
+      "results",
+    ];
+    if (provider !== "claude-code") {
+      args.push("--model", "provider/model");
+    }
+    const options = parseArgs(args);
+    expect(options.provider).toBe(provider);
+    expect(options.apiKeyEnv).toBe("");
+    expect(options.harnessWorkingDirectory).toMatch(/results$/);
+    expect(() => assertProviderApiKey(options)).not.toThrow();
+  });
+
+  it("requires an explicit model for non-Claude subscription harnesses", () => {
+    expect(() => parseArgs(["--provider", "codex-cli"])).toThrow(
+      /--model is required/,
+    );
+  });
+
   it("rejects an unknown argument", () => {
     expect(() => parseArgs(["--not-a-flag"])).toThrow(/Unknown argument/);
   });

@@ -104,6 +104,9 @@ importers:
       '@sema-evals/reporters':
         specifier: workspace:*
         version: link:../../packages/reporters
+      '@sema-evals/workflow-runner':
+        specifier: workspace:*
+        version: link:../../packages/workflow-runner
       zod:
         specifier: ^3.25.76
         version: 3.25.76

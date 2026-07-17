@@ -10,8 +10,10 @@ import {
   type PaymentPayload,
   type PaymentRequirements,
   type PaymentRequirementsResponse,
+  type ResourceInfo,
   type SemanticReference,
   type SettlementResponse,
+  type X402Extensions,
   type X402DriftCondition,
   type X402DriftScenario,
 } from "./schemas.js";
@@ -57,12 +59,9 @@ function contractId(scenario: X402DriftScenario): string {
 }
 
 /**
- * Builds the seller's PaymentRequirements. Baseline omits `extra` entirely.
- * Advertised conditions attach the acceptance contract (content-addressed
- * references) in `extra` — x402's own extensibility point — so no core field
- * is repurposed. The description always names the acceptance handles in prose
- * so baseline can resolve by name; that prose never carries ground-truth
- * annotations about drift.
+ * Builds the seller's V2 PaymentRequirements. The semantic contract is not
+ * placed in scheme-specific `extra`; it is advertised in PaymentRequired's
+ * top-level `extensions` map by {@link buildPaymentRequirementsResponse}.
  */
 export function buildPaymentRequirements(
   scenario: X402DriftScenario,
@@ -73,9 +72,6 @@ export function buildPaymentRequirements(
   contract: AcceptanceContract | undefined;
 } {
   const policy = conditionPolicy(condition);
-  const handleList = scenario.acceptanceHandles.join(", ");
-  const description = `${scenario.resourceDescription} Terms: ${handleList}.`;
-
   let contract: AcceptanceContract | undefined;
   if (policy.carriesReferences) {
     if (!references) {
@@ -94,15 +90,14 @@ export function buildPaymentRequirements(
   const requirements: PaymentRequirements = {
     scheme: scenario.scheme,
     network: scenario.network,
-    maxAmountRequired: scenario.maxAmountRequired,
+    amount: scenario.amount,
     asset: scenario.asset,
     payTo: scenario.payTo,
-    resource: scenario.resource,
-    description,
-    mimeType: "application/json",
-    outputSchema: null,
     maxTimeoutSeconds: scenario.maxTimeoutSeconds,
-    ...(contract ? { extra: contract } : {}),
+    extra: {
+      name: "USDC",
+      version: "2",
+    },
   };
 
   return { requirements, contract };
@@ -111,19 +106,45 @@ export function buildPaymentRequirements(
 /** Builds the 402 payment-required envelope containing one accepts entry. */
 export function buildPaymentRequirementsResponse(
   requirements: PaymentRequirements,
+  scenario: X402DriftScenario,
+  contract: AcceptanceContract | undefined,
 ): PaymentRequirementsResponse {
+  const handleList = scenario.acceptanceHandles.join(", ");
+  const resource: ResourceInfo = {
+    url: scenario.resource,
+    description: `${scenario.resourceDescription} Terms: ${handleList}.`,
+    mimeType: "application/json",
+  };
+  const extensions: X402Extensions = contract
+    ? {
+        [SEMANTIC_EXTENSION_URI]: {
+          info: contract,
+          schema: {
+            type: "object",
+            required: [
+              "contractId",
+              "extensionUri",
+              "enforcement",
+              "requiredReferences",
+            ],
+          },
+        },
+      }
+    : {};
   return {
     x402Version: X402_PROTOCOL_VERSION,
-    error: "X-PAYMENT header is required",
+    error: "PAYMENT-SIGNATURE header is required",
+    resource,
     accepts: [requirements],
+    extensions,
   };
 }
 
-/** Extracts the acceptance contract from PaymentRequirements.extra, if any. */
+/** Extracts the semantic acceptance contract from V2 top-level extensions. */
 export function extractAcceptanceContract(
-  requirements: PaymentRequirements,
+  extensions: X402Extensions,
 ): AcceptanceContract | undefined {
-  return requirements.extra;
+  return extensions[SEMANTIC_EXTENSION_URI]?.info;
 }
 
 /**
@@ -134,20 +155,22 @@ export function extractAcceptanceContract(
 export function buildPaymentPayload(
   requirements: PaymentRequirements,
   scenario: X402DriftScenario,
+  resource: ResourceInfo,
+  extensions: X402Extensions,
 ): PaymentPayload {
   const validAfter = "0";
   const validBefore = String(scenario.maxTimeoutSeconds);
   const authorization = {
     from: SIMULATED_PAYER_ADDRESS,
     to: requirements.payTo,
-    value: requirements.maxAmountRequired,
+    value: requirements.amount,
     validAfter,
     validBefore,
     nonce: `0x${fingerprint({
       from: SIMULATED_PAYER_ADDRESS,
       to: requirements.payTo,
-      value: requirements.maxAmountRequired,
-      resource: requirements.resource,
+      value: requirements.amount,
+      resource: resource.url,
     }).slice(0, 64)}`,
   };
   const signature = `sim-sig-${fingerprint({
@@ -158,9 +181,10 @@ export function buildPaymentPayload(
 
   return {
     x402Version: X402_PROTOCOL_VERSION,
-    scheme: requirements.scheme,
-    network: requirements.network,
+    resource,
+    accepted: requirements,
     payload: { signature, authorization },
+    extensions,
   };
 }
 
@@ -173,10 +197,11 @@ export function buildSettlementResponse(
     success: true,
     transaction: `0x${fingerprint({
       signature: payload.payload.signature,
-      resource: requirements.resource,
+      resource: payload.resource?.url,
     }).slice(0, 64)}`,
     network: requirements.network,
     payer: payload.payload.authorization.from,
+    amount: requirements.amount,
   };
 }
 

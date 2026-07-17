@@ -7,12 +7,12 @@ import {
  * The three conditions of the forecasting council demo:
  *
  * - `baseline`: coordination terms named by handle only; aggregation proceeds
- *   blindly (raw mean of reported numbers). Nothing can detect definitional
- *   drift — this is the corrupted-aggregation failure mode.
+ *   blindly under the canonical aggregation rule. Nothing can detect
+ *   definitional drift — this is the corrupted-aggregation failure mode.
  * - `addressed-voluntary`: forecast objects carry content-addressed references;
  *   the aggregator verifies digests and surfaces mismatches but still
- *   aggregates ALL forecasts (after per-agent format normalization). Isolates
- *   *voluntary detection*.
+ *   aggregates ALL forecasts under the same canonical numeric interpretation
+ *   as baseline. Isolates *voluntary detection*.
  * - `addressed-enforced`: identical wire, but the aggregator refuses to include
  *   any forecast whose coordination references mismatch; aggregates the aligned
  *   subset and records exclusion with a typed reason. Isolates *enforced

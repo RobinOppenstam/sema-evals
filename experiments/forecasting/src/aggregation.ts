@@ -20,13 +20,12 @@ import { meanProbability } from "./scoring.js";
  * Kept separable from the demo harness: a pure function of forecast objects,
  * registries, and the condition policy.
  *
- * - baseline: blind raw mean of reported numbers (no format normalization,
- *   no digest check) — this is how 0.62 averaged with 62 produces garbage.
+ * - baseline: no digest check; every report is interpreted under the same
+ *   canonical aggregation/format rule used in the addressed conditions.
  * - addressed-voluntary: verify digests against the canonical vocabulary,
- *   surface mismatches, still aggregate ALL forecasts after normalizing each
- *   by its own ProbabilityFormat.
+ *   surface mismatches, still aggregate ALL forecasts under that same rule.
  * - addressed-enforced: exclude any forecast whose cited references mismatch;
- *   aggregate the aligned subset after format normalization.
+ *   aggregate the aligned subset under that same rule.
  */
 
 export interface ReferenceCheck {
@@ -126,16 +125,15 @@ export async function verifyForecastReferences(
 /**
  * Aggregates round-2 forecasts under the given condition.
  *
- * Baseline averages raw reported numbers with no format lookup — that is the
- * corrupted channel under probability-format drift. Addressed conditions
- * normalize each included forecast by that agent's own ProbabilityFormat
- * (from `agentRegistries`) before averaging.
+ * Inclusion and verification vary by condition; numeric interpretation does
+ * not. Every included report is interpreted using the canonical
+ * ProbabilityFormat. A drifted private registry therefore cannot silently
+ * repair its own incompatible report only in an addressed condition.
  */
 export async function aggregateForecasts(options: {
   forecasts: readonly ForecastObject[];
   condition: ForecastingCondition;
   canonicalRegistry: AgentRegistry;
-  agentRegistries: ReadonlyMap<string, AgentRegistry>;
   referenceProvider: SemanticReferenceProvider;
 }): Promise<AggregationResult> {
   const policy = conditionPolicy(options.condition);
@@ -175,31 +173,16 @@ export async function aggregateForecasts(options: {
 
   const driftDetected = referencesMismatched > 0;
 
-  let aggregateProbability: number | null;
   const normalizedIncluded: number[] = [];
 
-  if (!policy.verifies) {
-    // Baseline: blind raw mean — no format normalization.
-    aggregateProbability = meanProbability(
-      included.map((forecast) => forecast.probability),
+  const canonicalFormat =
+    options.canonicalRegistry.resolve("ProbabilityFormat");
+  for (const forecast of included) {
+    normalizedIncluded.push(
+      normalizeProbability(forecast.probability, canonicalFormat),
     );
-    // Record raw values for diagnostics (not unit-normalized under baseline).
-    for (const forecast of included) {
-      normalizedIncluded.push(forecast.probability);
-    }
-  } else {
-    for (const forecast of included) {
-      const registry = options.agentRegistries.get(forecast.agentId);
-      if (!registry) {
-        throw new Error(`Missing registry for agent ${forecast.agentId}.`);
-      }
-      const format = registry.resolve("ProbabilityFormat");
-      normalizedIncluded.push(
-        normalizeProbability(forecast.probability, format),
-      );
-    }
-    aggregateProbability = meanProbability(normalizedIncluded);
   }
+  const aggregateProbability = meanProbability(normalizedIncluded);
 
   return {
     included,

@@ -29,11 +29,18 @@ import {
   leakageAuditDocumentSchema,
 } from "./schemas.js";
 import { forecastingSummaryMarkdown, summarizeForecasting } from "./summary.js";
+import {
+  FORECASTING_SCORER_FINGERPRINT,
+  FORECASTING_SCORER_VERSION,
+} from "./scoring.js";
 
 const EXPERIMENT_ID = "forecasting";
+const FORECASTING_POLICY =
+  "deterministic-forecasting-council-demo-v2-canonical-aggregation";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 interface CliOptions {
+  mode: "deterministic-harness";
   fixturePath: string;
   outputRoot: string;
   orderSeed: number;
@@ -47,6 +54,7 @@ function usage(): string {
     "Usage: pnpm experiment:forecasting -- [options]",
     "",
     "Options:",
+    "  --mode <m>          deterministic-harness (only supported mode)",
     "  --fixtures <path>   YAML scenario fixture file",
     "  --output <path>     Result root directory",
     "  --order-seed <n>    Recorded randomization seed (default: 20260716)",
@@ -81,6 +89,7 @@ function resolveFromRepoRoot(value: string): string {
 
 export function parseArgs(args: readonly string[]): CliOptions {
   const options: CliOptions = {
+    mode: "deterministic-harness",
     fixturePath: join(
       REPO_ROOT,
       "experiments/forecasting/fixtures/scenarios.yaml",
@@ -100,6 +109,16 @@ export function parseArgs(args: readonly string[]): CliOptions {
     if (argument === "--help") {
       console.log(usage());
       process.exit(0);
+    }
+    if (argument === "--mode") {
+      const mode = args[++index];
+      if (mode !== "deterministic-harness") {
+        throw new Error(
+          `${argument} requires deterministic-harness; model-pilot is not implemented.`,
+        );
+      }
+      options.mode = mode;
+      continue;
     }
     if (argument === "--fixtures") {
       options.fixturePath = resolve(REPO_ROOT, args[++index] ?? "");
@@ -183,8 +202,10 @@ function timestampId(date: Date): string {
   return date.toISOString().replaceAll(/[-:.]/g, "");
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+export async function runForecastingCli(
+  args: readonly string[],
+): Promise<string> {
+  const options = parseArgs(args);
 
   const { fixtureDigest, fixtureSet, driftScenarioCount, cleanScenarioCount } =
     await loadFixtureFile(options.fixturePath);
@@ -198,7 +219,7 @@ async function main(): Promise<void> {
   const promptDigest = fingerprint({
     experiment: EXPERIMENT_ID,
     protocolVersion: PROTOCOL_VERSION,
-    policy: "deterministic-forecasting-council-demo-v1",
+    policy: FORECASTING_POLICY,
   });
 
   const provenance: TrialProvenance = {
@@ -236,15 +257,18 @@ async function main(): Promise<void> {
   );
 
   const summary = summarizeForecasting(records, fixtureSet.scenarios);
-  if (!summary.leakageAuditPassed) {
-    throw new Error(
-      `Leakage audit gate failed: ${summary.leakageAuditFailures.join("; ")}`,
-    );
-  }
 
   const createdAt = new Date();
   const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
   const outputDirectory = join(options.outputRoot, runId);
+  const protocolFingerprint = fingerprint({
+    experiment: EXPERIMENT_ID,
+    protocolVersion: PROTOCOL_VERSION,
+    policy: FORECASTING_POLICY,
+    conditions,
+    aggregationInterpretation: "canonical-probability-format",
+    scorer: FORECASTING_SCORER_FINGERPRINT,
+  });
   const bundle = await writeResultBundleWith(
     outputDirectory,
     {
@@ -265,6 +289,19 @@ async function main(): Promise<void> {
       trialCount: records.length,
       fixtureDigest,
       leakageAuditPassed: summary.leakageAuditPassed,
+      scorer: {
+        version: FORECASTING_SCORER_VERSION,
+        fingerprint: FORECASTING_SCORER_FINGERPRINT,
+      },
+      protocolFingerprint,
+      runConfiguration: {
+        mode: "deterministic-harness" as const,
+        seeds,
+        orderSeed: options.orderSeed,
+        semanticBackend: options.semanticBackend,
+        policy: FORECASTING_POLICY,
+        aggregationInterpretation: "canonical-probability-format" as const,
+      },
       provenance,
     },
     records,
@@ -285,6 +322,12 @@ async function main(): Promise<void> {
     "utf8",
   );
 
+  if (!summary.leakageAuditPassed) {
+    throw new Error(
+      `Leakage audit gate failed; failed result bundle preserved at ${bundle.directory}: ${summary.leakageAuditFailures.join("; ")}`,
+    );
+  }
+
   console.log(
     `Forecasting council demo completed: ${summary.trialCount} trials.`,
   );
@@ -301,6 +344,7 @@ async function main(): Promise<void> {
         `correctExcl=${condition.correctExclusions} falseExcl=${condition.falseExclusions}`,
     );
   }
+  return bundle.directory;
 }
 
 function isEntryPoint(): boolean {
@@ -309,7 +353,7 @@ function isEntryPoint(): boolean {
 }
 
 if (isEntryPoint()) {
-  main().catch((error: unknown) => {
+  runForecastingCli(process.argv.slice(2)).catch((error: unknown) => {
     const message =
       error instanceof Error ? (error.stack ?? error.message) : String(error);
     console.error(message);

@@ -20,7 +20,18 @@ export interface SizeReuseConditionSummary {
   meanCumulativeWireBytes: number;
   meanCumulativeHydrationBytes: number;
   meanTotalSemanticBytes: number;
+  meanInputTokens: number;
+  meanCachedInputTokensRead: number;
+  meanCachedInputTokensWritten: number;
+  meanOutputTokens: number;
+  meanReasoningTokens: number | null;
   meanTotalModelTokens: number;
+  modelMessages: number;
+  modelFailureMessages: number;
+  modelFailureRate: number;
+  totalAttempts: number;
+  totalRetries: number;
+  totalProviderErrors: number;
   meanCostUsd: number | null;
   /** Primary endpoint 1: graded score per 1000 billable model tokens. */
   scorePerKToken: number;
@@ -90,6 +101,20 @@ export function summarizeSizeReuse(
       const taskSuccesses = trials.filter(
         (trial) => trial.metrics.taskSuccess,
       ).length;
+      const modelMessages = trials.reduce(
+        (total, trial) =>
+          total +
+          trial.metrics.messages.filter((message) => message.usage !== null)
+            .length,
+        0,
+      );
+      const modelFailureMessages = trials.reduce(
+        (total, trial) => total + trial.metrics.modelFailureMessages,
+        0,
+      );
+      const reasoning = trials
+        .map((trial) => trial.metrics.reasoningTokens)
+        .filter((value): value is number => value !== null);
       const summedScore = scores.reduce((sum, value) => sum + value, 0);
       return {
         condition,
@@ -108,7 +133,36 @@ export function summarizeSizeReuse(
           trials.map((trial) => trial.metrics.cumulativeHydrationBytes),
         ),
         meanTotalSemanticBytes: mean(semanticBytes),
+        meanInputTokens: mean(
+          trials.map((trial) => trial.metrics.totalInputTokens),
+        ),
+        meanCachedInputTokensRead: mean(
+          trials.map((trial) => trial.metrics.totalCachedInputTokensRead),
+        ),
+        meanCachedInputTokensWritten: mean(
+          trials.map((trial) => trial.metrics.totalCachedInputTokensWritten),
+        ),
+        meanOutputTokens: mean(
+          trials.map((trial) => trial.metrics.totalOutputTokens),
+        ),
+        meanReasoningTokens: reasoning.length === 0 ? null : mean(reasoning),
         meanTotalModelTokens: mean(modelTokens),
+        modelMessages,
+        modelFailureMessages,
+        modelFailureRate:
+          modelMessages === 0 ? 0 : modelFailureMessages / modelMessages,
+        totalAttempts: trials.reduce(
+          (total, trial) => total + trial.metrics.totalAttempts,
+          0,
+        ),
+        totalRetries: trials.reduce(
+          (total, trial) => total + trial.metrics.totalRetries,
+          0,
+        ),
+        totalProviderErrors: trials.reduce(
+          (total, trial) => total + trial.metrics.totalProviderErrors,
+          0,
+        ),
         meanCostUsd: costs.length === 0 ? null : mean(costs),
         scorePerKToken: ratePerK(
           summedScore,
@@ -160,7 +214,14 @@ function number(value: number, digits = 1): string {
   return value.toFixed(digits);
 }
 
-export function sizeReuseSummaryMarkdown(summary: SizeReuseSummary): string {
+export type SizeReuseSummaryMode =
+  "deterministic-harness" | "model-pilot" | "confirmatory";
+
+export function sizeReuseSummaryMarkdown(
+  summary: SizeReuseSummary,
+  mode: SizeReuseSummaryMode = "deterministic-harness",
+): string {
+  const isModelRun = mode !== "deterministic-harness";
   const rows = summary.conditions.map((condition) =>
     [
       condition.condition,
@@ -172,7 +233,22 @@ export function sizeReuseSummaryMarkdown(summary: SizeReuseSummary): string {
       number(condition.meanCumulativeWireBytes),
       number(condition.meanCumulativeHydrationBytes),
       number(condition.meanTotalSemanticBytes),
-      number(condition.meanTotalModelTokens),
+      ...(isModelRun
+        ? [
+            number(condition.meanInputTokens),
+            number(condition.meanCachedInputTokensRead),
+            number(condition.meanCachedInputTokensWritten),
+            number(condition.meanOutputTokens),
+            condition.meanReasoningTokens === null
+              ? "n/a"
+              : number(condition.meanReasoningTokens),
+            number(condition.meanTotalModelTokens),
+            condition.modelFailureMessages,
+            `${(condition.modelFailureRate * 100).toFixed(1)}%`,
+            condition.totalRetries,
+            condition.totalProviderErrors,
+          ]
+        : [number(condition.meanTotalModelTokens)]),
       number(condition.scorePerKToken, 4),
       number(condition.scorePerKSemanticByte, 4),
     ].join(" | "),
@@ -191,15 +267,25 @@ export function sizeReuseSummaryMarkdown(summary: SizeReuseSummary): string {
     ].join(" | "),
   );
 
+  const caveat = isModelRun
+    ? "> Exploratory model-run results (ADR 0013), not confirmatory evidence. Wire and resolver hydration are harness-measured byte channels. Input, cached-input, reasoning, output, retry, error, stop, and cost telemetry are provider-reported and preserved per message; cached input may overlap provider-reported input totals (ADR 0011)."
+    : "> Harness validation only (ADR 0013). Deterministic-mode outcomes are scripted and are not empirical evidence about language models. Token prices are illustrative constants; the deterministic token model attributes each definition ingestion once per wire delivery (prose: every message; resolver: once), abstracting away provider conversation-history re-billing and prompt caching (observational per ADR 0011). Pattern count is fixed at p8, cache is cold.";
+  const tableHeader = isModelRun
+    ? "Condition | Trials | Size | R | Delivery | Mean score | Cum wire B | Cum hydration B | Total semantic B | Input tok | Cached read tok | Cached write tok | Output tok | Reasoning tok | Total tok | Failed calls | Failure rate | Retries | Provider errors | Score / 1k tok | Score / 1k B"
+    : "Condition | Trials | Size | R | Delivery | Mean score | Cum wire B | Cum hydration B | Total semantic B | Total tok | Score / 1k tok | Score / 1k B";
+  const tableAlignment = isModelRun
+    ? "--- | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:"
+    : "--- | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---:";
+
   return [
     "# Sema tax curve — size/reuse arm summary",
     "",
-    "> Harness validation only (ADR 0013). Deterministic-mode outcomes are scripted and are not empirical evidence about language models. Token prices are illustrative constants; the deterministic token model attributes each definition ingestion once per wire delivery (prose: every message; resolver: once), abstracting away provider conversation-history re-billing and prompt caching (observational per ADR 0011). Pattern count is fixed at p8, cache is cold.",
+    caveat,
     "",
     `Trials: ${summary.trialCount} across ${summary.scenarioCount} scenarios.`,
     "",
-    "Condition | Trials | Size | R | Delivery | Mean score | Cum wire B | Cum hydration B | Total semantic B | Total tok | Score / 1k tok | Score / 1k B",
-    "--- | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
+    tableHeader,
+    tableAlignment,
     ...rows,
     "",
     "## Crossover surface (prose vs content-addressed, per size × R)",

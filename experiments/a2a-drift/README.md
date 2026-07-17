@@ -6,6 +6,14 @@ deterministic demo, that the Sema semantic extension turns _silent execution
 under cross-agent registry drift_ into either voluntary detection or an enforced
 halt — depending only on which A2A extension point is honored.
 
+## Evidence role
+
+This is **mechanism validation** for an A2A-shaped semantic extension. It shows
+that the in-repo middleware can detect and enforce against controlled registry
+drift. It is not conformance evidence against an official A2A SDK or HTTP
+transport, and its deterministic agents are not evidence of workflow utility.
+The model-pilot arm is exploratory evidence about the named worker setup only.
+
 ## Design
 
 Two agents — a requester and a worker — exchange A2A-shaped task messages through
@@ -96,9 +104,23 @@ pnpm experiment:a2a -- \
   --repetitions 5
 ```
 
-`model-pilot` requires the selected provider's API key env var
-(`ANTHROPIC_API_KEY` or `CHUTES_API_KEY` by default). Outcomes are exploratory
-and must not be presented as confirmatory evidence.
+The same command also accepts `claude-code`, `codex-cli`, `grok-build`,
+`cursor-agent`, or `opencode` through ambient subscription authentication:
+
+```bash
+pnpm experiment:a2a -- \
+  --mode model-pilot \
+  --provider codex-cli \
+  --model gpt-5.6 \
+  --repetitions 5
+```
+
+API providers require their selected key env var (`ANTHROPIC_API_KEY` or
+`CHUTES_API_KEY` by default). Subscription harnesses accept
+`--harness-bin`/`--harness-cwd` and record the exact CLI version and harness
+controls. Outcomes are exploratory and must not be presented as confirmatory
+evidence. See
+[ADR 0019](../../docs/adr/0019-subscription-cli-harness-adapters.md).
 
 Deterministic harness outcomes are constructed and must not be presented as
 evidence about language models, nor as conformance evidence against a real A2A

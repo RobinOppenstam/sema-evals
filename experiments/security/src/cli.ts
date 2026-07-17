@@ -20,14 +20,21 @@ import {
 import { writeResultBundleWith } from "@sema-evals/reporters";
 
 import { buildConditions } from "./conditions.js";
-import { loadCannedFindings, loadCases } from "./fixtures.js";
+import {
+  buildSecurityTrialScenarios,
+  loadCannedFindings,
+  loadCases,
+} from "./fixtures.js";
 import { detectFoundry } from "./foundry.js";
 import { assertNoCardLeakage, loadPatternCards } from "./leakage.js";
 import {
   securityResultManifestSchema,
   securityTrialRecordSchema,
 } from "./schemas.js";
-import { SECURITY_SCORER_VERSION } from "./scorer.js";
+import {
+  SECURITY_SCORER_FINGERPRINT,
+  SECURITY_SCORER_VERSION,
+} from "./scorer.js";
 import { securitySummaryMarkdown, summarizeSecurity } from "./summary.js";
 import { runSecurityTrial } from "./trial.js";
 
@@ -43,6 +50,7 @@ const DEFAULT_CANNED = join(
   "experiments/security/fixtures/canned-findings.json",
 );
 const DEFAULT_FP_BUDGET = 1;
+const SECURITY_POLICY = "security-instrumentation-v2-source-pairs";
 
 interface CliOptions {
   mode: "instrumentation";
@@ -245,6 +253,7 @@ async function main(): Promise<void> {
   );
   const canned = await loadCannedFindings(options.cannedPath);
   const conditions = buildConditions();
+  const scenarios = buildSecurityTrialScenarios(loaded.cases);
   const foundry = await detectFoundry(options.withFoundry);
 
   const referenceProvider = createReferenceProvider(options);
@@ -254,7 +263,7 @@ async function main(): Promise<void> {
   const promptDigest = fingerprint({
     experiment: EXPERIMENT_ID,
     protocolVersion: PROTOCOL_VERSION,
-    policy: "security-instrumentation-v1",
+    policy: SECURITY_POLICY,
     scorerVersion: SECURITY_SCORER_VERSION,
   });
 
@@ -276,8 +285,8 @@ async function main(): Promise<void> {
   const cells = planPairedMatrix({
     experimentId: EXPERIMENT_ID,
     protocolVersion: PROTOCOL_VERSION,
-    scenarios: loaded.cases,
-    scenarioId: (scenario) => scenario.meta.id,
+    scenarios,
+    scenarioId: (scenario) => scenario.scenarioId,
     conditions,
     seeds,
     orderSeed: options.orderSeed,
@@ -297,6 +306,15 @@ async function main(): Promise<void> {
   const createdAt = new Date();
   const runId = `${timestampId(createdAt)}-order-${options.orderSeed}`;
   const outputDirectory = join(options.outputRoot, runId);
+  const protocolFingerprint = fingerprint({
+    experiment: EXPERIMENT_ID,
+    protocolVersion: PROTOCOL_VERSION,
+    policy: SECURITY_POLICY,
+    conditions,
+    sourceVariants: ["vulnerable", "patched"],
+    taskPayloadFields: ["source"],
+    scorer: SECURITY_SCORER_FINGERPRINT,
+  });
   const bundle = await writeResultBundleWith(
     outputDirectory,
     {
@@ -311,12 +329,28 @@ async function main(): Promise<void> {
       orderSeed: options.orderSeed,
       seeds,
       conditions,
-      scenarioCount: loaded.cases.length,
+      scenarioCount: scenarios.length,
+      caseCount: loaded.cases.length,
+      cleanNegativeScenarioCount: loaded.cases.length,
       trainCaseCount: loaded.trainCaseCount,
       heldoutCaseCount: loaded.heldoutCaseCount,
       trialCount: records.length,
       fpBudget: options.fpBudget,
       scorerVersion: SECURITY_SCORER_VERSION,
+      scorer: {
+        version: SECURITY_SCORER_VERSION,
+        fingerprint: SECURITY_SCORER_FINGERPRINT,
+      },
+      protocolFingerprint,
+      runConfiguration: {
+        mode: "instrumentation" as const,
+        seeds,
+        orderSeed: options.orderSeed,
+        fpBudgetPerSource: options.fpBudget,
+        semanticBackend: options.semanticBackend,
+        policy: SECURITY_POLICY,
+        sourceVariants: ["vulnerable", "patched"] as const,
+      },
       fixtureDigest: loaded.fixtureDigest,
       provenance,
       withFoundry: options.withFoundry,
@@ -347,7 +381,7 @@ async function main(): Promise<void> {
     console.log(
       `${condition.condition.padEnd(22)} ` +
         `recall=${(condition.meanRecall * 100).toFixed(0)}% ` +
-        `recall@budget=${(condition.recallAtFpBudget * 100).toFixed(0)}% ` +
+        `recall@budget=${condition.recallAtFpBudget === null ? "n/a" : `${(condition.recallAtFpBudget * 100).toFixed(0)}%`} ` +
         `TP=${condition.totalTruePositives} FP=${condition.totalFalsePositives}`,
     );
   }

@@ -123,6 +123,28 @@ export const semaTaxResultManifestSchema = z.object({
   scenarioCount: z.number().int().positive(),
   trialCount: z.number().int().positive(),
   fixtureDigest: z.string().length(64),
+  scorer: z
+    .object({
+      version: z.string().min(1),
+      fingerprint: z.string().length(64),
+    })
+    .optional(),
+  protocolFingerprint: z.string().length(64).optional(),
+  runConfiguration: z
+    .object({
+      arm: z.literal("default"),
+      provider: z.string().min(1),
+      model: z.string().min(1),
+      seeds: z.array(z.number().int().nonnegative()).min(1),
+      concurrency: z.number().int().positive(),
+      maxTokens: z.number().int().positive().nullable(),
+      semanticBackend: z.string().min(1),
+      thinking: z.string().min(1).nullable(),
+      endpointHost: z.string().nullable(),
+      harness: z.record(z.string(), z.string()).nullable().optional(),
+      orderSeed: z.number().int().nonnegative(),
+    })
+    .optional(),
   provenance: trialProvenanceSchema,
 });
 

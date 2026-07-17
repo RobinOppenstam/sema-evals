@@ -12,6 +12,7 @@
     "@sema-evals/adapters": "workspace:*",
     "@sema-evals/core": "workspace:*",
     "@sema-evals/reporters": "workspace:*",
+    "@sema-evals/workflow-runner": "workspace:*",
     "zod": "^3.25.76"
   }
 }

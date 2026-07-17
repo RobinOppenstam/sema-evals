@@ -5,6 +5,15 @@ that measures corrupted aggregation under coordination-term drift, and
 distinguishes voluntary detection from enforced exclusion — depending only on
 whether content-addressed references to the coordination substrate are honored.
 
+## Evidence role
+
+This currently provides **mechanism validation** for coordination-term drift
+and a **workflow-utility scaffold** for forecasting. Synthetic questions and
+scripted probabilities validate aggregation, leakage gating, and scoring; they
+do not establish improved forecasting. A utility pilot requires frozen
+historical questions acquired under the research plan's dataset gate, followed
+by real model runs with mandatory market and independent-agent baselines.
+
 ## Design
 
 A council of scripted forecasters (default 5) first forecasts independently,
@@ -22,7 +31,7 @@ Sema aligns the coordination substrate — never beliefs or point estimates:
 | `ResolutionDefinition` | What counts as YES / NO                     |
 | `EvidenceCutoff`       | Latest time evidence may be used            |
 | `ProbabilityFormat`    | Unit interval (0–1) vs percent (0–100)      |
-| `AggregationRule`      | Probability mean after format normalization |
+| `AggregationRule`      | Probability mean under canonical formatting |
 
 ### Conditions
 
@@ -34,6 +43,12 @@ Sema aligns the coordination substrate — never beliefs or point estimates:
 
 No-drift controls run under all three conditions on the same scenario/seed
 blocks, so the false-exclusion guard is measured on the same pairing.
+
+All conditions use the **same canonical numeric interpretation and aggregation
+rule**. Addressing may surface a mismatch and enforcement may change inclusion,
+but a drifted agent's private registry never repairs its number only in an
+addressed arm. Aggregates outside `[0, 1]` are preserved as corrupted raw
+outputs; their Brier score is `null` because Brier is defined for probabilities.
 
 - **Primary endpoint**: corrupted aggregation under drift —
   `driftInjected && driftedForecastIncluded && !driftDetected`.
@@ -65,5 +80,10 @@ pnpm experiment:forecasting -- \
 Deterministic harness outcomes are constructed and must not be presented as
 evidence about language models, nor as evidence about live prediction markets.
 
-**Model-pilot mode**, real Polymarket sourcing, and the evidence-pack arm are
-future work; see ADR 0017.
+**Model-pilot mode is not runnable.** The executor contract exists, but real
+Polymarket sourcing, provider configuration, leakage-audited prompts, and the
+evidence-pack arm remain future work; see ADR 0017.
+
+`src/model-executor.ts` now defines the separate council-member prompt executor
+and strict forecast result contract. `model-readiness.json` remains blocked on
+real questions, a model-specific leakage audit, and model configuration.

@@ -121,4 +121,14 @@ describe("summarizeSemaTax", () => {
     expect(markdown).toContain("ADR 0011");
     expect(markdown).toContain("p0-baseline");
   });
+
+  it("renders an exploratory caveat for model-pilot summaries", async () => {
+    const records = await runMatrix();
+    const markdown = semaTaxSummaryMarkdown(
+      summarizeSemaTax(records),
+      "model-pilot",
+    );
+    expect(markdown).toContain("Exploratory model-run results");
+    expect(markdown).not.toContain("Harness validation only");
+  });
 });

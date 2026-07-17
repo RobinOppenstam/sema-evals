@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "x402-model-readiness-v1",
+  "ready": false,
+  "paperReplayReady": true,
+  "modelConfigured": false,
+  "sdkConformanceReady": false,
+  "productionWritesDisabled": true,
+  "blockReasons": [
+    "model-provider-not-configured",
+    "real-sdk-transport-conformance-not-complete"
+  ]
+}

@@ -8,6 +8,14 @@ how that cost trades against task quality.
 
 Design and rationale: [ADR 0010](../../docs/adr/0010-sema-tax-experiment-design.md).
 
+## Evidence role
+
+This is the suite's **amortization and economics** track. Wire and hydration
+bytes are controlled measurement channels. Deterministic token/cost values are
+an explicit simulator, while real provider tokens, cache behavior, latency, and
+prices come only from exploratory model runs and retain their observational
+limits. This experiment does not by itself establish broad workflow utility.
+
 ## The task family
 
 Each scenario is a **worksheet** of items. Every item names a pattern (a compact
@@ -109,13 +117,18 @@ CHUTES_API_KEY=... pnpm experiment:sema-tax -- \
 
 Model-pilot flags match the Babel Relay exactly (`--provider`, `--base-url`,
 `--api-key-env`, `--model`, `--thinking`, `--max-tokens`, `--repetitions`,
-`--concurrency`); see the [Babel Relay README](../babel-relay/README.md) and
+`--concurrency`, `--harness-bin`, `--harness-cwd`). The provider may also be
+`claude-code`, `codex-cli`, `grok-build`, `cursor-agent`, or `opencode`; these
+use ambient subscription authentication and are recorded as distinct versioned
+harness implementations. See the
+[Babel Relay README](../babel-relay/README.md) and
 [ADR 0007](../../docs/adr/0007-openai-compatible-provider-adapter.md) /
-[ADR 0008](../../docs/adr/0008-concurrent-execution-and-timeouts.md). Trials are
+[ADR 0008](../../docs/adr/0008-concurrent-execution-and-timeouts.md) /
+[ADR 0019](../../docs/adr/0019-subscription-cli-harness-adapters.md). Trials are
 started in the planned, seed-randomized order; records are written in planned
-order; one progress line per completed trial goes to stderr. `model-pilot` mode
-fails fast when the selected provider's key env var is unset and never runs in
-CI.
+order; one progress line per completed trial goes to stderr. API-backed
+`model-pilot` runs fail fast when the selected provider's key env var is unset;
+subscription harnesses use ambient CLI auth. Live model runs never run in CI.
 
 The semantic backend flags (`--semantic-backend`, `--sema-python`) compose with
 either mode, exactly as in the Babel Relay.

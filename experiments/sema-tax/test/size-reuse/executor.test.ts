@@ -1,7 +1,15 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FixtureReferenceProvider } from "@sema-evals/adapters";
+import {
+  FixtureReferenceProvider,
+  type ModelAgentAdapter,
+  type ModelAgentResponse,
+  type ModelCompletion,
+  type ModelCompletionStatus,
+  type ModelPromptInput,
+  type UsageTelemetry,
+} from "@sema-evals/adapters";
 import {
   ARTIFACT_SCHEMA_VERSION,
   PROTOCOL_VERSION,
@@ -13,7 +21,10 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { buildSizeReuseConditions } from "../../src/size-reuse/conditions.js";
-import { runSimulatedSizeReuseTrial } from "../../src/size-reuse/executor.js";
+import {
+  runModelSizeReuseTrial,
+  runSimulatedSizeReuseTrial,
+} from "../../src/size-reuse/executor.js";
 import { loadSizeReuseFixtureFile } from "../../src/size-reuse/fixtures.js";
 import {
   semaTaxSizeReuseTrialRecordSchema,
@@ -83,6 +94,78 @@ async function runOne(
     patternsByHandle,
     provenance,
   });
+}
+
+function usageOf(overrides: Partial<UsageTelemetry>): UsageTelemetry {
+  return {
+    inputTokens: 0,
+    cachedInputTokensRead: 0,
+    cachedInputTokensWritten: 0,
+    reasoningTokens: null,
+    outputTokens: 0,
+    attempts: 1,
+    retries: 0,
+    errors: [],
+    latencyMs: 1,
+    stopReason: "end_turn",
+    costUsd: null,
+    ...overrides,
+  };
+}
+
+function sequenceAdapter(
+  responses: readonly {
+    status: ModelCompletionStatus;
+    text: string;
+    usage: UsageTelemetry;
+  }[],
+): ModelAgentAdapter<ModelPromptInput, ModelCompletion> {
+  let index = 0;
+  return {
+    descriptor: {
+      id: "sequence",
+      provider: "fake",
+      model: "fake",
+      deterministic: false,
+    },
+    invoke: async (): Promise<ModelAgentResponse<ModelCompletion>> => {
+      const response = responses[index++];
+      if (!response) {
+        throw new Error("Sequence adapter exhausted.");
+      }
+      return {
+        output: {
+          status: response.status,
+          text: response.text,
+          stopReason: response.usage.stopReason,
+        },
+        elapsedMs: response.usage.latencyMs,
+        raw: null,
+        usage: response.usage,
+        transcript: {
+          entries: [
+            {
+              index: 0,
+              attempt: 0,
+              role:
+                response.status === "error"
+                  ? ("error" as const)
+                  : ("assistant" as const),
+              content: [
+                {
+                  type: "text",
+                  text: response.text,
+                  toolName: null,
+                  toolInput: null,
+                },
+              ],
+              raw: null,
+            },
+          ],
+        },
+      };
+    },
+  };
 }
 
 describe("runSimulatedSizeReuseTrial scoring", () => {
@@ -296,5 +379,103 @@ describe("runSimulatedSizeReuseTrial matrix", () => {
     expect(a.metrics.totalSemanticBytes).toBe(b.metrics.totalSemanticBytes);
     expect(a.metrics.totalModelTokens).toBe(b.metrics.totalModelTokens);
     expect(a.metrics.score).toBe(b.metrics.score);
+  });
+});
+
+describe("runModelSizeReuseTrial telemetry", () => {
+  it("preserves per-message failures and merges all provider usage fields", async () => {
+    const { scenario, patternsByHandle } = await load();
+    const responses = [
+      {
+        status: "completed" as const,
+        text: "",
+        usage: usageOf({
+          inputTokens: 100,
+          cachedInputTokensRead: 10,
+          cachedInputTokensWritten: 2,
+          reasoningTokens: 5,
+          outputTokens: 20,
+          attempts: 2,
+          retries: 1,
+          errors: ["retry-1"],
+          latencyMs: 11,
+          stopReason: "end_turn",
+          costUsd: 0.001,
+        }),
+      },
+      {
+        status: "truncated" as const,
+        text: "partial",
+        usage: usageOf({
+          inputTokens: 200,
+          cachedInputTokensRead: 20,
+          cachedInputTokensWritten: 3,
+          outputTokens: 30,
+          latencyMs: 12,
+          stopReason: "max_tokens",
+        }),
+      },
+      {
+        status: "error" as const,
+        text: "",
+        usage: usageOf({
+          attempts: 3,
+          retries: 2,
+          errors: ["retry-2", "retry-3", "provider-failed"],
+          latencyMs: 13,
+          stopReason: null,
+          costUsd: 0.002,
+        }),
+      },
+    ];
+
+    const record = await runModelSizeReuseTrial(
+      cellFor(scenario, "p8-medium-r3-content-cold"),
+      {
+        experimentId: "sema-tax",
+        referenceProvider: new FixtureReferenceProvider(),
+        patternsByHandle,
+        provenance: {
+          ...provenance,
+          modelProvider: "fake",
+          modelName: "fake",
+        },
+        adapter: sequenceAdapter(responses),
+      },
+    );
+
+    expect(
+      record.metrics.messages.map((message) => message.completionStatus),
+    ).toEqual(["completed", "truncated", "error"]);
+    expect(record.metrics.messages[1]?.usage?.stopReason).toBe("max_tokens");
+    expect(record.metrics.messages[2]?.usage?.errors).toEqual([
+      "retry-2",
+      "retry-3",
+      "provider-failed",
+    ]);
+    expect(record.metrics.modelFailureMessages).toBe(2);
+    expect(record.metrics.taskSuccess).toBe(false);
+    expect(record.metrics.totalCachedInputTokensRead).toBe(30);
+    expect(record.metrics.totalCachedInputTokensWritten).toBe(5);
+    expect(record.metrics.totalAttempts).toBe(6);
+    expect(record.metrics.totalRetries).toBe(3);
+    expect(record.metrics.totalProviderErrors).toBe(4);
+    expect(record.usage).toMatchObject({
+      inputTokens: 300,
+      cachedInputTokensRead: 30,
+      cachedInputTokensWritten: 5,
+      reasoningTokens: 5,
+      outputTokens: 50,
+      attempts: 6,
+      retries: 3,
+      errors: ["retry-1", "retry-2", "retry-3", "provider-failed"],
+      latencyMs: 36,
+      stopReason: null,
+      costUsd: 0.003,
+    });
+    expect(record.transcript?.entries.map((entry) => entry.index)).toEqual([
+      0, 1, 2,
+    ]);
+    expect(semaTaxSizeReuseTrialRecordSchema.parse(record)).toEqual(record);
   });
 });

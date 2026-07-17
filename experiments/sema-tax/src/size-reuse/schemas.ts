@@ -83,6 +83,12 @@ export const semaTaxSizeReuseDeliverySchema = z.enum(
   SEMA_TAX_SIZE_REUSE_DELIVERIES,
 );
 export const semaTaxSizeTierSchema = z.enum(SEMA_TAX_SIZE_TIERS);
+export const semaTaxModelCompletionStatusSchema = z.enum([
+  "completed",
+  "refused",
+  "truncated",
+  "error",
+]);
 
 /** Condition ids: `p{n}-{size}-r{R}-{delivery}-cold`. */
 export const semaTaxSizeReuseConditionSchema = z
@@ -103,6 +109,9 @@ export const semaTaxMessageMetricsSchema = z.object({
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   totalModelTokens: z.number().int().nonnegative(),
+  /** Provider call outcome and full telemetry; both null in deterministic mode. */
+  completionStatus: semaTaxModelCompletionStatusSchema.nullable(),
+  usage: usageTelemetrySchema.nullable(),
   itemsTotal: z.number().int().positive(),
   itemsAnswered: z.number().int().nonnegative(),
   itemsCorrect: z.number().int().nonnegative(),
@@ -130,6 +139,8 @@ export const semaTaxSizeReuseMetricsSchema = z.object({
   /** Primary byte denominator: cumulative wire + cumulative hydration. */
   totalSemanticBytes: z.number().int().nonnegative(),
   totalInputTokens: z.number().int().nonnegative(),
+  totalCachedInputTokensRead: z.number().int().nonnegative(),
+  totalCachedInputTokensWritten: z.number().int().nonnegative(),
   totalOutputTokens: z.number().int().nonnegative(),
   /** Primary token denominator: summed billable model tokens across messages. */
   totalModelTokens: z.number().int().nonnegative(),
@@ -140,6 +151,10 @@ export const semaTaxSizeReuseMetricsSchema = z.object({
   score: z.number().min(0).max(1),
   /** Binary success: every message fully correct. */
   taskSuccess: z.boolean(),
+  modelFailureMessages: z.number().int().nonnegative(),
+  totalAttempts: z.number().int().nonnegative(),
+  totalRetries: z.number().int().nonnegative(),
+  totalProviderErrors: z.number().int().nonnegative(),
   reasoningTokens: z.number().int().nonnegative().nullable(),
   costUsd: z.number().nonnegative().nullable(),
   elapsedMs: z.number().nonnegative(),
@@ -179,6 +194,28 @@ export const semaTaxSizeReuseResultManifestSchema = z.object({
   scenarioCount: z.number().int().positive(),
   trialCount: z.number().int().positive(),
   fixtureDigest: z.string().length(64),
+  scorer: z
+    .object({
+      version: z.string().min(1),
+      fingerprint: z.string().length(64),
+    })
+    .optional(),
+  protocolFingerprint: z.string().length(64).optional(),
+  runConfiguration: z
+    .object({
+      arm: z.literal("size-reuse"),
+      provider: z.string().min(1),
+      model: z.string().min(1),
+      seeds: z.array(z.number().int().nonnegative()).min(1),
+      concurrency: z.number().int().positive(),
+      maxTokens: z.number().int().positive().nullable(),
+      semanticBackend: z.string().min(1),
+      thinking: z.string().min(1).nullable(),
+      endpointHost: z.string().nullable(),
+      harness: z.record(z.string(), z.string()).nullable().optional(),
+      orderSeed: z.number().int().nonnegative(),
+    })
+    .optional(),
   provenance: trialProvenanceSchema,
 });
 

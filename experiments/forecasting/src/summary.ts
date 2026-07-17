@@ -5,7 +5,7 @@ import type {
   ForecastingScenario,
   ForecastingTrialRecord,
 } from "./schemas.js";
-import { brierScore, meanProbability } from "./scoring.js";
+import { brierScore, isUnitProbability, meanProbability } from "./scoring.js";
 
 export interface ForecastingConditionSummary {
   condition: ForecastingCondition;
@@ -72,7 +72,8 @@ export function recomputeTrialBriers(record: ForecastingTrialRecord): {
   const outcome = record.metrics.outcome;
   return {
     brierAggregate:
-      record.metrics.aggregateProbability === null
+      record.metrics.aggregateProbability === null ||
+      !isUnitProbability(record.metrics.aggregateProbability)
         ? null
         : brierScore(record.metrics.aggregateProbability, outcome),
     brierMarketPrior: brierScore(record.metrics.marketPrior, outcome),
