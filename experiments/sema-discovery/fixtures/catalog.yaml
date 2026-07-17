@@ -1,0 +1,51 @@
+schemaVersion: "0.1.0"
+catalog:
+  - handle: ApiRelease
+    title: Service release workflow
+    purpose: Deploy a service release with health verification and rollback readiness.
+    tags: [deploy, service, release, health, rollback]
+    dependencies: [HealthVerification, RollbackReadiness]
+    steps: [stage-release, verify-health, confirm-rollback, promote-release]
+  - handle: HealthVerification
+    title: Health verification
+    purpose: Verify service health before promotion.
+    tags: [service, health, verify]
+    dependencies: []
+    steps: [check-readiness, check-error-rate]
+  - handle: RollbackReadiness
+    title: Rollback readiness
+    purpose: Confirm rollback artifacts before a release.
+    tags: [release, rollback, verify]
+    dependencies: []
+    steps: [confirm-previous-artifact, confirm-rollback-command]
+  - handle: BackupRelease
+    title: Service release backup
+    purpose: Archive service data before a release.
+    tags: [service, release, archive, backup]
+    dependencies: [ArchiveVerification]
+    steps: [snapshot-data, verify-archive]
+  - handle: ArchiveVerification
+    title: Archive verification
+    purpose: Verify a backup archive.
+    tags: [archive, backup, verify]
+    dependencies: []
+    steps: [check-archive]
+  - handle: IncidentTriage
+    title: Service incident triage
+    purpose: Triage an unhealthy service incident.
+    tags: [service, health, incident, rollback]
+    dependencies: []
+    steps: [collect-signals, classify-impact, escalate]
+scenarios:
+  - id: seed-service-release
+    title: Repeated service releases
+    correctHandle: ApiRelease
+    tasks:
+      - id: first-release
+        request: Deploy the service release with health verification and rollback readiness.
+        expectedActions:
+          [stage-release, verify-health, confirm-rollback, promote-release]
+      - id: second-release
+        request: Deploy another service release with health verification and rollback readiness.
+        expectedActions:
+          [stage-release, verify-health, confirm-rollback, promote-release]
