@@ -1,0 +1,516 @@
+{
+  "InclusivePaymentThreshold": {
+    "canonical": "94bd",
+    "mutated": "ae2d",
+    "id": "inclusive-payment-threshold",
+    "title": "Inclusive payment threshold",
+    "expectedAction": "halt",
+    "canonicalDefinition": {
+      "mechanism": "Compare the integer payment amount with the configured minimum before accepting the task.",
+      "gloss": "An inclusive minimum payment threshold in token base units.",
+      "invariants": [
+        "A payment of exactly 100000000 base units is accepted.",
+        "A payment below 100000000 base units is rejected."
+      ],
+      "parameters": [
+        {
+          "name": "minimum_base_units",
+          "type": "integer",
+          "range": [
+            100000000
+          ],
+          "value": 100000000,
+          "description": "Minimum accepted payment in token base units."
+        },
+        {
+          "name": "comparison",
+          "type": "enum",
+          "range": [
+            "greater-than-or-equal",
+            "greater-than"
+          ],
+          "value": "greater-than-or-equal",
+          "description": "Comparator applied at the payment boundary."
+        }
+      ],
+      "failure_modes": [
+        "Replacing the inclusive comparison with a strict comparison rejects the boundary value."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    },
+    "mutatedDefinition": {
+      "mechanism": "Compare the integer payment amount with the configured minimum before accepting the task.",
+      "gloss": "A strict minimum payment threshold in token base units.",
+      "invariants": [
+        "A payment must exceed 100000000 base units to be accepted.",
+        "A payment at or below 100000000 base units is rejected."
+      ],
+      "parameters": [
+        {
+          "name": "minimum_base_units",
+          "type": "integer",
+          "range": [
+            100000000
+          ],
+          "value": 100000000,
+          "description": "Minimum accepted payment in token base units."
+        },
+        {
+          "name": "comparison",
+          "type": "enum",
+          "range": [
+            "greater-than-or-equal",
+            "greater-than"
+          ],
+          "value": "greater-than",
+          "description": "Comparator applied at the payment boundary."
+        }
+      ],
+      "failure_modes": [
+        "Treating the threshold as inclusive accepts the boundary value."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    }
+  },
+  "OracleStalenessBoundary": {
+    "canonical": "036f",
+    "mutated": "752a",
+    "id": "oracle-staleness-boundary",
+    "title": "Exclusive oracle staleness limit",
+    "expectedAction": "halt",
+    "canonicalDefinition": {
+      "mechanism": "Subtract the observation timestamp from evaluation time and compare the age with the freshness limit.",
+      "gloss": "An exclusive upper bound for accepted oracle age.",
+      "invariants": [
+        "An observation aged exactly 30 seconds is stale.",
+        "An observation aged less than 30 seconds may be used."
+      ],
+      "parameters": [
+        {
+          "name": "maximum_age_seconds",
+          "type": "integer",
+          "range": [
+            30
+          ],
+          "value": 30,
+          "description": "Maximum oracle observation age in seconds."
+        },
+        {
+          "name": "comparison",
+          "type": "enum",
+          "range": [
+            "less-than",
+            "less-than-or-equal"
+          ],
+          "value": "less-than",
+          "description": "Comparator applied to the observation age."
+        }
+      ],
+      "failure_modes": [
+        "An inclusive comparison accepts data at the prohibited boundary."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    },
+    "mutatedDefinition": {
+      "mechanism": "Subtract the observation timestamp from evaluation time and compare the age with the freshness limit.",
+      "gloss": "An inclusive upper bound for accepted oracle age.",
+      "invariants": [
+        "An observation aged exactly 30 seconds remains fresh.",
+        "An observation aged at most 30 seconds may be used."
+      ],
+      "parameters": [
+        {
+          "name": "maximum_age_seconds",
+          "type": "integer",
+          "range": [
+            30
+          ],
+          "value": 30,
+          "description": "Maximum oracle observation age in seconds."
+        },
+        {
+          "name": "comparison",
+          "type": "enum",
+          "range": [
+            "less-than",
+            "less-than-or-equal"
+          ],
+          "value": "less-than-or-equal",
+          "description": "Comparator applied to the observation age."
+        }
+      ],
+      "failure_modes": [
+        "An exclusive comparison rejects data at the permitted boundary."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    }
+  },
+  "UsdcDecimalDomain": {
+    "canonical": "1450",
+    "mutated": "c2e4",
+    "id": "token-decimal-domain",
+    "title": "USDC decimal domain",
+    "expectedAction": "halt",
+    "canonicalDefinition": {
+      "mechanism": "Convert human USDC amounts into integer base units using the token's six-decimal domain.",
+      "gloss": "Six-decimal fixed-point conversion for USDC amounts.",
+      "invariants": [
+        "One USDC equals 1000000 base units.",
+        "Conversion never assumes an eighteen-decimal token domain."
+      ],
+      "parameters": [
+        {
+          "name": "decimals",
+          "type": "integer",
+          "range": [
+            6,
+            18
+          ],
+          "value": 6,
+          "description": "Fixed-point decimal domain used for conversion."
+        }
+      ],
+      "failure_modes": [
+        "Using eighteen decimals authorizes an amount one trillion times too large."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    },
+    "mutatedDefinition": {
+      "mechanism": "Convert human USDC amounts into integer base units using an eighteen-decimal domain.",
+      "gloss": "Eighteen-decimal fixed-point conversion for quoted amounts.",
+      "invariants": [
+        "One quoted unit equals 1000000000000000000 base units.",
+        "Conversion follows the common eighteen-decimal token convention."
+      ],
+      "parameters": [
+        {
+          "name": "decimals",
+          "type": "integer",
+          "range": [
+            6,
+            18
+          ],
+          "value": 18,
+          "description": "Fixed-point decimal domain used for conversion."
+        }
+      ],
+      "failure_modes": [
+        "Using six decimals authorizes a much smaller base-unit amount."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    }
+  },
+  "ExactRetryCardinality": {
+    "canonical": "34d4",
+    "mutated": "46c3",
+    "id": "retry-cardinality",
+    "title": "Exact retry cardinality",
+    "expectedAction": "halt",
+    "canonicalDefinition": {
+      "mechanism": "Permit one unbilled retry after the initial timed-out request, then halt.",
+      "gloss": "Exactly one retry after the initial attempt.",
+      "invariants": [
+        "The total attempt count never exceeds two.",
+        "The retry creates no additional payment."
+      ],
+      "parameters": [
+        {
+          "name": "retries_after_initial",
+          "type": "integer",
+          "range": [
+            0,
+            1,
+            2
+          ],
+          "value": 1,
+          "description": "Retry count permitted after the initial request."
+        },
+        {
+          "name": "retry_billed",
+          "type": "boolean",
+          "range": [
+            false,
+            true
+          ],
+          "value": false,
+          "description": "Whether a retry creates a second payment."
+        }
+      ],
+      "failure_modes": [
+        "A second retry can duplicate a side effect or exceed the payment authorization."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    },
+    "mutatedDefinition": {
+      "mechanism": "Permit up to two unbilled retries after the initial timed-out request, then halt.",
+      "gloss": "Up to two retries after the initial attempt.",
+      "invariants": [
+        "The total attempt count never exceeds three.",
+        "Retries create no additional payment."
+      ],
+      "parameters": [
+        {
+          "name": "retries_after_initial",
+          "type": "integer",
+          "range": [
+            0,
+            1,
+            2
+          ],
+          "value": 2,
+          "description": "Retry count permitted after the initial request."
+        },
+        {
+          "name": "retry_billed",
+          "type": "boolean",
+          "range": [
+            false,
+            true
+          ],
+          "value": false,
+          "description": "Whether a retry creates a second payment."
+        }
+      ],
+      "failure_modes": [
+        "A third retry can duplicate a side effect or exceed the payment authorization."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    }
+  },
+  "RefundRecipient": {
+    "canonical": "e637",
+    "mutated": null,
+    "id": "refund-recipient-control",
+    "title": "Refund recipient no-drift control",
+    "expectedAction": "proceed",
+    "canonicalDefinition": {
+      "mechanism": "Read the immutable payer recorded at authorization and return escrow to that address after failure.",
+      "gloss": "Refund failed-task escrow to the original payer.",
+      "invariants": [
+        "A refund never goes to the task creator unless the creator was also the payer.",
+        "The refund amount cannot exceed the remaining escrow."
+      ],
+      "parameters": [
+        {
+          "name": "recipient",
+          "type": "enum",
+          "range": [
+            "original-payer",
+            "task-creator",
+            "caller"
+          ],
+          "value": "original-payer",
+          "description": "Address role that receives remaining escrow."
+        }
+      ],
+      "failure_modes": [
+        "Refunding the caller permits an intermediary to capture the escrow."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    },
+    "mutatedDefinition": {
+      "mechanism": "Read the immutable payer recorded at authorization and return escrow to that address after failure.",
+      "gloss": "Refund failed-task escrow to the original payer.",
+      "invariants": [
+        "A refund never goes to the task creator unless the creator was also the payer.",
+        "The refund amount cannot exceed the remaining escrow."
+      ],
+      "parameters": [
+        {
+          "name": "recipient",
+          "type": "enum",
+          "range": [
+            "original-payer",
+            "task-creator",
+            "caller"
+          ],
+          "value": "original-payer",
+          "description": "Address role that receives remaining escrow."
+        }
+      ],
+      "failure_modes": [
+        "Refunding the caller permits an intermediary to capture the escrow."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    }
+  },
+  "DistinctSignerThreshold": {
+    "canonical": "b858",
+    "mutated": null,
+    "id": "signer-threshold-control",
+    "title": "Distinct signer threshold no-drift control",
+    "expectedAction": "proceed",
+    "canonicalDefinition": {
+      "mechanism": "Recover every signer, reject duplicates, and require two members from the configured council.",
+      "gloss": "Two distinct authorized signers out of three.",
+      "invariants": [
+        "Duplicate signatures from one key count once.",
+        "Non-member signatures do not count toward quorum."
+      ],
+      "parameters": [
+        {
+          "name": "threshold",
+          "type": "integer",
+          "range": [
+            1,
+            2,
+            3
+          ],
+          "value": 2,
+          "description": "Number of authorized signatures required."
+        },
+        {
+          "name": "council_size",
+          "type": "integer",
+          "range": [
+            3
+          ],
+          "value": 3,
+          "description": "Number of configured council members."
+        },
+        {
+          "name": "distinct",
+          "type": "boolean",
+          "range": [
+            false,
+            true
+          ],
+          "value": true,
+          "description": "Whether duplicate signer identities are rejected."
+        }
+      ],
+      "failure_modes": [
+        "Counting duplicate signatures lets one key satisfy the threshold."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    },
+    "mutatedDefinition": {
+      "mechanism": "Recover every signer, reject duplicates, and require two members from the configured council.",
+      "gloss": "Two distinct authorized signers out of three.",
+      "invariants": [
+        "Duplicate signatures from one key count once.",
+        "Non-member signatures do not count toward quorum."
+      ],
+      "parameters": [
+        {
+          "name": "threshold",
+          "type": "integer",
+          "range": [
+            1,
+            2,
+            3
+          ],
+          "value": 2,
+          "description": "Number of authorized signatures required."
+        },
+        {
+          "name": "council_size",
+          "type": "integer",
+          "range": [
+            3
+          ],
+          "value": 3,
+          "description": "Number of configured council members."
+        },
+        {
+          "name": "distinct",
+          "type": "boolean",
+          "range": [
+            false,
+            true
+          ],
+          "value": true,
+          "description": "Whether duplicate signer identities are rejected."
+        }
+      ],
+      "failure_modes": [
+        "Counting duplicate signatures lets one key satisfy the threshold."
+      ],
+      "_meta": {
+        "path": [
+          "Society",
+          "Protocols"
+        ],
+        "ring": 2,
+        "tier": 3
+      }
+    }
+  }
+}
