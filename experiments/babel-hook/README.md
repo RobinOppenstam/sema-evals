@@ -125,7 +125,7 @@ python3 multihop.py > summary.txt 2> progress.log
 ```
 
 Raw records for the published runs live in
-`results/public/babel-hook/2026-07-18-haiku/`: per-trial JSONL for both multi-hop
+`experiments/babel-hook/records/2026-07-18-haiku/`: per-trial JSONL for both multi-hop
 runs and the single-hop pilot, run summaries, progress logs, minted stubs
 (`stubs.json`), and per-trial gate verdict logs (`gatelogs/`, run144;
 run36 gate logs were not retained).
