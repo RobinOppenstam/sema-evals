@@ -30,11 +30,11 @@ parsed with the babel-relay scorer-v2 convention (markdown-tolerant
 
 Conditions differ **only** in the gate mode (`SEMA_REF_GATE`):
 
-| Condition | Gate behavior | Babel-relay analog |
-| --- | --- | --- |
-| `off` | hook exits immediately | addressed transport, no verification |
-| `warn` | STALE verdict injected as model-visible context, never blocks | addressed-voluntary |
-| `enforce` | STALE ref blocks the hop (exit 2), relay halts | addressed-enforced |
+| Condition | Gate behavior                                                 | Babel-relay analog                   |
+| --------- | ------------------------------------------------------------- | ------------------------------------ |
+| `off`     | hook exits immediately                                        | addressed transport, no verification |
+| `warn`    | STALE verdict injected as model-visible context, never blocks | addressed-voluntary                  |
+| `enforce` | STALE ref blocks the hop (exit 2), relay halts                | addressed-enforced                   |
 
 All three conditions use the identical transport: content-addressed ref plus
 hydrated definition in every hop message.
@@ -61,11 +61,11 @@ interleave conditions so interrupted runs stay balanced.
 
 **Pooled multi-hop runs (run36 + run144 = 180 trials; n=60/arm: 40 drift + 20 clean):**
 
-| Condition | Detection (drift) | Silent divergence | Drift halted | Task success | Gate false blocks |
-| --- | --- | --- | --- | --- | --- |
-| off | 12/40 (30%) | 28/40 (70%) | 12/40 | 29/60 (48%) | — |
-| warn | 40/40 (100%) | 0/40 | 35/40 (87.5%) | 50/60 (83%) | 0 |
-| enforce | 40/40 (100%) | 0/40 | **40/40 (100%)** | 57/60 (95%) | 0 |
+| Condition | Detection (drift) | Silent divergence | Drift halted     | Task success | Gate false blocks |
+| --------- | ----------------- | ----------------- | ---------------- | ------------ | ----------------- |
+| off       | 12/40 (30%)       | 28/40 (70%)       | 12/40            | 29/60 (48%)  | —                 |
+| warn      | 40/40 (100%)      | 0/40              | 35/40 (87.5%)    | 50/60 (83%)  | 0                 |
+| enforce   | 40/40 (100%)      | 0/40              | **40/40 (100%)** | 57/60 (95%)  | 0                 |
 
 Key observations:
 
