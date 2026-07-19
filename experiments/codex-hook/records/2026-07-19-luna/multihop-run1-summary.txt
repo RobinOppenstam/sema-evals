@@ -1,0 +1,4 @@
+condition | trials | detection | silent_div | task_success | false_halts | malformed | hop_failed
+off      | 48 | 31/32 | 1/32 | 31/48 | 16 | 0 | 0
+warn     | 48 | 32/32 | 0/32 | 32/48 | 16 | 0 | 0
+enforce  | 48 | 32/32 | 0/32 | 32/48 | 16 | 0 | 0
