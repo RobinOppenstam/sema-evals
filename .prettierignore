@@ -5,3 +5,4 @@ pnpm-lock.yaml
 results
 .cache
 experiments/babel-hook/records/
+experiments/codex-hook/records/
