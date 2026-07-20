@@ -1,0 +1,3 @@
+{"mode": "warn", "refs": ["OracleStalenessBoundary#036f"], "stale": [], "unknown": [], "blocked": false, "gate_failed": false}
+{"mode": "warn", "refs": ["OracleStalenessBoundary#036f", "OracleStalenessBoundary#752a"], "stale": ["OracleStalenessBoundary#752a"], "unknown": [], "blocked": false, "gate_failed": false}
+{"mode": "warn", "refs": ["OracleStalenessBoundary#036f", "OracleStalenessBoundary#752a"], "stale": ["OracleStalenessBoundary#752a"], "unknown": [], "blocked": false, "gate_failed": false}

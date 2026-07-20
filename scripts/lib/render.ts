@@ -1411,6 +1411,12 @@ harness checks, and never markets a result. Runs are labelled by mode, and the d
 structural, not editorial. A <b>deterministic harness</b> run validates the measurement machinery
 and is <em>not</em> evidence about model behaviour. A <b>model pilot</b> is exploratory and not
 confirmatory. Only a <b>confirmatory</b> run tests a preregistered hypothesis.</p>
+<p>Disclosure: this site is maintained by a Sema core contributor and community moderator, and
+some experiments test code the maintainer authored. Independence here is methodological, not
+organizational &mdash; see the
+<a href="${REPO_URL}#independence-and-conflict-of-interest">full disclosure</a> for the
+safeguards (preregistration, raw records, build-time recomputation) that carry the evidential
+weight.</p>
 <p class="links"><a href="${REPO_URL}">Repository</a> &middot;
 <a href="${RESEARCH_PLAN_URL}">Research plan</a> &middot;
 <a href="${STANDARD_URL}">Experiment standard</a></p>`;

@@ -1,0 +1,16 @@
+{
+  "experimentId": "babel-hook",
+  "runId": "20260718T180000000Z-multihop-run144",
+  "mode": "exploratory",
+  "createdAt": "2026-07-18T18:00:00.000Z",
+  "evidenceClaim": "144-trial multi-hop babel relay through Claude Code with the ref-gate hook (haiku): warn detects 32/32 but 4 drifted relays ship anyway; enforce halts 32/32 pre-model.",
+  "provenance": {
+    "harness": "Claude Code",
+    "harnessVersion": "CLI 2.1.214",
+    "model": "claude-haiku-4-5",
+    "gateIntegration": "hook",
+    "gateSource": "RobinOppenstam/sema@feat/claude-hook-ref-gate (b00e062)",
+    "recordsPath": "experiments/babel-hook/records/2026-07-18-haiku/"
+  },
+  "deviations": []
+}

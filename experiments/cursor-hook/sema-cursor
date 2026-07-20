@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# sema-cursor — Tier 3 wrapper shim: gate cursor-agent behind `sema check`.
+#
+# Usage: sema-cursor [cursor-agent args...] "prompt"
+# The last argument is treated as the prompt. Modes via SEMA_REF_GATE:
+#   off      run cursor-agent untouched
+#   warn     prepend the sema check repair text to the prompt (model-visible)
+#   enforce  refuse to invoke cursor-agent at all when stale refs are present
+#
+# Requires: SEMA_PYTHON (interpreter with semahash importable) and optionally
+# SEMA_REF_GATE_DB. Exit 2 on an enforced block, mirroring hook semantics.
+set -euo pipefail
+
+MODE="${SEMA_REF_GATE:-warn}"
+SEMA_PY="${SEMA_PYTHON:-python3}"
+PROMPT="${@: -1}"
+ARGS=("${@:1:$#-1}")
+
+if [ "$MODE" = "off" ]; then
+  exec cursor-agent "${ARGS[@]}" "$PROMPT"
+fi
+
+CHECK_ARGS=(-m sema.cli.main check --json)
+[ -n "${SEMA_REF_GATE_DB:-}" ] && CHECK_ARGS+=(--db "$SEMA_REF_GATE_DB")
+
+set +e
+VERDICT=$(printf '%s' "$PROMPT" | "$SEMA_PY" "${CHECK_ARGS[@]}" 2>/dev/null)
+CODE=$?
+set -e
+
+if [ "$CODE" -eq 1 ] || [ -z "$VERDICT" ]; then
+  # registry unavailable: fail open, but say so
+  echo "sema-cursor: registry unavailable, gate skipped" >&2
+  exec cursor-agent "${ARGS[@]}" "$PROMPT"
+fi
+
+if [ "$CODE" -eq 3 ]; then
+  REPAIR=$(printf '%s' "$VERDICT" | "$SEMA_PY" -c 'import json,sys; print(json.load(sys.stdin)["repair"])')
+  if [ "$MODE" = "enforce" ]; then
+    echo "sema-cursor: BLOCKED — $REPAIR" >&2
+    exit 2
+  fi
+  PROMPT="[sema-ref-gate warning]
+$REPAIR
+
+$PROMPT"
+fi
+
+exec cursor-agent "${ARGS[@]}" "$PROMPT"
