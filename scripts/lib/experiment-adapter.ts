@@ -10,6 +10,11 @@
 
 import type { ExperimentAdapter } from "./adapter-support.js";
 import { babelRelayAdapter } from "./adapters/babel-relay.js";
+import {
+  babelHookAdapter,
+  codexHookAdapter,
+  cursorHookAdapter,
+} from "./adapters/hook-relay.js";
 import { semaTaxAdapter } from "./adapters/sema-tax.js";
 
 export type {
@@ -21,6 +26,9 @@ export type {
 
 const ADAPTERS: Readonly<Record<string, ExperimentAdapter>> = {
   [babelRelayAdapter.experimentId]: babelRelayAdapter,
+  [babelHookAdapter.experimentId]: babelHookAdapter,
+  [codexHookAdapter.experimentId]: codexHookAdapter,
+  [cursorHookAdapter.experimentId]: cursorHookAdapter,
   [semaTaxAdapter.experimentId]: semaTaxAdapter,
 };
 

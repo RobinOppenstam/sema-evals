@@ -70,7 +70,16 @@ describe("experiment-adapter registry", () => {
   it("dispatches known experiment ids to their adapters", () => {
     expect(getAdapter("babel-relay")?.experimentId).toBe("babel-relay");
     expect(getAdapter("sema-tax")?.experimentId).toBe("sema-tax");
-    expect(registeredExperimentIds()).toEqual(["babel-relay", "sema-tax"]);
+    expect(getAdapter("babel-hook")?.experimentId).toBe("babel-hook");
+    expect(getAdapter("codex-hook")?.experimentId).toBe("codex-hook");
+    expect(getAdapter("cursor-hook")?.experimentId).toBe("cursor-hook");
+    expect(registeredExperimentIds()).toEqual([
+      "babel-hook",
+      "babel-relay",
+      "codex-hook",
+      "cursor-hook",
+      "sema-tax",
+    ]);
   });
 
   it("returns undefined / throws for an unregistered experiment", () => {

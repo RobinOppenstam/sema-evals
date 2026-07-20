@@ -83,7 +83,12 @@ async function readOutput(relPath: string): Promise<string> {
 
 describe("site URL structure", () => {
   it("emits the overview, a page per experiment-with-runs, and moved run pages", () => {
-    expect(result.experimentIds).toEqual(["babel-relay", "sema-tax"]);
+    expect(result.experimentIds).toEqual([
+      "babel-hook",
+      "babel-relay",
+      "codex-hook",
+      "sema-tax",
+    ]);
     expect(result.files).toContain("index.html");
     for (const experimentId of result.experimentIds) {
       expect(result.files).toContain(`${experimentId}/index.html`);
