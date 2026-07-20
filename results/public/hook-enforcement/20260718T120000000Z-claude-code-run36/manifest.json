@@ -1,6 +1,6 @@
 {
-  "experimentId": "babel-hook",
-  "runId": "20260718T120000000Z-multihop-run36",
+  "experimentId": "hook-enforcement",
+  "runId": "20260718T120000000Z-claude-code-run36",
   "mode": "exploratory",
   "createdAt": "2026-07-18T12:00:00.000Z",
   "evidenceClaim": "36-trial multi-hop babel relay through Claude Code with the ref-gate hook (haiku): first voluntary-compliance leak observed; enforce halts all drifted relays.",
