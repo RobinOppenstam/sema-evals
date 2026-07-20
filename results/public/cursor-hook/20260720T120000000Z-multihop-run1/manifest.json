@@ -1,0 +1,20 @@
+{
+  "experimentId": "cursor-hook",
+  "runId": "20260720T120000000Z-multihop-run1",
+  "mode": "exploratory",
+  "createdAt": "2026-07-20T12:00:00.000Z",
+  "evidenceClaim": "144-trial multi-hop babel relay through Cursor CLI with a sema check wrapper gate (composer-2.5-fast): warn detects 32/32 but 25 drifted relays ship anyway; enforce halts 32/32 pre-model.",
+  "provenance": {
+    "harness": "Cursor CLI",
+    "harnessVersion": "cursor-agent 2026.07.16-899851b",
+    "model": "composer-2.5-fast",
+    "gateIntegration": "wrapper",
+    "gateSource": "sema check CLI (RobinOppenstam/sema@feat/sema-check)",
+    "recordsPath": "experiments/cursor-hook/records/2026-07-20-composer/"
+  },
+  "deviations": [
+    "Enforcement is wrapper-level (sema check runs before cursor-agent is invoked); cursor hook dispatch is server-gated off on this account, so the in-harness hook tier could not be tested",
+    "The warn channel is prompt-prepension of the repair text, not hook-stdout context injection",
+    "Frozen boundary prompts delivered via per-trial AGENTS.md plus the same inline-artifacts harness note as codex-hook"
+  ]
+}

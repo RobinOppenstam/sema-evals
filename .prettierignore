@@ -6,3 +6,4 @@ results
 .cache
 experiments/babel-hook/records/
 experiments/codex-hook/records/
+experiments/cursor-hook/records/

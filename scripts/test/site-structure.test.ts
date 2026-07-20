@@ -87,6 +87,7 @@ describe("site URL structure", () => {
       "babel-hook",
       "babel-relay",
       "codex-hook",
+      "cursor-hook",
       "sema-tax",
     ]);
     expect(result.files).toContain("index.html");
