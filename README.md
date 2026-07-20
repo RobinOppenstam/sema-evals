@@ -286,6 +286,34 @@ contributions include:
 Read [CONTRIBUTING.md](CONTRIBUTING.md) and
 [AGENTS.md](AGENTS.md) before opening a change.
 
+## Independence and conflict of interest
+
+This repository is maintained by a **core contributor to Sema** who also
+**moderates the Sema community**. Some experiments here additionally test
+code the maintainer wrote (the harness-enforcement pilots evaluate a ref-gate
+hook authored by the maintainer and proposed upstream). Read "independent" with
+that in mind: there is no organizational separation between the person running
+these evaluations and the project being evaluated.
+
+What carries the evidential weight is therefore method, not affiliation:
+
+- **Preregistration** for confirmatory claims — hypotheses, scoring, and
+  analysis are frozen and merged before data collection, and protected paths
+  prevent mid-flight changes.
+- **Raw records** — every published run ships its per-trial data, and the
+  public site recomputes every statistic from those trials at build time; a
+  stored summary that disagrees fails the build.
+- **Mode labeling** — exploratory runs are labeled as such everywhere they
+  appear and are never presented as confirmatory evidence.
+- **Nulls are published** — including runs where enforcement showed no effect
+  and runs invalidated by harness artifacts, with the flaw documented.
+- **Per-experiment disclosure** — experiments that test the maintainer's own
+  code say so in their README.
+
+If a result here matters to you, the intended response is not to trust the
+maintainer but to rerun the experiment: every runner is committed, every
+fixture is committed, and reproduction instructions ship with each experiment.
+
 ## License and attribution
 
 Code in this repository is MIT licensed. Sema vocabulary, documentation, or
