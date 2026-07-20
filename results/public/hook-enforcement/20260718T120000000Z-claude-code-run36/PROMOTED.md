@@ -1,4 +1,4 @@
-# Promoted report: babel-hook / 20260718T120000000Z-multihop-run36
+# Promoted report: hook-enforcement / 20260718T120000000Z-claude-code-run36
 
 - Promoted on: 2026-07-18 (run creation date; promotion is deterministic and clock-free)
 - Source bundle: `/tmp/claude-1000/-home-jiberish-projects-opensource/bfb15a3b-bb11-4050-909d-d9b0919a0a33/scratchpad/bundles/babel-hook-run36`

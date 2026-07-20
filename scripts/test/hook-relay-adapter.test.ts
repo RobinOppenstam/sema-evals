@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { hookEnforcementAdapter } from "../lib/adapters/hook-relay.js";
 import { registeredExperimentIds } from "../lib/experiment-adapter.js";
-import { babelHookAdapter } from "../lib/adapters/hook-relay.js";
 
 const RUN_ID = "20260720T120000000Z-test-run";
 
@@ -37,7 +37,7 @@ function makeManifest(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
-    experimentId: "babel-hook",
+    experimentId: "hook-enforcement",
     runId: RUN_ID,
     mode: "exploratory",
     createdAt: "2026-07-20T12:00:00.000Z",
@@ -125,6 +125,21 @@ const SYNTHETIC_TRIALS = [
     hops_run: 0,
   }),
   makeTrial({
+    trial_id: "enforce-a-r1",
+    condition: "enforce",
+    scenario_id: "scenario-a",
+    rep: 1,
+    drift_injected: true,
+    drift_detected: true,
+    gate_detected: true,
+    enforcement_halted: true,
+    silent_divergence: false,
+    actual_action: "halt",
+    audit_decision: null,
+    task_success: true,
+    hops_run: 0,
+  }),
+  makeTrial({
     trial_id: "off-b-r0",
     condition: "off",
     scenario_id: "scenario-b",
@@ -191,27 +206,29 @@ afterEach(async () => {
 });
 
 describe("hook-relay adapter", () => {
-  it("registers all three hook experiment ids", () => {
-    expect(registeredExperimentIds()).toContain("babel-hook");
-    expect(registeredExperimentIds()).toContain("codex-hook");
-    expect(registeredExperimentIds()).toContain("cursor-hook");
+  it("registers the hook-enforcement experiment id", () => {
+    expect(registeredExperimentIds()).toContain("hook-enforcement");
   });
 
   it("parseManifest rejects a wrong experimentId and a non-exploratory mode", () => {
     expect(() =>
-      babelHookAdapter.parseManifest(
-        makeManifest({ experimentId: "codex-hook" }),
+      hookEnforcementAdapter.parseManifest(
+        makeManifest({ experimentId: "babel-hook" }),
       ),
-    ).toThrow(/does not match adapter "babel-hook"/);
+    ).toThrow(/does not match adapter "hook-enforcement"/);
 
     expect(() =>
-      babelHookAdapter.parseManifest(makeManifest({ mode: "confirmatory" })),
+      hookEnforcementAdapter.parseManifest(
+        makeManifest({ mode: "confirmatory" }),
+      ),
     ).toThrow();
   });
 
   it("redactTrials drops an unknown extra field and preserves all known ones", () => {
     const trial = makeTrial({ secret_payload: "must-not-ship" });
-    const output = babelHookAdapter.redactTrials(`${JSON.stringify(trial)}\n`);
+    const output = hookEnforcementAdapter.redactTrials(
+      `${JSON.stringify(trial)}\n`,
+    );
     expect(output).not.toContain("secret_payload");
     expect(output).not.toContain("must-not-ship");
     const parsed = JSON.parse(output.trim()) as Record<string, unknown>;
@@ -224,19 +241,39 @@ describe("hook-relay adapter", () => {
 
   it("loadExperiment renders runs and an experiment body containing the runId", async () => {
     const experimentDir = await writeBundle();
-    const loaded = await babelHookAdapter.loadExperiment(experimentDir, [
+    const loaded = await hookEnforcementAdapter.loadExperiment(experimentDir, [
       RUN_ID,
     ]);
-    expect(loaded.experimentId).toBe("babel-hook");
+    expect(loaded.experimentId).toBe("hook-enforcement");
     expect(loaded.runs).toHaveLength(1);
     expect(loaded.runs[0]?.runId).toBe(RUN_ID);
     expect(loaded.runs[0]?.runBody).toContain(RUN_ID);
-    expect(loaded.runs[0]?.runBody).toContain("Babel Hook");
+    expect(loaded.runs[0]?.runBody).toContain("Hook Enforcement");
     expect(loaded.experimentBody).toContain(RUN_ID);
     expect(loaded.experimentBody).toContain(
-      "Exploratory pilot. Not preregistered, not confirmatory evidence.",
+      "Exploratory pilots. Not preregistered, not confirmatory evidence.",
     );
-    expect(loaded.overviewCard).toContain("babel-hook");
+    expect(loaded.experimentBody).toContain(
+      "<code>experiments/babel-hook/</code>",
+    );
+    expect(loaded.overviewCard).toContain("hook-enforcement");
+  });
+
+  it("loadExperiment includes a cross-harness comparison table derived from fixture aggregates", async () => {
+    const summary = aggregateFromTrials(SYNTHETIC_TRIALS) as {
+      conditions: Record<string, Record<string, number>>;
+    };
+    const enforce = summary.conditions.enforce;
+    expect(enforce?.drift_trials).toBe(2);
+    expect(enforce?.drift_halted).toBe(2);
+    const expectedEnforceCell = `${enforce?.drift_halted}/${enforce?.drift_trials}`;
+
+    const experimentDir = await writeBundle();
+    const loaded = await hookEnforcementAdapter.loadExperiment(experimentDir, [
+      RUN_ID,
+    ]);
+    expect(loaded.experimentBody).toContain("Enforce: drift halted");
+    expect(loaded.experimentBody).toContain(expectedEnforceCell);
   });
 
   it("throws when a summary number disagrees with recomputed aggregates", async () => {
@@ -250,7 +287,7 @@ describe("hook-relay adapter", () => {
     };
     const experimentDir = await writeBundle(corrupt);
     await expect(
-      babelHookAdapter.loadExperiment(experimentDir, [RUN_ID]),
-    ).rejects.toThrow(/enforce\.detection: summary=99, recomputed=1/);
+      hookEnforcementAdapter.loadExperiment(experimentDir, [RUN_ID]),
+    ).rejects.toThrow(/enforce\.detection: summary=99, recomputed=2/);
   });
 });

@@ -1,9 +1,10 @@
 // -------------------------------------------------------------------------
-// hook-relay site adapters (babel-hook, codex-hook, cursor-hook)
+// hook-enforcement site adapter
 //
 // Exploratory hook pilots share one manifest/trial shape and the same
-// off/warn/enforce aggregation. Each experiment id is a thin config over a
-// shared factory: parse, redact, recompute-and-cross-check, render.
+// off/warn/enforce aggregation. One experiment id covers multiple harness/model
+// runs; harness identity comes from each run manifest's provenance. Parse,
+// redact, recompute-and-cross-check, and render through a single factory.
 // -------------------------------------------------------------------------
 
 import { readFile } from "node:fs/promises";
@@ -91,7 +92,6 @@ type HookRelayConditionSummary = z.infer<
 export interface HookRelayAdapterConfig {
   readonly experimentId: string;
   readonly title: string;
-  readonly harness: string;
   readonly description: string;
 }
 
@@ -236,18 +236,62 @@ ${deviationList}
 task success uses all trials in the condition.</p>`;
 }
 
+function sortedRunViews(
+  views: readonly HookRelayRunView[],
+): HookRelayRunView[] {
+  return views
+    .slice()
+    .sort((a, b) => b.manifest.createdAt.localeCompare(a.manifest.createdAt));
+}
+
+function renderCrossHarnessComparisonTable(
+  views: readonly HookRelayRunView[],
+): string {
+  const rows = sortedRunViews(views)
+    .map((view) => {
+      const m = view.manifest;
+      const p = m.provenance;
+      const off = view.summary.conditions.off;
+      const warn = view.summary.conditions.warn;
+      const enforce = view.summary.conditions.enforce;
+      return `<tr>
+<td><a href="runs/${escapeHtml(m.runId)}.html"><code>${escapeHtml(m.runId)}</code></a></td>
+<td>${escapeHtml(p.harness)} / <code>${escapeHtml(p.model)}</code></td>
+<td><code>${escapeHtml(p.gateIntegration)}</code></td>
+<td class="num">${ratioCell(off.drift_trials - off.drift_halted, off.drift_trials)}</td>
+<td class="num">${ratioCell(warn.detection, warn.drift_trials)}</td>
+<td class="num">${ratioCell(warn.drift_trials - warn.drift_halted, warn.drift_trials)}</td>
+<td class="num">${ratioCell(enforce.drift_halted, enforce.drift_trials)}</td>
+</tr>`;
+    })
+    .join("\n");
+
+  return `<div class="table-wrap"><table class="runlist">
+<thead><tr>
+<th>Run</th>
+<th>Harness / model</th>
+<th>Gate tier</th>
+<th class="num">Off: shipped</th>
+<th class="num">Warn: detection</th>
+<th class="num">Warn: shipped anyway</th>
+<th class="num">Enforce: drift halted</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>`;
+}
+
 function renderExperimentSection(
   config: HookRelayAdapterConfig,
   views: readonly HookRelayRunView[],
 ): string {
-  const rows = views
-    .slice()
-    .sort((a, b) => b.manifest.createdAt.localeCompare(a.manifest.createdAt))
+  const rows = sortedRunViews(views)
     .map((view) => {
       const m = view.manifest;
       return `<tr>
 <td><a href="runs/${escapeHtml(m.runId)}.html"><code>${escapeHtml(m.runId)}</code></a></td>
 <td>${escapeHtml(m.createdAt)}</td>
+<td><code>${escapeHtml(m.provenance.harness)}</code></td>
+<td><code>${escapeHtml(m.provenance.gateIntegration)}</code></td>
 <td><code>${escapeHtml(m.provenance.model)}</code></td>
 <td>${escapeHtml(m.evidenceClaim)}</td>
 </tr>`;
@@ -256,10 +300,12 @@ function renderExperimentSection(
 
   return `<h1>${escapeHtml(config.title)}</h1>
 <p class="lede">${escapeHtml(config.description)}</p>
-<p class="note">Exploratory pilot. Not preregistered, not confirmatory evidence.</p>
+<p class="note">Exploratory pilots. Not preregistered, not confirmatory evidence.</p>
+<p class="note">Per-run methodology, deviations, and raw records live under <code>experiments/babel-hook/</code>, <code>experiments/codex-hook/</code>, and <code>experiments/cursor-hook/</code> in the repository.</p>
+${renderCrossHarnessComparisonTable(views)}
 <div class="table-wrap"><table class="runlist">
 <thead><tr>
-<th>Run</th><th>Created</th><th>Model</th><th>Evidence claim</th>
+<th>Run</th><th>Created</th><th>Harness</th><th>Gate tier</th><th>Model</th><th>Evidence claim</th>
 </tr></thead>
 <tbody>${rows}</tbody>
 </table></div>`;
@@ -269,13 +315,44 @@ function renderOverviewCard(
   config: HookRelayAdapterConfig,
   views: readonly HookRelayRunView[],
 ): string {
-  const sorted = views
-    .slice()
-    .sort((a, b) => b.manifest.createdAt.localeCompare(a.manifest.createdAt));
+  const sorted = sortedRunViews(views);
   const latest = sorted[0];
   const models = [
     ...new Set(views.map((view) => view.manifest.provenance.model)),
   ].sort();
+
+  let headlineHtml = "&mdash;";
+  if (views.length > 0) {
+    const warnLeakPercents = views
+      .map((view) => {
+        const warn = view.summary.conditions.warn;
+        if (warn.drift_trials === 0) {
+          return undefined;
+        }
+        return Math.round(
+          (100 * (warn.drift_trials - warn.drift_halted)) / warn.drift_trials,
+        );
+      })
+      .filter((value): value is number => value !== undefined);
+
+    const enforceHalted = views.reduce(
+      (sum, view) => sum + view.summary.conditions.enforce.drift_halted,
+      0,
+    );
+    const enforceTrials = views.reduce(
+      (sum, view) => sum + view.summary.conditions.enforce.drift_trials,
+      0,
+    );
+
+    if (warnLeakPercents.length > 0) {
+      const minPct = Math.min(...warnLeakPercents);
+      const maxPct = Math.max(...warnLeakPercents);
+      headlineHtml = escapeHtml(
+        `Voluntary-leak span across ${views.length} runs: ${minPct}%–${maxPct}%; enforcement ${enforceHalted}/${enforceTrials} halted.`,
+      );
+    }
+  }
+
   return renderExperimentCard({
     experimentId: config.experimentId,
     lede: config.description,
@@ -285,10 +362,7 @@ function renderOverviewCard(
         ? "&mdash;"
         : conditionDate(latest.manifest.createdAt),
     models,
-    headlineHtml:
-      latest === undefined
-        ? "&mdash;"
-        : escapeHtml(latest.manifest.evidenceClaim),
+    headlineHtml,
   });
 }
 
@@ -367,25 +441,11 @@ export function makeHookRelayAdapter(
   };
 }
 
-export const babelHookAdapter = makeHookRelayAdapter({
-  experimentId: "babel-hook",
-  title: "Babel Hook",
-  harness: "Claude Code",
-  description: "Gate as a Claude Code UserPromptSubmit hook, haiku.",
-});
+const HOOK_ENFORCEMENT_DESCRIPTION =
+  "Replays of the babel-relay drift scenarios through real agent harnesses with the sema ref-gate enforcing at the harness boundary; one experiment, multiple harness/model runs.";
 
-export const codexHookAdapter = makeHookRelayAdapter({
-  experimentId: "codex-hook",
-  title: "Codex Hook",
-  harness: "OpenAI Codex",
-  description:
-    "The unmodified Claude Code plugin running in codex via native Claude-plugin support, gpt-5.6-luna.",
-});
-
-export const cursorHookAdapter = makeHookRelayAdapter({
-  experimentId: "cursor-hook",
-  title: "Cursor Hook",
-  harness: "Cursor CLI",
-  description:
-    "Tier 3 wrapper (sema check pre-invocation) because cursor hooks are server-gated off, composer-2.5-fast.",
+export const hookEnforcementAdapter = makeHookRelayAdapter({
+  experimentId: "hook-enforcement",
+  title: "Hook Enforcement",
+  description: HOOK_ENFORCEMENT_DESCRIPTION,
 });

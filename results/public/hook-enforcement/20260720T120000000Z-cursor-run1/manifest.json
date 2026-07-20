@@ -1,6 +1,6 @@
 {
-  "experimentId": "cursor-hook",
-  "runId": "20260720T120000000Z-multihop-run1",
+  "experimentId": "hook-enforcement",
+  "runId": "20260720T120000000Z-cursor-run1",
   "mode": "exploratory",
   "createdAt": "2026-07-20T12:00:00.000Z",
   "evidenceClaim": "144-trial multi-hop babel relay through Cursor CLI with a sema check wrapper gate (composer-2.5-fast): warn detects 32/32 but 25 drifted relays ship anyway; enforce halts 32/32 pre-model.",
