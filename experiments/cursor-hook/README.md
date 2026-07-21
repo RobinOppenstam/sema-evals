@@ -42,7 +42,7 @@ other two runs. Registries are the same honest minted stubs.
 
 ## Results — warn-leak model isolation (2026-07-21/22)
 
-The three-harness comparison left a confound: every run changed model *and*
+The three-harness comparison left a confound: every run changed model _and_
 harness at once, so the 12.5%→78% warn-leak spread could not be attributed to
 either. These runs remove it: the **same wrapper, same frozen prompts, same
 registry, same gate** — only `--model` varies. 144 trials per model.
@@ -50,13 +50,13 @@ registry, same gate** — only `--model` varies. 144 trials per model.
 **Warn leak** = drifted relays where the gate detected the stale ref and
 injected its warning, but the relay still shipped (hop failures excluded).
 
-| Model (via Cursor CLI)     | Warn: detection | Warn leak       | Off: drift caught unaided | Enforce: drift halted | Gate false blocks |
-| -------------------------- | --------------- | --------------- | ------------------------- | --------------------- | ----------------- |
-| gemini-3.5-flash           | 29/29           | **1/29 (3%)**   | 7/27 (26%)                | 29/29                 | 0                 |
-| kimi-k2.7-code             | 29/29           | **6/29 (21%)**  | 6/28 (21%)                | 28/28                 | 0                 |
-| gpt-5.4-nano-low           | 24/24           | **10/24 (42%)** | 9/23 (39%)                | 25/25                 | 0                 |
-| composer-2.5-fast (rerun)  | 31/31           | **18/31 (58%)** | 14/32 (44%)               | 31/31                 | 0                 |
-| composer-2.5-fast (07-20)  | 32/32           | **25/32 (78%)** | 14/32 (44%)               | 32/32                 | 0                 |
+| Model (via Cursor CLI)    | Warn: detection | Warn leak       | Off: drift caught unaided | Enforce: drift halted | Gate false blocks |
+| ------------------------- | --------------- | --------------- | ------------------------- | --------------------- | ----------------- |
+| gemini-3.5-flash          | 29/29           | **1/29 (3%)**   | 7/27 (26%)                | 29/29                 | 0                 |
+| kimi-k2.7-code            | 29/29           | **6/29 (21%)**  | 6/28 (21%)                | 28/28                 | 0                 |
+| gpt-5.4-nano-low          | 24/24           | **10/24 (42%)** | 9/23 (39%)                | 25/25                 | 0                 |
+| composer-2.5-fast (rerun) | 31/31           | **18/31 (58%)** | 14/32 (44%)               | 31/31                 | 0                 |
+| composer-2.5-fast (07-20) | 32/32           | **25/32 (78%)** | 14/32 (44%)               | 32/32                 | 0                 |
 
 - **Warn-mode leak is a model property, not a channel property.** A 3%-to-78%
   spread through an identical injection mechanism settles the trilogy's open
@@ -113,7 +113,7 @@ model families:
 - The warn channel differs from the hook-based runs (prompt-prepension vs
   hook-stdout context injection), so cross-harness warn comparisons are not
   pure model-to-model comparisons. The model-isolation set addresses this
-  *within* Cursor: those four warn arms share an identical channel and differ
+  _within_ Cursor: those four warn arms share an identical channel and differ
   only in model.
 - Wrapper-tier enforce halts are deterministic by construction; the enforce
   arm's contribution here is the zero-false-block measurement, not the halt
