@@ -1,0 +1,22 @@
+{
+  "experimentId": "hook-enforcement",
+  "runId": "20260721T123000000Z-cursor-kimi",
+  "mode": "exploratory",
+  "createdAt": "2026-07-21T12:30:00.000Z",
+  "evidenceClaim": "144-trial babel relay through the same Cursor wrapper gate, model swapped to kimi-k2.7-code: warn detects 29/29 drifted relays but 6 ship anyway; enforce halts 28/28. Unaided (off) it catches just 6/28.",
+  "provenance": {
+    "harness": "Cursor CLI",
+    "harnessVersion": "cursor-agent 2026.07.17-3e2a980",
+    "model": "kimi-k2.7-code",
+    "gateIntegration": "wrapper",
+    "gateSource": "sema check CLI (RobinOppenstam/sema@feat/sema-check)",
+    "recordsPath": "experiments/cursor-hook/records/2026-07-21-kimi/"
+  },
+  "deviations": [
+    "Enforcement is wrapper-level (sema check runs before cursor-agent is invoked); cursor hook dispatch is server-gated off on this account, so the in-harness hook tier could not be tested",
+    "The warn channel is prompt-prepension of the repair text, not hook-stdout context injection",
+    "Frozen boundary prompts delivered via per-trial AGENTS.md plus the same inline-artifacts harness note as codex-hook",
+    "Registry rebuilt from scenarios.yaml with sema's mint pipeline; all six stubs verified byte-identical to the frozen babel-hook stubs.json before the run",
+    "The warn arm had elevated hop timeouts (15/48 vs 8-9 in the other arms); warn-arm denominators are thinned accordingly"
+  ]
+}

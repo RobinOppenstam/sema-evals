@@ -1,0 +1,37 @@
+{
+  "conditions": {
+    "off": {
+      "trials": 48,
+      "drift_trials": 27,
+      "detection": 7,
+      "silent_divergence": 20,
+      "drift_halted": 7,
+      "task_success": 18,
+      "false_halts": 2,
+      "malformed": 0,
+      "hop_failed": 8
+    },
+    "warn": {
+      "trials": 48,
+      "drift_trials": 29,
+      "detection": 29,
+      "silent_divergence": 0,
+      "drift_halted": 28,
+      "task_success": 38,
+      "false_halts": 3,
+      "malformed": 0,
+      "hop_failed": 6
+    },
+    "enforce": {
+      "trials": 48,
+      "drift_trials": 29,
+      "detection": 29,
+      "silent_divergence": 0,
+      "drift_halted": 29,
+      "task_success": 39,
+      "false_halts": 3,
+      "malformed": 0,
+      "hop_failed": 6
+    }
+  }
+}

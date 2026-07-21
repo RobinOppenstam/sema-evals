@@ -47,12 +47,15 @@ STUBS = json.loads(
 CANON_DB = Path(os.environ.get("CANON_DB", HERE / "canon.db"))
 # Python with the `semahash` package importable (the sema repo venv).
 SEMA_PY = os.environ.get("SEMA_PYTHON", "python3")
-MODEL = "composer-2.5-fast"
+MODEL = os.environ.get("CURSOR_MODEL", "composer-2.5-fast")
 
-REPS = 8
+REPS = int(os.environ.get("REPS", "8"))
 CONDITIONS = ["off", "warn", "enforce"]
-CONCURRENCY = 5
+CONCURRENCY = int(os.environ.get("CONCURRENCY", "5"))
 HOP_TIMEOUT = 300
+
+# Per-model output tag so multiple model runs never clobber each other.
+TAG = re.sub(r"[^A-Za-z0-9.-]+", "-", MODEL)
 
 RELAY = ["spec-to-plan", "plan-to-implementation", "implementation-to-audit"]
 PROMPT_FILES = {
@@ -156,9 +159,9 @@ def call_cursor(system_prompt, user_message, condition, gate_log, rundir):
 def run_trial(trial):
     sc = trial["scenario"]
     condition = trial["condition"]
-    gate_log = HERE / "mh-gatelogs" / f"{trial['trial_id']}.jsonl"
+    gate_log = HERE / f"mh-gatelogs-{TAG}" / f"{trial['trial_id']}.jsonl"
     gate_log.parent.mkdir(exist_ok=True)
-    rundir = HERE / "mh-rundirs" / trial["trial_id"]
+    rundir = HERE / f"mh-rundirs-{TAG}" / trial["trial_id"]
 
     current_definition = sc["contract"]["canonicalDefinition"]
     current_ref = f"{sc['contract']['handle']}#{trial['stubs']['canonical']}"
@@ -266,7 +269,7 @@ def main():
                 f"{' HOPFAIL' if r['hop_failed'] else ''}"
                 f" ({r['seconds']}s)", file=sys.stderr, flush=True)
 
-    (HERE / "cursor-multihop-results.jsonl").write_text(
+    (HERE / f"cursor-multihop-results-{TAG}.jsonl").write_text(
         "\n".join(json.dumps(r) for r in results))
 
     print("condition | trials | detection | silent_div | task_success | false_halts | malformed | hop_failed")
