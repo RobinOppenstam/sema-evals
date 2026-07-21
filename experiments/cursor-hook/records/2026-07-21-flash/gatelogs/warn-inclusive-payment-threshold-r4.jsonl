@@ -1,0 +1,3 @@
+{"mode": "warn", "refs": ["InclusivePaymentThreshold#ae2d"], "stale": ["InclusivePaymentThreshold#ae2d"], "unknown": [], "blocked": false, "gate_failed": false}
+{"mode": "warn", "refs": ["InclusivePaymentThreshold#94bd", "InclusivePaymentThreshold#ae2d"], "stale": ["InclusivePaymentThreshold#ae2d"], "unknown": [], "blocked": false, "gate_failed": false}
+{"mode": "warn", "refs": ["InclusivePaymentThreshold#ae2d"], "stale": ["InclusivePaymentThreshold#ae2d"], "unknown": [], "blocked": false, "gate_failed": false}

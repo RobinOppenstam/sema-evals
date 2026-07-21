@@ -1,0 +1,22 @@
+{
+  "experimentId": "hook-enforcement",
+  "runId": "20260721T120000000Z-cursor-nano",
+  "mode": "exploratory",
+  "createdAt": "2026-07-21T12:00:00.000Z",
+  "evidenceClaim": "144-trial babel relay through the same Cursor wrapper gate, model swapped to gpt-5.4-nano-low: warn detects 24/24 drifted relays but 10 ship anyway; enforce halts 25/25. Heavy caveat: 47 hop failures and 20 malformed audits thin the denominators.",
+  "provenance": {
+    "harness": "Cursor CLI",
+    "harnessVersion": "cursor-agent 2026.07.17-3e2a980",
+    "model": "gpt-5.4-nano-low",
+    "gateIntegration": "wrapper",
+    "gateSource": "sema check CLI (RobinOppenstam/sema@feat/sema-check)",
+    "recordsPath": "experiments/cursor-hook/records/2026-07-21-nano/"
+  },
+  "deviations": [
+    "Enforcement is wrapper-level (sema check runs before cursor-agent is invoked); cursor hook dispatch is server-gated off on this account, so the in-harness hook tier could not be tested",
+    "The warn channel is prompt-prepension of the repair text, not hook-stdout context injection",
+    "Frozen boundary prompts delivered via per-trial AGENTS.md plus the same inline-artifacts harness note as codex-hook",
+    "Registry rebuilt from scenarios.yaml with sema's mint pipeline; all six stubs verified byte-identical to the frozen babel-hook stubs.json before the run",
+    "Data quality: 47/144 trials hit hop timeouts (both 300s attempts) and 20 audit replies were malformed; nano's per-arm denominators are thinned accordingly"
+  ]
+}
