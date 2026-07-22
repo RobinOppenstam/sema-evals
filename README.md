@@ -11,7 +11,7 @@ _When meaning changes, do agents notice before they act?_
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933.svg?logo=node.js&logoColor=white)](package.json)
 [![Research status](https://img.shields.io/badge/status-foundation_live-5B5BD6.svg)](docs/RESEARCH_PLAN.md)
 
-[**Published results**](https://robinoppenstam.github.io/sema-evals/) · [Quick start](#quick-start) · [First experiment](#babel-relay) · [Research plan](docs/RESEARCH_PLAN.md) · [Contributing](CONTRIBUTING.md)
+[**Published results**](https://robinoppenstam.github.io/sema-evals/) · [Quick start](#quick-start) · [First experiment](#babel-relay) · [Harness enforcement](#harness-enforcement) · [Research plan](docs/RESEARCH_PLAN.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -80,6 +80,38 @@ runs in CI. The first exploratory pilots have been run and promoted to the
 [published results site](https://robinoppenstam.github.io/sema-evals/); running
 a pilot is always a deliberate operator decision. See [the Babel Relay README](experiments/babel-relay/README.md) and
 [ADR 0007](docs/adr/0007-openai-compatible-provider-adapter.md).
+
+## Harness enforcement
+
+The second experiment line moves the same drift scenarios out of the harness
+simulator and into **real agent CLIs**, with a `sema check` ref gate at the
+harness boundary. One gate implementation, one conformance fixture set, three
+integration tiers:
+
+| Tier    | Integration                        | Harness examples              |
+| ------- | ---------------------------------- | ----------------------------- |
+| hook    | in-harness prompt/tool hooks       | Claude Code, OpenAI Codex     |
+| inject  | context injection, no blocking     | (fallback)                    |
+| wrapper | pre-invocation gate around the CLI | Cursor CLI (hooks server-off) |
+
+Eight published runs so far ([babel-hook](experiments/babel-hook/),
+[codex-hook](experiments/codex-hook/), [cursor-hook](experiments/cursor-hook/)),
+all exploratory. Three findings hold across every run:
+
+- **Detection is constant.** The gate caught every drifted ref in every
+  harness and every model — extraction and verdicts live once, in
+  `sema check`.
+- **Warn-mode compliance is a model property.** With the harness confound
+  removed (four models through the identical Cursor wrapper), the fraction of
+  drifted relays that shipped _despite a delivered warning_ spans **3%–78%**
+  by model. A warning tier cannot promise any particular drift tolerance.
+- **Enforcement is the invariant.** Every drifted relay halted in every
+  enforce arm across all harnesses and models, with zero gate false blocks on
+  clean payloads in 400+ gated trials.
+
+One run was invalidated by a harness artifact (an agentic auditor inspecting
+an intentionally empty workspace) and is published as a finding rather than
+discarded — see the codex-hook README.
 
 ## Quick start
 
@@ -157,12 +189,20 @@ still enters model context. `sema-evals` never treats those as the same saving.
 packages/
 ├── core/             versioned schemas, fingerprints, matrix runner, prompt loader
 ├── adapters/         provider-neutral agents, transcript-preserving model adapter, Sema Python bridge
-└── reporters/        JSONL, JSON, and Markdown result bundles
+├── reporters/        JSONL, JSON, and Markdown result bundles
+├── sema-runtime/     runtime pieces shared by Sema-native experiments
+└── workflow-runner/  sandboxed workflow execution for the workflow-value benchmark
 
 experiments/
 ├── babel-relay/      runnable controlled semantic-drift experiment
 │   └── prompts/      frozen, digest-verified prompt snapshots for the model pilot
+├── babel-hook/       harness-enforcement pilot: babel relay through Claude Code hooks
+├── codex-hook/       second harness: OpenAI Codex via the unmodified Claude Code plugin
+├── cursor-hook/      third harness (wrapper tier) + warn-leak model isolation runs
 ├── sema-tax/         pattern-count and hydration break-even curve
+├── sema-discovery/   search → select → resolve → execute → reuse, discovery vs delivery
+├── workflow-value/   does a delivered workflow help within a fixed token budget
+├── a2a-drift/        A2A semantic-extension middleware demo under registry drift
 ├── security/         mutation-backed smart-contract evaluation
 ├── forecasting/      historical five-agent forecast council
 └── x402-contract-drift/ payment and delegation semantics
@@ -170,6 +210,7 @@ experiments/
 docs/
 ├── RESEARCH_PLAN.md
 ├── EXPERIMENT_STANDARD.md
+├── preregistrations/ frozen hypotheses and analysis plans for confirmatory runs
 └── adr/              durable research and architecture decisions
 
 scripts/              schema generation, report promotion, and static-site build
@@ -190,7 +231,8 @@ resolution, and pattern or vocabulary handshakes.
 ## Public reports
 
 Published run reports live at
-**<https://robinoppenstam.github.io/sema-evals/>**.
+**<https://robinoppenstam.github.io/sema-evals/>** — currently 12 runs across
+three experiment pages (babel-relay, hook-enforcement, sema-tax).
 
 Result bundles under `results/` are untracked by default. Publishing is a
 deliberate act: a bundle is _promoted_ into a tracked, redacted public
@@ -229,18 +271,23 @@ one-time operator action.
 
 ## Research roadmap
 
-| Phase | Deliverable                                   | Primary endpoint               | Status          |
-| ----- | --------------------------------------------- | ------------------------------ | --------------- |
-| 0     | Reproducible evaluator + deterministic relay  | Scorer correctness             | **Live**        |
-| 1     | Registry handshake + model-driven Babel Relay | Silent-divergence rate         | **In progress** |
-| 2     | Sema tax and hydration curve                  | Success per total token        | Planned         |
-| 3     | A2A semantic extension                        | Execution under registry drift | Planned         |
-| 4     | `sema-sec` Solidity trials                    | Recall at fixed FP budget      | Planned         |
-| 5     | Historical forecast council                   | Brier score                    | Planned         |
+| Phase | Deliverable                                   | Primary endpoint               | Status                                           |
+| ----- | --------------------------------------------- | ------------------------------ | ------------------------------------------------ |
+| 0     | Reproducible evaluator + deterministic relay  | Scorer correctness             | **Live**                                         |
+| 1     | Registry handshake + model-driven Babel Relay | Silent-divergence rate         | **Pilots published; confirmatory preregistered** |
+| 2     | Sema tax and hydration curve                  | Success per total token        | **Pilot published**                              |
+| 3     | A2A semantic extension                        | Execution under registry drift | Deterministic demo live                          |
+| 4     | `sema-sec` Solidity trials                    | Recall at fixed FP budget      | Scaffold live                                    |
+| 5     | Historical forecast council                   | Brier score                    | Scaffold live                                    |
 
 The full sequence and exit gates are locked in the
 [research plan](docs/RESEARCH_PLAN.md). Material changes require an architecture
 decision record rather than silently moving the goalposts.
+
+Alongside the numbered phases, several parallel tracks emerged from upstream
+work: the [harness-enforcement pilots](#harness-enforcement) (8 published
+runs), the x402 payment-drift demo, workflow-value, and sema-discovery. They
+follow the same experiment standard but are not gates in the numbered plan.
 
 ## Experiment contract
 
