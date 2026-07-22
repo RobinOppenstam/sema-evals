@@ -65,20 +65,23 @@ claude-code`** (headless print mode per hop, ADR 0018), author's
   bundle manifest; the prior-exposure disclosure (the 2026-07-17 30-trial
   format smoke) and the three arm-specific disclosures (harness layer,
   conflict of interest, usage limits) carry over unchanged.
-- §7 Frozen artifacts: identical pins (fixture digest
-  `a8dcdc8d29395b62cfac17b69895b0c71f76f977e3d3c3ccca4a2f9166d97e2c`, prompt
-  digest
-  `5f8976a6e93d1816dbd1341d5b906df443692e6c81b3ffe2f97e273f394aa99d`, scorer
-  `decision-parser-v2-markdown-tolerant`, Sema 0.3.0, canonicalization v2,
-  vocabulary root
-  `6bb456b3062d94ec02f0a7a53ca8a0b3aefba78f24140d0129bd6da86553b070`,
-  semantic backend `semahash-python-workspace-api`). The run MUST execute
+- §7 Frozen artifacts, identical pins (restated as labelled lines so the
+  harness freeze-check parses them from this document):
+  - Fixture digest: `a8dcdc8d29395b62cfac17b69895b0c71f76f977e3d3c3ccca4a2f9166d97e2c`
+  - Prompt digest: `5f8976a6e93d1816dbd1341d5b906df443692e6c81b3ffe2f97e273f394aa99d`
+  - Scorer version: `decision-parser-v2-markdown-tolerant`
+  - Sema 0.3.0; canonicalization v2; vocabulary root
+    `6bb456b3062d94ec02f0a7a53ca8a0b3aefba78f24140d0129bd6da86553b070`;
+    semantic backend `semahash-python-workspace-api`
+
+  The run MUST execute
   from a clean tree at the registration commit of THIS document or a
   descendant that does not modify `experiments/babel-relay/`, `packages/`,
   or the pinned fixtures/prompts (site-only and docs-only commits are
   permitted). A `+dirty` marker in any bundle manifest disqualifies the run.
   Operationally the run executes from a detached worktree pinned at the
   registration commit.
+
 - §8 Sample size: 900 trials.
 - §9 Exclusions: hop-retry exhaustion excludes the trial and is reported in
   full; more than 2% exclusions (>18/900) invalidates the arm for rerun
