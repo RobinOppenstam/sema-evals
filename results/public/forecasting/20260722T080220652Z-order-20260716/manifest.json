@@ -1,0 +1,53 @@
+{
+  "artifactSchemaVersion": "0.3.0",
+  "protocolVersion": "0.3.0",
+  "experimentId": "forecasting",
+  "runId": "20260722T080220652Z-order-20260716",
+  "mode": "deterministic-harness",
+  "evidenceClaim": "Validates the forecasting-council scaffold: synthetic Polymarket-style questions, controlled per-agent registry drift, corrupted aggregation under baseline, voluntary detection, enforced exclusion, Brier baselines (market prior + independent-agent average), the no-drift false-exclusion guard, leakage-audit gate, condition pairing, and bundle/summary reproduction. Scripted-agent outcomes are a construction, not evidence about language models, and not evidence about live prediction markets (ADR 0017).",
+  "createdAt": "2026-07-22T08:02:20.652Z",
+  "orderSeed": 20260716,
+  "seeds": [
+    0
+  ],
+  "conditions": [
+    "baseline",
+    "addressed-voluntary",
+    "addressed-enforced"
+  ],
+  "scenarioCount": 8,
+  "driftScenarioCount": 4,
+  "cleanScenarioCount": 4,
+  "trialCount": 24,
+  "fixtureDigest": "5ddff0994c4edc232bab01325c4ad31a77d9dc9d09c82f50ae5bc058365140eb",
+  "leakageAuditPassed": true,
+  "scorer": {
+    "version": "forecasting-scorer-v1",
+    "fingerprint": "36c58b163c462c0613b63fdb89446cf3a0ed4eeb65c9de5b76ccc46848b29ebd"
+  },
+  "protocolFingerprint": "1f71289f8d414ce9609f0cadfa2bb514973dd71c84e2606c27d19143883adefc",
+  "runConfiguration": {
+    "mode": "deterministic-harness",
+    "seeds": [
+      0
+    ],
+    "orderSeed": 20260716,
+    "semanticBackend": "fixture",
+    "policy": "deterministic-forecasting-council-demo-v2-canonical-aggregation",
+    "aggregationInterpretation": "canonical-probability-format"
+  },
+  "provenance": {
+    "artifactSchemaVersion": "0.3.0",
+    "protocolVersion": "0.3.0",
+    "fixtureDigest": "5ddff0994c4edc232bab01325c4ad31a77d9dc9d09c82f50ae5bc058365140eb",
+    "implementationCommit": "0412d86579c9d63cb1cab2b177588bdcd42c45f3+dirty",
+    "dependencyLockDigest": "f6cee25d8785aa39344e03899d1c9319646f71a2484d95227d2bb8c6e6647f0f",
+    "promptDigest": "2af35ce9276191b4b2cd1551ecdfef23bc962c51f0ba9e118429afa4095d1caf",
+    "semaVersion": "not-connected",
+    "canonicalizationVersion": "fixture-stable-json-v1",
+    "vocabularyRoot": "",
+    "semanticBackend": "fixture-sha256-stable-json-v1",
+    "modelProvider": "deterministic",
+    "modelName": "forecasting-council-demo-v1"
+  }
+}

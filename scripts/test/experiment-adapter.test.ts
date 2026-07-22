@@ -74,9 +74,13 @@ describe("experiment-adapter registry", () => {
       "hook-enforcement",
     );
     expect(registeredExperimentIds()).toEqual([
+      "a2a-drift",
       "babel-relay",
+      "forecasting",
       "hook-enforcement",
+      "security",
       "sema-tax",
+      "x402-contract-drift",
     ]);
   });
 
