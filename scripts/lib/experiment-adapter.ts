@@ -10,7 +10,13 @@
 
 import type { ExperimentAdapter } from "./adapter-support.js";
 import { babelRelayAdapter } from "./adapters/babel-relay.js";
+import {
+  a2aDriftAdapter,
+  forecastingAdapter,
+  x402DriftAdapter,
+} from "./adapters/drift-demo.js";
 import { hookEnforcementAdapter } from "./adapters/hook-relay.js";
+import { securityAdapter } from "./adapters/security.js";
 import { semaTaxAdapter } from "./adapters/sema-tax.js";
 
 export type {
@@ -21,9 +27,13 @@ export type {
 } from "./adapter-support.js";
 
 const ADAPTERS: Readonly<Record<string, ExperimentAdapter>> = {
+  [a2aDriftAdapter.experimentId]: a2aDriftAdapter,
   [babelRelayAdapter.experimentId]: babelRelayAdapter,
+  [forecastingAdapter.experimentId]: forecastingAdapter,
   [hookEnforcementAdapter.experimentId]: hookEnforcementAdapter,
+  [securityAdapter.experimentId]: securityAdapter,
   [semaTaxAdapter.experimentId]: semaTaxAdapter,
+  [x402DriftAdapter.experimentId]: x402DriftAdapter,
 };
 
 /** The registered adapter for an experiment id, or `undefined` if none. */

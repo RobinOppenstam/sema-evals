@@ -231,8 +231,9 @@ resolution, and pattern or vocabulary handshakes.
 ## Public reports
 
 Published run reports live at
-**<https://robinoppenstam.github.io/sema-evals/>** — currently 12 runs across
-three experiment pages (babel-relay, hook-enforcement, sema-tax).
+**<https://robinoppenstam.github.io/sema-evals/>** — currently 17 runs across
+seven experiment pages (babel-relay, hook-enforcement, sema-tax, a2a-drift,
+x402-contract-drift, forecasting, security).
 
 Result bundles under `results/` are untracked by default. Publishing is a
 deliberate act: a bundle is _promoted_ into a tracked, redacted public
@@ -276,9 +277,9 @@ one-time operator action.
 | 0     | Reproducible evaluator + deterministic relay  | Scorer correctness             | **Live**                                         |
 | 1     | Registry handshake + model-driven Babel Relay | Silent-divergence rate         | **Pilots published; confirmatory preregistered** |
 | 2     | Sema tax and hydration curve                  | Success per total token        | **Pilot published**                              |
-| 3     | A2A semantic extension                        | Execution under registry drift | Deterministic demo live                          |
-| 4     | `sema-sec` Solidity trials                    | Recall at fixed FP budget      | Scaffold live                                    |
-| 5     | Historical forecast council                   | Brier score                    | Scaffold live                                    |
+| 3     | A2A semantic extension                        | Execution under registry drift | **Demo + exploratory pilot published**           |
+| 4     | `sema-sec` Solidity trials                    | Recall at fixed FP budget      | Instrumentation run published                    |
+| 5     | Historical forecast council                   | Brier score                    | Deterministic run published                      |
 
 The full sequence and exit gates are locked in the
 [research plan](docs/RESEARCH_PLAN.md). Material changes require an architecture

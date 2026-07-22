@@ -84,9 +84,13 @@ async function readOutput(relPath: string): Promise<string> {
 describe("site URL structure", () => {
   it("emits the overview, a page per experiment-with-runs, and moved run pages", () => {
     expect(result.experimentIds).toEqual([
+      "a2a-drift",
       "babel-relay",
+      "forecasting",
       "hook-enforcement",
+      "security",
       "sema-tax",
+      "x402-contract-drift",
     ]);
     expect(result.files).toContain("index.html");
     for (const experimentId of result.experimentIds) {
@@ -172,10 +176,10 @@ describe("navbar", () => {
     expect(html).toContain('<a href="../../index.html">Overview</a>');
   });
 
-  it("omits run-less experiments (e.g. a2a-drift) from the nav", async () => {
+  it("omits run-less experiments (e.g. workflow-value) from the nav", async () => {
     const html = await readOutput("index.html");
-    expect(html).not.toContain("a2a-drift");
-    expect(result.experimentIds).not.toContain("a2a-drift");
+    expect(html).not.toContain("workflow-value");
+    expect(result.experimentIds).not.toContain("workflow-value");
   });
 });
 

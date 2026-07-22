@@ -1,0 +1,65 @@
+{
+  "artifactSchemaVersion": "0.3.0",
+  "protocolVersion": "0.3.0",
+  "a2aProtocolVersion": "0.3.0",
+  "extensionUri": "https://sema-evals.dev/a2a/ext/semantic-canonicalization/v0.1",
+  "experimentId": "a2a-drift",
+  "runId": "20260722T081949541Z-order-20260714",
+  "mode": "model-pilot",
+  "evidenceClaim": "Exploratory model pilot. Not preregistered, not confirmatory evidence. Worker is model-driven; requester, transport, registries, drift injection, and middleware remain deterministic. Ground-truth driftDetected is middleware-only (ADR 0015).",
+  "createdAt": "2026-07-22T08:19:49.541Z",
+  "orderSeed": 20260714,
+  "seeds": [
+    0
+  ],
+  "conditions": [
+    "baseline",
+    "advertised-voluntary",
+    "advertised-enforced"
+  ],
+  "scenarioCount": 8,
+  "driftScenarioCount": 4,
+  "cleanScenarioCount": 4,
+  "trialCount": 24,
+  "fixtureDigest": "29e046444c61dc53068fb039f58e69f40c18083e1a48f57024afdcaa8b2943ec",
+  "scorer": {
+    "version": "a2a-decision-parser-v1",
+    "fingerprint": "b0ac443cb6e4419d68855d9e3a0f0a00a8b302bb5d129c1cc13668b08664399f"
+  },
+  "protocolFingerprint": "62b8669b491d4ea9602150d49b511511f1a2f8c9a2b9f7c360dc170e53854cd9",
+  "runConfiguration": {
+    "provider": "cursor-agent@2026.07.20-8cc9c0b",
+    "model": "composer-2.5-fast",
+    "seeds": [
+      0
+    ],
+    "concurrency": 1,
+    "maxTokens": 4096,
+    "semanticBackend": "fixture-sha256-stable-json-v1",
+    "thinking": null,
+    "endpointHost": null,
+    "harness": {
+      "provider": "cursor-agent",
+      "binary": "cursor-agent",
+      "systemPromptControl": "prompt-envelope",
+      "toolsControl": "read-only-agent",
+      "sessionControl": "provider-managed",
+      "workingDirectory": "/home/jiberish/projects/opensource/sema-evals/results/.harness-workspace"
+    },
+    "orderSeed": 20260714
+  },
+  "provenance": {
+    "artifactSchemaVersion": "0.3.0",
+    "protocolVersion": "0.3.0",
+    "fixtureDigest": "29e046444c61dc53068fb039f58e69f40c18083e1a48f57024afdcaa8b2943ec",
+    "implementationCommit": "0412d86579c9d63cb1cab2b177588bdcd42c45f3+dirty",
+    "dependencyLockDigest": "f6cee25d8785aa39344e03899d1c9319646f71a2484d95227d2bb8c6e6647f0f",
+    "promptDigest": "879b518efaabf6d997a019ff82905d3fe5cea35452c9b2345b08f4f43c2f780a",
+    "semaVersion": "not-connected",
+    "canonicalizationVersion": "fixture-stable-json-v1",
+    "vocabularyRoot": "",
+    "semanticBackend": "fixture-sha256-stable-json-v1",
+    "modelProvider": "cursor-agent@2026.07.20-8cc9c0b",
+    "modelName": "composer-2.5-fast"
+  }
+}
