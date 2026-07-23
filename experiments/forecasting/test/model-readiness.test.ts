@@ -1,8 +1,9 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { sha256Text } from "@sema-evals/core";
 
 import {
   LEAKAGE_AUDIT_PROTOCOL_FINGERPRINT,
@@ -177,6 +178,165 @@ describe("model-pilot readiness", () => {
     await expect(
       loadHistoricalForecastingDataset(await writeDataset(unauthorized)),
     ).rejects.toThrow(/publicationRedistributionAuthorized/);
+  });
+
+  it("loads only the registered frozen-signal arm with cutoff-bound, identical retained bytes", async () => {
+    const withEvidence = dataset({ informationArm: "frozen-market-signal-v1" });
+    const question = (
+      withEvidence.scenarios as {
+        question: { evidencePack: unknown };
+      }[]
+    )[0]!.question;
+    const frozenText =
+      "source_market_yes_probability: 0.5000\nobserved_at: 2024-01-01T00:00:00.000Z\n";
+    question.evidencePack = {
+      schemaVersion: "forecasting-evidence-pack-v1",
+      cutoff: "2024-01-15T00:00:00.000Z",
+      items: [
+        {
+          id: "market-signal",
+          sourceName: "authorized source",
+          sourceUrl: "https://example.com/market-a",
+          license: "licensed",
+          publishedAt: "2024-01-01T00:00:00.000Z",
+          observedAt: "2024-01-01T00:00:00.000Z",
+          retrievedAt: "2024-03-01T00:00:00.000Z",
+          frozenPath: "evidence.txt",
+          sha256: sha256Text(frozenText),
+          summary: "Licensed source-market YES probability observed at t-24h.",
+        },
+      ],
+    };
+    const path = await writeDataset(withEvidence);
+    await writeFile(join(dirname(path), "evidence.txt"), frozenText, "utf8");
+    const loaded = await loadHistoricalForecastingDataset(path);
+    expect(loaded.dataset.informationArm).toBe("frozen-market-signal-v1");
+    expect(loaded.evidenceByScenario.get("market-a")?.[0]?.frozenText).toBe(
+      frozenText,
+    );
+    expect(loaded.evidencePackFingerprint).toHaveLength(64);
+
+    const wrongDigest = dataset({ informationArm: "frozen-market-signal-v1" });
+    const wrongQuestion = (
+      wrongDigest.scenarios as { question: { evidencePack: unknown } }[]
+    )[0]!.question;
+    wrongQuestion.evidencePack = {
+      ...(question.evidencePack as Record<string, unknown>),
+      items: [
+        {
+          ...((question.evidencePack as { items: Record<string, unknown>[] })
+            .items[0] ?? {}),
+          sha256: "d".repeat(64),
+        },
+      ],
+    };
+    const wrongPath = await writeDataset(wrongDigest);
+    await writeFile(
+      join(dirname(wrongPath), "evidence.txt"),
+      frozenText,
+      "utf8",
+    );
+    await expect(loadHistoricalForecastingDataset(wrongPath)).rejects.toThrow(
+      /bytes digest/,
+    );
+
+    const wrongSignal = dataset({ informationArm: "frozen-market-signal-v1" });
+    const wrongSignalQuestion = (
+      wrongSignal.scenarios as { question: { evidencePack: unknown } }[]
+    )[0]!.question;
+    const wrongSignalText =
+      "source_market_yes_probability: 0.3750\nobserved_at: 2024-01-01T00:00:00.000Z\n";
+    wrongSignalQuestion.evidencePack = {
+      ...(question.evidencePack as Record<string, unknown>),
+      items: [
+        {
+          ...((question.evidencePack as { items: Record<string, unknown>[] })
+            .items[0] ?? {}),
+          sha256: sha256Text(wrongSignalText),
+        },
+      ],
+    };
+    const wrongSignalPath = await writeDataset(wrongSignal);
+    await writeFile(
+      join(dirname(wrongSignalPath), "evidence.txt"),
+      wrongSignalText,
+      "utf8",
+    );
+    await expect(
+      loadHistoricalForecastingDataset(wrongSignalPath),
+    ).rejects.toThrow(/signal must match the frozen market prior/);
+
+    const afterCutoff = dataset({ informationArm: "frozen-market-signal-v1" });
+    const cutoffQuestion = (
+      afterCutoff.scenarios as { question: { evidencePack: unknown } }[]
+    )[0]!.question;
+    cutoffQuestion.evidencePack = {
+      ...(question.evidencePack as Record<string, unknown>),
+      cutoff: "2024-01-14T00:00:00.000Z",
+    };
+    const cutoffPath = await writeDataset(afterCutoff);
+    await expect(loadHistoricalForecastingDataset(cutoffPath)).rejects.toThrow(
+      /cutoff must exactly equal/,
+    );
+
+    const traversal = dataset({ informationArm: "frozen-market-signal-v1" });
+    const traversalQuestion = (
+      traversal.scenarios as { question: { evidencePack: unknown } }[]
+    )[0]!.question;
+    traversalQuestion.evidencePack = {
+      ...(question.evidencePack as Record<string, unknown>),
+      items: [
+        {
+          ...((question.evidencePack as { items: Record<string, unknown>[] })
+            .items[0] ?? {}),
+          frozenPath: "../outside.txt",
+        },
+      ],
+    };
+    await expect(
+      loadHistoricalForecastingDataset(await writeDataset(traversal)),
+    ).rejects.toThrow(/must stay below/);
+
+    const mismatchedPair = dataset({
+      informationArm: "frozen-market-signal-v1",
+    });
+    const first = (mismatchedPair.scenarios as Record<string, unknown>[])[0]!;
+    (first.question as { evidencePack: unknown }).evidencePack =
+      structuredClone(question.evidencePack);
+    const paired = structuredClone(first) as {
+      id: string;
+      question: {
+        marketPrior: number;
+        evidencePack: { items: Record<string, unknown>[] } | null;
+      };
+    };
+    paired.id = "market-a-clean";
+    paired.question.marketPrior = 0.375;
+    paired.question.evidencePack = structuredClone(question.evidencePack) as {
+      items: Record<string, unknown>[];
+    };
+    paired.question.evidencePack.items[0] = {
+      ...paired.question.evidencePack.items[0],
+      frozenPath: "evidence-other.txt",
+      sha256: sha256Text(
+        "source_market_yes_probability: 0.3750\nobserved_at: 2024-01-01T00:00:00.000Z\n",
+      ),
+    };
+    (mismatchedPair.scenarios as Record<string, unknown>[]).push(paired);
+    const pairPath = await writeDataset(mismatchedPair);
+    await writeFile(
+      join(dirname(pairPath), "evidence.txt"),
+      frozenText,
+      "utf8",
+    );
+    await writeFile(
+      join(dirname(pairPath), "evidence-other.txt"),
+      "source_market_yes_probability: 0.3750\nobserved_at: 2024-01-01T00:00:00.000Z\n",
+      "utf8",
+    );
+    await expect(loadHistoricalForecastingDataset(pairPath)).rejects.toThrow(
+      /paired scenarios.*identical frozen evidence bytes/,
+    );
   });
 
   it("rejects semantic fields outside the official Sema hash surface", async () => {

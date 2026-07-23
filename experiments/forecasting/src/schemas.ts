@@ -60,6 +60,8 @@ export const evidenceItemSchema = z.object({
   sourceUrl: z.string().url(),
   license: z.string().min(1),
   publishedAt: z.string().datetime(),
+  /** Timestamp of the source observation; local retrieval may be later. */
+  observedAt: z.string().datetime().optional(),
   retrievedAt: z.string().datetime(),
   frozenPath: z.string().min(1),
   sha256: z.string().length(64),
@@ -71,6 +73,12 @@ export const evidencePackSchema = z.object({
   cutoff: z.string().datetime(),
   items: z.array(evidenceItemSchema).min(1),
 });
+
+/** Registered model-pilot information arms. Do not infer this from nullness. */
+export const forecastingInformationArmSchema = z.enum([
+  "no-evidence-v1",
+  "frozen-market-signal-v1",
+]);
 
 /** Source and licence metadata for a resolved historical market question. */
 export const historicalQuestionProvenanceSchema = z.object({
@@ -157,8 +165,15 @@ export const leakageAuditDocumentSchema = z.object({
   ]),
   modelDescriptor: z.string().min(1).optional(),
   datasetDigest: z.string().length(64).optional(),
+  /** Hash of ordered question + resolution-criteria identities in the audit. */
+  questionSetFingerprint: z.string().length(64).optional(),
+  /** Required for an evidence-bearing pilot; prevents silent audit reuse. */
+  informationArm: forecastingInformationArmSchema.optional(),
+  /** Fingerprint of every served evidence pack and its declared digests. */
+  evidencePackFingerprint: z.string().length(64).nullable().optional(),
   protocolFingerprint: z.string().length(64).optional(),
   zeroEvidencePrompt: z.string().min(1).optional(),
+  evidencePrompt: z.string().min(1).optional(),
   aggregate: z
     .object({
       uniqueQuestions: z.number().int().positive(),
@@ -257,6 +272,12 @@ export const forecastingMetricsSchema = z.object({
   wireBytes: z.number().int().nonnegative(),
   hydrationBytes: z.number().int().nonnegative(),
   totalSemanticBytes: z.number().int().nonnegative(),
+  /** Deduplicated retained bytes for this scenario; not multiplied by calls. */
+  frozenEvidenceBytes: z.number().int().nonnegative().optional(),
+  /** Provider-reported prompt/context tokens across all member calls. */
+  modelInputTokens: z.number().int().nonnegative().nullable().optional(),
+  /** Provider-reported input + output + reasoning tokens, never an estimate. */
+  totalModelTokens: z.number().int().nonnegative().nullable().optional(),
   elapsedMs: z.number().nonnegative(),
 });
 
@@ -313,11 +334,15 @@ export const forecastingResultManifestSchema = z.object({
     policy: z.string().min(1),
     aggregationInterpretation: z.literal("canonical-probability-format"),
     datasetDigest: z.string().length(64).nullable().optional(),
+    questionSetFingerprint: z.string().length(64).nullable().optional(),
     leakageAuditFingerprint: z.string().length(64).nullable().optional(),
     provider: z.string().min(1).optional(),
     model: z.string().min(1).optional(),
     endpointHost: z.string().nullable().optional(),
     concurrency: z.number().int().positive().optional(),
+    informationArm: forecastingInformationArmSchema.optional(),
+    evidencePackFingerprint: z.string().length(64).nullable().optional(),
+    pilotQuestions: z.number().int().positive().nullable().optional(),
   }),
   provenance: trialProvenanceSchema,
 });
@@ -432,6 +457,7 @@ export const forecastingFixtureSetSchema = z.object({
  */
 export const historicalForecastingDatasetSchema = z.object({
   schemaVersion: z.literal("forecasting-historical-dataset-v1"),
+  informationArm: forecastingInformationArmSchema.default("no-evidence-v1"),
   licenseNotice: z.string().min(1),
   scenarios: z.array(forecastingScenarioSchema).min(1),
 });
@@ -461,6 +487,10 @@ export type ScenarioDrift = z.infer<typeof scenarioDriftSchema>;
 export type ForecastingScenario = z.infer<typeof forecastingScenarioSchema>;
 export type ForecastingFixtureSet = z.infer<typeof forecastingFixtureSetSchema>;
 export type EvidencePack = z.infer<typeof evidencePackSchema>;
+export type EvidenceItem = z.infer<typeof evidenceItemSchema>;
+export type ForecastingInformationArm = z.infer<
+  typeof forecastingInformationArmSchema
+>;
 export type HistoricalQuestionProvenance = z.infer<
   typeof historicalQuestionProvenanceSchema
 >;

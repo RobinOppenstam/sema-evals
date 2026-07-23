@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
 
 import type { SemanticReferenceProvider } from "@sema-evals/adapters";
 import { fingerprint, sha256Text } from "@sema-evals/core";
@@ -8,12 +10,23 @@ import {
   historicalForecastingDatasetSchema,
   leakageAuditDocumentSchema,
   type HistoricalForecastingDataset,
+  type EvidenceItem,
   type LeakageAuditDocument,
 } from "./schemas.js";
+
+export interface LoadedEvidenceItem {
+  item: EvidenceItem;
+  /** Exact, digest-verified local bytes decoded as UTF-8 for the model. */
+  frozenText: string;
+}
 
 export interface ValidatedHistoricalDataset {
   dataset: HistoricalForecastingDataset;
   digest: string;
+  /** Evidence is intentionally kept outside the YAML payload after validation. */
+  evidenceByScenario: ReadonlyMap<string, readonly LoadedEvidenceItem[]>;
+  evidencePackFingerprint: string | null;
+  questionSetFingerprint: string;
 }
 
 const SEMA_SEMANTIC_FIELDS = new Set([
@@ -29,6 +42,26 @@ const SEMA_SEMANTIC_FIELDS = new Set([
   "failure_modes",
   "derived_from",
 ]);
+
+/** Ordered unique identities make audit rebinds explicit and checkable. */
+export function forecastingQuestionSetFingerprint(
+  scenarios: readonly HistoricalForecastingDataset["scenarios"][number][],
+): string {
+  const seen = new Set<string>();
+  const identities: { questionText: string; resolutionCriteria: string }[] = [];
+  for (const scenario of scenarios) {
+    const identity = {
+      questionText: scenario.question.questionText,
+      resolutionCriteria: scenario.question.resolutionCriteria,
+    };
+    const key = fingerprint(identity);
+    if (!seen.has(key)) {
+      seen.add(key);
+      identities.push(identity);
+    }
+  }
+  return fingerprint(identities);
+}
 
 function assertDefinitionUsesSemaFields(
   scenarioId: string,
@@ -57,6 +90,9 @@ export async function loadHistoricalForecastingDataset(
   const raw = await readFile(path, "utf8");
   const dataset = historicalForecastingDatasetSchema.parse(parse(raw));
   const ids = new Set<string>();
+  const evidenceByScenario = new Map<string, readonly LoadedEvidenceItem[]>();
+  const datasetDirectory = dirname(resolve(path));
+  const evidencePacks: unknown[] = [];
   for (const scenario of dataset.scenarios) {
     if (!ids.add(scenario.id))
       throw new Error(`Duplicate scenario id: ${scenario.id}.`);
@@ -83,10 +119,113 @@ export async function loadHistoricalForecastingDataset(
         `${scenario.id}: source terms do not authorize publication/redistribution.`,
       );
     }
-    if (question.evidencePack !== null) {
-      throw new Error(
-        `${scenario.id}: registered first model pilot is no-evidence; evidencePack must be null.`,
-      );
+    if (dataset.informationArm === "no-evidence-v1") {
+      if (question.evidencePack !== null) {
+        throw new Error(
+          `${scenario.id}: registered no-evidence arm requires evidencePack to be null.`,
+        );
+      }
+    } else {
+      const pack = question.evidencePack;
+      if (!pack) {
+        throw new Error(
+          `${scenario.id}: frozen-market-signal arm requires an evidence pack.`,
+        );
+      }
+      if (pack.cutoff !== provenance.forecastCutoff) {
+        throw new Error(
+          `${scenario.id}: evidence pack cutoff must exactly equal forecastCutoff.`,
+        );
+      }
+      if (pack.items.length !== 1) {
+        throw new Error(
+          `${scenario.id}: frozen-market-signal arm requires exactly one source-market signal.`,
+        );
+      }
+      const loadedItems: LoadedEvidenceItem[] = [];
+      for (const item of pack.items) {
+        if (
+          !/source-market YES/i.test(item.summary) ||
+          /\boutcome\b|\bresolved\b/i.test(item.summary)
+        ) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} summary must identify source-market YES and must not contain an outcome.`,
+          );
+        }
+        if (
+          !item.observedAt ||
+          item.observedAt !== provenance.marketPriorObservedAt ||
+          Date.parse(item.observedAt) > forecastCutoff
+        ) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} observedAt must match the frozen market-prior observation and be no later than forecastCutoff.`,
+          );
+        }
+        if (Date.parse(item.publishedAt) > forecastCutoff) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} was published after forecastCutoff.`,
+          );
+        }
+        if (
+          item.sourceName !== provenance.marketSourceName ||
+          item.sourceUrl !== provenance.marketSourceUrl ||
+          item.license !== provenance.marketLicense
+        ) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} source and licence must match historical market provenance.`,
+          );
+        }
+        const frozenPath = resolve(datasetDirectory, item.frozenPath);
+        const pathFromDataset = relative(datasetDirectory, frozenPath);
+        if (pathFromDataset.startsWith("..") || pathFromDataset === "") {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} frozenPath must stay below the dataset directory.`,
+          );
+        }
+        const frozenBytes = await readFile(frozenPath);
+        const digest = createHash("sha256").update(frozenBytes).digest("hex");
+        if (digest !== item.sha256) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} bytes digest does not match declared sha256.`,
+          );
+        }
+        const frozenText = frozenBytes.toString("utf8");
+        if (Buffer.from(frozenText, "utf8").compare(frozenBytes) !== 0) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} frozen bytes must be valid UTF-8.`,
+          );
+        }
+        // The frozen signal is model-facing. Do not let a resolved label enter it.
+        if (
+          /\bresolved[_ -]?outcome\b|\bsettlement\s*[:=]|\bsource[_ -]?outcome\b/i.test(
+            frozenText,
+          )
+        ) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} appears to contain a resolved outcome field.`,
+          );
+        }
+        const signal = frozenText.match(
+          /^source_market_yes_probability: (0\.\d{4}|1\.0000)\nobserved_at: ([^\n]+)\n$/,
+        );
+        if (!signal) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} must contain exactly one four-decimal source-market YES probability and observed_at.`,
+          );
+        }
+        const probability = Number(signal[1]);
+        if (
+          Math.abs(probability - question.marketPrior) > Number.EPSILON ||
+          signal[2] !== item.observedAt
+        ) {
+          throw new Error(
+            `${scenario.id}: evidence ${item.id} signal must match the frozen market prior and declared observation time.`,
+          );
+        }
+        loadedItems.push({ item, frozenText });
+      }
+      evidenceByScenario.set(scenario.id, loadedItems);
+      evidencePacks.push({ scenarioId: scenario.id, pack });
     }
     for (const pattern of scenario.patterns) {
       assertDefinitionUsesSemaFields(scenario.id, pattern.definition);
@@ -98,7 +237,33 @@ export async function loadHistoricalForecastingDataset(
       );
     }
   }
-  return { dataset, digest: sha256Text(raw) };
+  if (dataset.informationArm === "frozen-market-signal-v1") {
+    const bytesByQuestion = new Map<string, string>();
+    for (const scenario of dataset.scenarios) {
+      const bytes = (evidenceByScenario.get(scenario.id) ?? [])
+        .map((entry) => entry.frozenText)
+        .join("\u0000");
+      const existing = bytesByQuestion.get(scenario.question.questionText);
+      if (existing !== undefined && existing !== bytes) {
+        throw new Error(
+          `${scenario.id}: paired scenarios for one question must serve identical frozen evidence bytes.`,
+        );
+      }
+      bytesByQuestion.set(scenario.question.questionText, bytes);
+    }
+  }
+  return {
+    dataset,
+    digest: sha256Text(raw),
+    evidenceByScenario,
+    evidencePackFingerprint:
+      dataset.informationArm === "frozen-market-signal-v1"
+        ? fingerprint(evidencePacks)
+        : null,
+    questionSetFingerprint: forecastingQuestionSetFingerprint(
+      dataset.scenarios,
+    ),
+  };
 }
 
 /** Fail before model calls if official canonicalization collapses a declared drift. */
@@ -131,7 +296,13 @@ export async function assertSemanticDriftsAddressable(
 /** The audit is bound to the exact served model, dataset, and zero-evidence prompt. */
 export function evaluateModelLeakageAudit(
   input: unknown,
-  expected: { modelDescriptor: string; datasetDigest: string },
+  expected: {
+    modelDescriptor: string;
+    datasetDigest: string;
+    informationArm?: HistoricalForecastingDataset["informationArm"];
+    evidencePackFingerprint?: string | null;
+    questionSetFingerprint?: string;
+  },
   scenarioIds: readonly string[],
 ): { passed: boolean; failures: string[]; document: LeakageAuditDocument } {
   const document = leakageAuditDocumentSchema.parse(input);
@@ -144,6 +315,28 @@ export function evaluateModelLeakageAudit(
   }
   if (document.datasetDigest !== expected.datasetDigest) {
     failures.push("model leakage audit is not for this frozen dataset");
+  }
+  if (expected.informationArm === "frozen-market-signal-v1") {
+    if (document.informationArm !== expected.informationArm) {
+      failures.push(
+        "model leakage audit is not registered for the evidence arm",
+      );
+    }
+    if (document.evidencePackFingerprint !== expected.evidencePackFingerprint) {
+      failures.push(
+        "model leakage audit is not bound to these frozen evidence bytes",
+      );
+    }
+    if (document.questionSetFingerprint !== expected.questionSetFingerprint) {
+      failures.push(
+        "model leakage audit is not bound to this question/resolution identity set",
+      );
+    }
+    if (!document.evidencePrompt) {
+      failures.push(
+        "model leakage audit is missing its frozen-evidence prompt",
+      );
+    }
   }
   if (!document.zeroEvidencePrompt) {
     failures.push(

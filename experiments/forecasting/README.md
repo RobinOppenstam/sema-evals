@@ -106,10 +106,23 @@ It will not run until all of these executable checks pass:
   the registered temporal and exact-binomial dataset-level screen;
 - the configured provider is available and its required credential is present.
 
-The registered first pilot is **no evidence** (ADR 0017), and its loader
-rejects every non-null evidence pack. A later evidence-pack arm requires its
-own registered validator for licence metadata, retained-byte digests, and
-pre-resolution cutoffs; it is not silently enabled here.
+The registered first pilot remains **no evidence** (`no-evidence-v1`; ADR
+0017), and its loader rejects every non-null evidence pack. The distinct
+`frozen-market-signal-v1` arm is now available only with an explicit
+`--information-arm` selection and a dataset whose local evidence bytes validate
+for licence, cutoff, digest, path containment, and drift/control-pair equality.
+It gives each member the same frozen t−24h source-market YES probability; the
+request explicitly asks for YES under that member's local
+`ResolutionDefinition`, so the polarity-drift member must invert the signal.
+No frozen evidence contains a resolved outcome.
+
+All conditions make independent calls, but the model request has no condition
+label and keeps question, local semantic content, and frozen evidence unchanged
+across conditions; only forecast-reference carrying/verification/enforcement
+differs outside the request. Sampling and provider variation are retained as
+trial noise, never attributed to Sema. Provider usage records separate model
+input and total model tokens; trial metrics separately retain semantic wire and
+hydration bytes plus deduplicated retained evidence bytes.
 
 Raw acquired snapshots and generated model-specific audits belong under the
 ignored `datasets/acquired/` directory. The tracked source manifest freezes
@@ -122,6 +135,8 @@ Rebuild and audit the frozen local input:
 ```bash
 pnpm forecasting:prepare-dataset
 pnpm forecasting:leakage-audit
+pnpm forecasting:prepare-evidence-dataset
+pnpm forecasting:leakage-audit -- --dataset experiments/forecasting/datasets/acquired/historical-resolved-frozen-market-signal-v1.yaml --output experiments/forecasting/datasets/acquired/frozen-market-signal-leakage-audit.json
 ```
 
 The audit is blind to outcomes during inference. It requires at least 90%
@@ -148,3 +163,22 @@ pnpm experiment:forecasting -- \
 This executes 100 paired scenarios × 3 conditions = 300 trials and 3,000 model
 calls. It writes a durable partial journal as trials settle and produces an
 exploratory bundle only; it is not confirmatory evidence.
+
+The evidence arm requires a newly generated, dataset-bound audit and an
+explicit arm flag:
+
+```bash
+pnpm experiment:forecasting -- \
+  --mode model-pilot \
+  --information-arm frozen-market-signal-v1 \
+  --dataset experiments/forecasting/datasets/acquired/historical-resolved-frozen-market-signal-v1.yaml \
+  --leakage-audit experiments/forecasting/datasets/acquired/frozen-market-signal-leakage-audit.json \
+  --pilot-questions 10 \
+  --provider openai-compatible --base-url https://llm.chutes.ai/v1 \
+  --api-key-env CHUTES_API_KEY --model YOUR_SELECTED_MODEL
+```
+
+For a deterministic, recorded small pilot after full dataset and audit
+validation, add `--pilot-questions 10`. It selects the first 10 unique frozen
+question identities (20 paired scenarios, 60 trials, and 600 member calls) and
+records the selected scenario identities in the protocol fingerprint.

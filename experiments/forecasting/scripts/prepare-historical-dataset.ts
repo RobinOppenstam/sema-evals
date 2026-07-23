@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +16,10 @@ const DEFAULT_SNAPSHOT = join(
 const DEFAULT_OUTPUT = join(
   REPO_ROOT,
   "experiments/forecasting/datasets/acquired/historical-resolved-v1.yaml",
+);
+const DEFAULT_EVIDENCE_OUTPUT = join(
+  REPO_ROOT,
+  "experiments/forecasting/datasets/acquired/historical-resolved-frozen-market-signal-v1.yaml",
 );
 const UNIQUE_QUESTION_COUNT = 50;
 const QUESTIONS_PER_OUTCOME = UNIQUE_QUESTION_COUNT / 2;
@@ -170,6 +174,12 @@ function scenarioFor(
   snapshot: z.infer<typeof snapshotSchema>,
   termsSha256: string,
   readmeSha256: string,
+  informationArm: "no-evidence-v1" | "frozen-market-signal-v1",
+  evidence?: {
+    frozenPath: string;
+    sha256: string;
+    frozenText: string;
+  },
 ) {
   const resolutionTimestamp = isoTimestamp(row.resolved_at);
   const forecastCutoff = new Date(
@@ -194,11 +204,16 @@ function scenarioFor(
       handle: "EvidenceCutoff",
       definition: {
         gloss:
-          "Latest instant information may be used in this no-evidence replay.",
+          informationArm === "frozen-market-signal-v1"
+            ? "Latest instant frozen source-market evidence may be used in this replay."
+            : "Latest instant information may be used in this no-evidence replay.",
         parameters: {
           cutoff: forecastCutoff,
           timezone: "UTC",
-          evidencePolicy: "question-and-resolution-criteria-only",
+          evidencePolicy:
+            informationArm === "frozen-market-signal-v1"
+              ? "question-resolution-and-frozen-source-market-signal"
+              : "question-and-resolution-criteria-only",
         },
       },
     },
@@ -230,11 +245,34 @@ function scenarioFor(
     question: {
       questionText: row.title,
       resolutionCriteria:
-        "This is a licensed title-only replay. Resolve YES if the proposition in questionText is the source market's YES outcome at settlement; resolve NO otherwise. No original market description, evidence pack, or post-cutoff information is supplied.",
+        informationArm === "frozen-market-signal-v1"
+          ? "This is a licensed title-only replay. Resolve YES if the proposition in questionText is the source market's YES outcome at settlement; resolve NO otherwise. A frozen pre-cutoff source-market YES probability is supplied; no original market description or post-cutoff information is supplied."
+          : "This is a licensed title-only replay. Resolve YES if the proposition in questionText is the source market's YES outcome at settlement; resolve NO otherwise. No original market description, evidence pack, or post-cutoff information is supplied.",
       resolutionTimestamp,
       resolvedOutcome: row.resolved_outcome === 1 ? "YES" : "NO",
       marketPrior: (row.predicted_price_t24h ?? 0) / 100,
-      evidencePack: null,
+      evidencePack:
+        informationArm === "frozen-market-signal-v1" && evidence
+          ? {
+              schemaVersion: "forecasting-evidence-pack-v1",
+              cutoff: forecastCutoff,
+              items: [
+                {
+                  id: `source-market-signal-${row.ticker}`,
+                  sourceName: snapshot.datasetName,
+                  sourceUrl,
+                  license: `${snapshot.license}; attribution: ${snapshot.attribution}`,
+                  publishedAt: forecastCutoff,
+                  observedAt: forecastCutoff,
+                  retrievedAt: snapshot.acquiredAt,
+                  frozenPath: evidence.frozenPath,
+                  sha256: evidence.sha256,
+                  summary:
+                    "Licensed source-market YES probability observed at t-24h as a pre-cutoff market signal.",
+                },
+              ],
+            }
+          : null,
       historicalProvenance: {
         datasetKind: "historical-resolved",
         marketSourceName: snapshot.datasetName,
@@ -295,8 +333,31 @@ function scenarioFor(
 }
 
 async function main(): Promise<void> {
-  const snapshotPath = resolve(process.argv[2] ?? DEFAULT_SNAPSHOT);
-  const outputPath = resolve(process.argv[3] ?? DEFAULT_OUTPUT);
+  const args = process.argv.slice(2);
+  const armIndex = args.indexOf("--arm");
+  const informationArm =
+    armIndex === -1 ? "no-evidence-v1" : args[armIndex + 1];
+  if (
+    informationArm !== "no-evidence-v1" &&
+    informationArm !== "frozen-market-signal-v1"
+  ) {
+    throw new Error(
+      "--arm requires no-evidence-v1 or frozen-market-signal-v1.",
+    );
+  }
+  const positional =
+    armIndex === -1
+      ? args
+      : args.filter(
+          (argument, index) => argument !== "--arm" && index !== armIndex + 1,
+        );
+  const snapshotPath = resolve(positional[0] ?? DEFAULT_SNAPSHOT);
+  const outputPath = resolve(
+    positional[1] ??
+      (informationArm === "frozen-market-signal-v1"
+        ? DEFAULT_EVIDENCE_OUTPUT
+        : DEFAULT_OUTPUT),
+  );
   const snapshot = snapshotSchema.parse(
     JSON.parse(await readFile(snapshotPath, "utf8")),
   );
@@ -340,20 +401,68 @@ async function main(): Promise<void> {
   if (!termsSha256 || !readmeSha256) {
     throw new Error("Snapshot requires verified README.md and terms.html.");
   }
+  const evidenceDirectory = join(dirname(outputPath), "evidence");
   const scenarios = selected.flatMap((row) => {
     const sourceFile = sourceByTicker.get(row.ticker);
     if (!sourceFile) throw new Error(`No source partition for ${row.ticker}.`);
     const sourceUrl = `${snapshot.datasetUrl}/blob/${snapshot.datasetRevision}/${sourceFile.path}`;
+    const resolutionTimestamp = isoTimestamp(row.resolved_at);
+    const forecastCutoff = new Date(
+      Date.parse(resolutionTimestamp) - 24 * 60 * 60 * 1_000,
+    ).toISOString();
+    const frozenText = `source_market_yes_probability: ${((row.predicted_price_t24h ?? 0) / 100).toFixed(4)}\nobserved_at: ${forecastCutoff}\n`;
+    const frozenPath = `evidence/${row.ticker}.txt`;
+    const evidence = {
+      frozenPath,
+      sha256: sha256Text(frozenText),
+      frozenText,
+    };
     return [
-      scenarioFor(row, "drift", sourceUrl, snapshot, termsSha256, readmeSha256),
-      scenarioFor(row, "clean", sourceUrl, snapshot, termsSha256, readmeSha256),
+      scenarioFor(
+        row,
+        "drift",
+        sourceUrl,
+        snapshot,
+        termsSha256,
+        readmeSha256,
+        informationArm,
+        evidence,
+      ),
+      scenarioFor(
+        row,
+        "clean",
+        sourceUrl,
+        snapshot,
+        termsSha256,
+        readmeSha256,
+        informationArm,
+        evidence,
+      ),
     ];
   });
   const dataset = historicalForecastingDatasetSchema.parse({
     schemaVersion: "forecasting-historical-dataset-v1",
+    informationArm,
     licenseNotice: `${snapshot.license}. Attribution: ${snapshot.attribution}. This 50-market evaluation subset is not a competing re-host.`,
     scenarios,
   });
+  if (informationArm === "frozen-market-signal-v1") {
+    await mkdir(evidenceDirectory, { recursive: true });
+    await Promise.all(
+      selected.map(async (row) => {
+        const resolutionTimestamp = isoTimestamp(row.resolved_at);
+        const forecastCutoff = new Date(
+          Date.parse(resolutionTimestamp) - 24 * 60 * 60 * 1_000,
+        ).toISOString();
+        const frozenText = `source_market_yes_probability: ${((row.predicted_price_t24h ?? 0) / 100).toFixed(4)}\nobserved_at: ${forecastCutoff}\n`;
+        await writeFile(
+          join(evidenceDirectory, `${row.ticker}.txt`),
+          frozenText,
+          "utf8",
+        );
+      }),
+    );
+  }
   await writeFile(outputPath, stringify(dataset), "utf8");
   console.log(
     `Wrote ${selected.length} unique markets as ${scenarios.length} paired scenarios to ${outputPath}`,

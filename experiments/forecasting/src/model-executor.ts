@@ -88,7 +88,18 @@ export async function executeForecastingCouncilMember(
     question: string;
     resolutionCriteria: string;
     forecastCutoff: string;
-    evidence?: readonly { id: string; summary: string }[];
+    /** Explicitly binds the numeric forecast to this member's local meaning of YES. */
+    forecastInstruction?: string;
+    localResolutionDefinition?: unknown;
+    evidence?: readonly {
+      id: string;
+      sourceName: string;
+      sourceUrl: string;
+      license: string;
+      observedAt: string;
+      sha256: string;
+      frozenText: string;
+    }[];
     round?: 1 | 2;
     peerForecasts?: readonly { agentId: string; probability: number }[];
     coordination?: Readonly<Record<string, unknown>>;

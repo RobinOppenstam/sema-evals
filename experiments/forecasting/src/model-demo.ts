@@ -28,6 +28,7 @@ import type {
   ForecastingScenario,
   ForecastingTrialRecord,
 } from "./schemas.js";
+import type { LoadedEvidenceItem } from "./model-readiness.js";
 
 export interface ModelForecastingTrialOptions {
   experimentId: string;
@@ -35,6 +36,7 @@ export interface ModelForecastingTrialOptions {
   vocabularyRoot: string;
   provenance: TrialProvenance;
   adapter: ModelAgentAdapter<ModelPromptInput, ModelCompletion>;
+  evidenceByScenario?: ReadonlyMap<string, readonly LoadedEvidenceItem[]>;
 }
 
 function combineUsage(
@@ -138,6 +140,7 @@ export async function runModelForecastingTrial(
   const allResults: Awaited<
     ReturnType<typeof executeForecastingCouncilMember>
   >[] = [];
+  const frozenEvidence = options.evidenceByScenario?.get(scenario.id) ?? [];
   const callRound = async (
     round: 1 | 2,
     peers: readonly ForecastObject[],
@@ -170,6 +173,18 @@ export async function runModelForecastingTrial(
           resolutionCriteria: scenario.question.resolutionCriteria,
           forecastCutoff:
             scenario.question.historicalProvenance?.forecastCutoff ?? "",
+          forecastInstruction:
+            "Forecast the probability of YES from 0 through 1 under your local ResolutionDefinition below. Interpret YES exactly as that local definition specifies; if its polarity is source_no_is_yes, a source-market YES signal supports your NO probability instead.",
+          localResolutionDefinition: coordination.ResolutionDefinition,
+          evidence: frozenEvidence.map(({ item, frozenText }) => ({
+            id: item.id,
+            sourceName: item.sourceName,
+            sourceUrl: item.sourceUrl,
+            license: item.license,
+            observedAt: item.observedAt ?? item.publishedAt,
+            sha256: item.sha256,
+            frozenText,
+          })),
           round,
           peerForecasts: peers
             .filter((peer) => peer.agentId !== agent.id)
@@ -260,6 +275,10 @@ export async function runModelForecastingTrial(
     },
   });
   const usage = combineUsage(allResults);
+  const modelInputTokens = usage?.inputTokens ?? null;
+  const totalModelTokens = usage
+    ? usage.inputTokens + usage.outputTokens + (usage.reasoningTokens ?? 0)
+    : null;
   const metrics: ForecastingMetrics = {
     driftInjected: scenario.drift !== null,
     referencesCarried: policy.carriesReferences,
@@ -296,6 +315,13 @@ export async function runModelForecastingTrial(
     hydrationBytes,
     totalSemanticBytes:
       utf8Bytes(round1Forecasts) + utf8Bytes(round2Forecasts) + hydrationBytes,
+    frozenEvidenceBytes: frozenEvidence.reduce(
+      (total, evidence) =>
+        total + Buffer.byteLength(evidence.frozenText, "utf8"),
+      0,
+    ),
+    modelInputTokens,
+    totalModelTokens,
     elapsedMs: performance.now() - started,
   };
   const transcriptEntries = allResults.flatMap((result, callIndex) =>

@@ -32,7 +32,25 @@ source's t-24h probability as both prior and cutoff timestamp, and emits paired
 drift/no-drift scenarios. The generated file is
 `acquired/historical-resolved-v1.yaml`.
 
-The registered first arm is title-only and no-evidence, so no evidence pack is
-needed or accepted. This is a protocol choice, not a missing validator. A later
-evidence-pack arm requires separate registration plus retained-byte, license,
-and cutoff validation.
+The registered first arm is title-only and `no-evidence-v1`, so no evidence
+pack is accepted. It remains unchanged. The separate
+`frozen-market-signal-v1` arm is generated with:
+
+```bash
+pnpm forecasting:prepare-evidence-dataset
+```
+
+It emits `acquired/historical-resolved-frozen-market-signal-v1.yaml` plus one
+ignored, local UTF-8 file per unique market under `acquired/evidence/`. Each
+drift/control pair refers to exactly the same SHA-256-checked bytes:
+`source_market_yes_probability` and its source `observed_at` at t−24h. Those
+files contain neither settlement labels nor resolved outcomes. The loader
+requires explicit arm selection, source/license metadata, an exact cutoff,
+pre-cutoff source observation/publication timestamps, path containment, exact
+file digests, and byte equality across a pair.
+
+For this arm, run a fresh zero-evidence contamination audit against the new
+dataset before a model pilot. The audit binds the dataset digest, frozen-evidence
+pack fingerprint, and ordered question/resolution identity fingerprint. It does
+not reuse a no-evidence audit merely because titles look similar; a documented
+rebind is valid only when those identities and all fingerprints match.

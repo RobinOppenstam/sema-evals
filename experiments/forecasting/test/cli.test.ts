@@ -5,7 +5,13 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
 
-import { parseArgs, runForecastingCli } from "../src/cli.js";
+import {
+  assertInformationArm,
+  parseArgs,
+  runForecastingCli,
+  selectPilotScenarios,
+} from "../src/cli.js";
+import { loadFixtureFile } from "../src/fixtures.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = join(ROOT, "fixtures/scenarios.yaml");
@@ -86,6 +92,31 @@ describe("parseArgs", () => {
     expect(() => parseArgs(base)).toThrow(/--model is required/);
     expect(parseArgs([...base, "--model", "served-model"]).apiKeyEnv).toBe(
       "CHUTES_API_KEY",
+    );
+  });
+
+  it("records an explicit arm and selects complete frozen question pairs", async () => {
+    expect(
+      parseArgs(["--information-arm", "frozen-market-signal-v1"])
+        .informationArm,
+    ).toBe("frozen-market-signal-v1");
+    expect(parseArgs(["--pilot-questions", "10"]).pilotQuestions).toBe(10);
+    const fixture = await loadFixtureFile(FIXTURE_PATH);
+    const drift = fixture.fixtureSet.scenarios[0]!;
+    const clean = { ...drift, id: "paired-clean", drift: null };
+    const selected = selectPilotScenarios([drift, clean], 1);
+    expect(selected).toHaveLength(2);
+    expect(
+      new Set(selected.map((scenario) => scenario.question.questionText)).size,
+    ).toBe(1);
+    expect(() =>
+      selectPilotScenarios(fixture.fixtureSet.scenarios, 999),
+    ).toThrow(/contains only/);
+    expect(() =>
+      assertInformationArm("no-evidence-v1", "frozen-market-signal-v1"),
+    ).toThrow(/does not match dataset arm/);
+    expect(() => assertInformationArm("", "frozen-market-signal-v1")).toThrow(
+      /requires explicit --information-arm/,
     );
   });
 });

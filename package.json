@@ -16,6 +16,7 @@
     "experiment:babel": "pnpm build && pnpm --filter @sema-evals/babel-relay run start",
     "experiment:forecasting": "pnpm build && pnpm --filter @sema-evals/forecasting run start",
     "forecasting:prepare-dataset": "tsx experiments/forecasting/scripts/prepare-historical-dataset.ts",
+    "forecasting:prepare-evidence-dataset": "tsx experiments/forecasting/scripts/prepare-historical-dataset.ts --arm frozen-market-signal-v1",
     "forecasting:leakage-audit": "tsx experiments/forecasting/scripts/run-leakage-audit.ts",
     "experiment:prepare": "pnpm build",
     "experiment:security": "pnpm build && pnpm --filter @sema-evals/security run start",

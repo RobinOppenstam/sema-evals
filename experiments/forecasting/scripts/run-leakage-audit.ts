@@ -215,8 +215,19 @@ async function main(): Promise<void> {
     schemaVersion: "forecasting-model-leakage-audit-v1",
     modelDescriptor,
     datasetDigest: validated.digest,
+    questionSetFingerprint: validated.questionSetFingerprint,
+    informationArm: validated.dataset.informationArm,
+    evidencePackFingerprint: validated.evidencePackFingerprint,
     protocolFingerprint: LEAKAGE_AUDIT_PROTOCOL_FINGERPRINT,
     zeroEvidencePrompt: SYSTEM_PROMPT,
+    // This remains a zero-evidence contamination screen: outcome accuracy is
+    // meaningful only when the predictive t-24h signal is withheld. Binding
+    // the exact evidence-pack fingerprint prevents silently reusing it after
+    // changing the evidence served by the subsequent forecast pilot.
+    evidencePrompt:
+      validated.dataset.informationArm === "frozen-market-signal-v1"
+        ? `${SYSTEM_PROMPT}\nFrozen evidence withheld for zero-evidence contamination scoring; evidence-pack fingerprint: ${validated.evidencePackFingerprint ?? "missing"}.`
+        : undefined,
     aggregate: {
       uniqueQuestions: questions.length,
       parsedQuestions: parsedAudits.length,

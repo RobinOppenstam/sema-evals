@@ -106,4 +106,89 @@ describe("model forecasting trial failure preservation", () => {
       ),
     ).toHaveLength(scenario.agents.length * 2);
   });
+
+  it("keeps model requests condition-neutral while serving identical frozen evidence", async () => {
+    const fixture = await loadFixtureFile(
+      join(ROOT, "fixtures/scenarios.yaml"),
+    );
+    const scenario = fixture.fixtureSet.scenarios[0]!;
+    const requests: string[] = [];
+    const adapter: ModelAgentAdapter<ModelPromptInput, ModelCompletion> = {
+      ...malformedAdapter,
+      invoke: async (input) => {
+        const request = JSON.parse(input.messages[0]?.content ?? "{}") as {
+          agentId: string;
+        };
+        requests.push(input.messages[0]?.content ?? "");
+        return {
+          ...(await malformedAdapter.invoke(input)),
+          output: {
+            status: "completed" as const,
+            text: JSON.stringify({
+              agentId: request.agentId,
+              probability: 0.5,
+              rationale: "frozen source signal considered",
+            }),
+            stopReason: "end",
+          },
+        };
+      },
+    };
+    const baseCell = {
+      trialId: "e".repeat(64),
+      scenario,
+      scenarioId: scenario.id,
+      seed: 0,
+      executionIndex: 0,
+    };
+    const options = {
+      experimentId: "forecasting",
+      referenceProvider: new FixtureReferenceProvider(),
+      vocabularyRoot: "",
+      provenance,
+      adapter,
+      evidenceByScenario: new Map([
+        [
+          scenario.id,
+          [
+            {
+              item: {
+                id: "market-signal",
+                sourceName: "licensed source",
+                sourceUrl: "https://example.com/signal",
+                license: "CC-BY-4.0",
+                publishedAt: "2026-01-01T00:00:00.000Z",
+                observedAt: "2026-01-01T00:00:00.000Z",
+                retrievedAt: "2026-01-02T00:00:00.000Z",
+                frozenPath: "evidence.txt",
+                sha256: "f".repeat(64),
+                summary:
+                  "Licensed source-market YES probability observed at t-24h.",
+              },
+              frozenText: "source_market_yes_probability: 0.5000\n",
+            },
+          ],
+        ],
+      ]),
+    };
+    await runModelForecastingTrial(
+      { ...baseCell, condition: "baseline" },
+      options,
+    );
+    const baselineRequests = [...requests];
+    requests.length = 0;
+    await runModelForecastingTrial(
+      { ...baseCell, condition: "addressed-voluntary" },
+      options,
+    );
+    expect(requests).toEqual(baselineRequests);
+    const first = JSON.parse(requests[0] ?? "{}") as {
+      forecastInstruction?: string;
+      evidence?: { frozenText: string }[];
+    };
+    expect(first.forecastInstruction).toMatch(/local ResolutionDefinition/);
+    expect(first.evidence?.[0]?.frozenText).toBe(
+      "source_market_yes_probability: 0.5000\n",
+    );
+  });
 });
