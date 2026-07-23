@@ -231,9 +231,9 @@ resolution, and pattern or vocabulary handshakes.
 ## Public reports
 
 Published run reports live at
-**<https://robinoppenstam.github.io/sema-evals/>** — currently 17 runs across
-seven experiment pages (babel-relay, hook-enforcement, sema-tax, a2a-drift,
-x402-contract-drift, forecasting, security).
+**<https://robinoppenstam.github.io/sema-evals/>** — currently 21 runs across
+nine experiment pages (babel-relay, hook-enforcement, sema-tax, sema-discovery,
+workflow-value, a2a-drift, x402-contract-drift, forecasting, security).
 
 Result bundles under `results/` are untracked by default. Publishing is a
 deliberate act: a bundle is _promoted_ into a tracked, redacted public

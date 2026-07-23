@@ -1,0 +1,67 @@
+{
+  "artifactSchemaVersion": "0.3.0",
+  "protocolVersion": "sema-discovery-v1",
+  "experimentId": "sema-discovery",
+  "runId": "20260723T073223827Z-order-20260716",
+  "mode": "deterministic-harness",
+  "evidenceClaim": "Deterministic mechanism/scaffold validation of search, selection, dependency resolution, execution, and within-session reuse. Scripted outcomes are constructed and are not evidence that models discover useful patterns or that a library improves workflow performance.",
+  "createdAt": "2026-07-23T07:32:23.827Z",
+  "orderSeed": 20260716,
+  "seeds": [
+    0
+  ],
+  "conditions": [
+    "task-only",
+    "preselected-prose",
+    "preselected-addressed",
+    "discovery",
+    "discovery-reuse"
+  ],
+  "scenarioCount": 1,
+  "trialCount": 5,
+  "fixtureDigest": "8603f93a45812d46aab6fa31f29a72647a645121a468bdcf9a107a2ac921ba63",
+  "catalogFingerprint": "758b5a15b3c124ef4e53f9064fb848389429226a60348c6ae411d2a331c44043",
+  "rankerFingerprint": "38565e4bc828986376464f6fef7d2cd460d6731bdadab1670f096fa5aa9deb8d",
+  "searchParameters": {
+    "version": "lexical-search-v1",
+    "minimumScore": 1,
+    "maxResults": 3,
+    "queryFields": [
+      "task-request"
+    ],
+    "patternFields": [
+      "handle",
+      "title",
+      "purpose",
+      "tags"
+    ],
+    "ordering": "score-desc-handle-asc"
+  },
+  "scorer": {
+    "version": "sema-discovery-scorer-v1",
+    "fingerprint": "fe0469cf772f6fb41f8e236eb82c139d944df48b5351c11ab7073ec6ad3a806a"
+  },
+  "protocolFingerprint": "e41489903e796dbe36ee0f43b92900756ff5c93b3d9348b01536d2080420845d",
+  "runConfiguration": {
+    "mode": "deterministic-harness",
+    "orderSeed": 20260716,
+    "repetitionCount": 1,
+    "semanticBackend": "fixture-sha256-stable-json-v1",
+    "sessionReset": "before-every-trial",
+    "discoveryReuseScope": "within-trial-only"
+  },
+  "provenance": {
+    "artifactSchemaVersion": "0.3.0",
+    "protocolVersion": "sema-discovery-v1",
+    "fixtureDigest": "8603f93a45812d46aab6fa31f29a72647a645121a468bdcf9a107a2ac921ba63",
+    "implementationCommit": "3b79b15e18c3412916aabee89e1c176d234593c5+dirty",
+    "dependencyLockDigest": "f6cee25d8785aa39344e03899d1c9319646f71a2484d95227d2bb8c6e6647f0f",
+    "promptDigest": "d9909616c20a952e33c0ea0a2fe032cee6c8d4367ffefcd7960ddcf558613c3a",
+    "semaVersion": "not-connected",
+    "canonicalizationVersion": "fixture-stable-json-v1",
+    "vocabularyRoot": "758b5a15b3c124ef4e53f9064fb848389429226a60348c6ae411d2a331c44043",
+    "semanticBackend": "fixture-sha256-stable-json-v1",
+    "modelProvider": "deterministic",
+    "modelName": "scripted-discovery-executor-v1"
+  }
+}

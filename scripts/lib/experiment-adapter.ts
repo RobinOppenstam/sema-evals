@@ -18,6 +18,10 @@ import {
 import { hookEnforcementAdapter } from "./adapters/hook-relay.js";
 import { securityAdapter } from "./adapters/security.js";
 import { semaTaxAdapter } from "./adapters/sema-tax.js";
+import {
+  semaDiscoveryAdapter,
+  workflowValueAdapter,
+} from "./adapters/scaffolds.js";
 
 export type {
   ExperimentAdapter,
@@ -32,7 +36,9 @@ const ADAPTERS: Readonly<Record<string, ExperimentAdapter>> = {
   [forecastingAdapter.experimentId]: forecastingAdapter,
   [hookEnforcementAdapter.experimentId]: hookEnforcementAdapter,
   [securityAdapter.experimentId]: securityAdapter,
+  [semaDiscoveryAdapter.experimentId]: semaDiscoveryAdapter,
   [semaTaxAdapter.experimentId]: semaTaxAdapter,
+  [workflowValueAdapter.experimentId]: workflowValueAdapter,
   [x402DriftAdapter.experimentId]: x402DriftAdapter,
 };
 
