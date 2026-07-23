@@ -504,6 +504,85 @@ function modelFailureCount(trials: readonly DriftDemoTrial[]): number {
   );
 }
 
+const forecastingForecastSchema = z.object({
+  agentId: z.string(),
+  probability: z.number(),
+});
+
+function forecastingSignalAdherence(view: DriftDemoRunView): {
+  alignedExact: number;
+  alignedParsed: number;
+  alignedMeanAbsoluteError: number;
+  invertedExact: number;
+  invertedParsed: number;
+  invertedMeanAbsoluteError: number;
+} | null {
+  if (
+    view.manifest.runConfiguration?.["informationArm"] !==
+    "frozen-market-signal-v1"
+  ) {
+    return null;
+  }
+  const driftedAgentByScenario = new Map<string, string>();
+  for (const trial of view.trials) {
+    if (trial.condition !== "addressed-enforced" || !trial.driftInjected)
+      continue;
+    const excluded = z.array(z.string()).safeParse(trial["excludedAgentIds"]);
+    if (excluded.success && excluded.data.length === 1) {
+      driftedAgentByScenario.set(trial.scenarioId, excluded.data[0]!);
+    }
+  }
+  const totals = {
+    alignedExact: 0,
+    alignedParsed: 0,
+    alignedAbsoluteError: 0,
+    invertedExact: 0,
+    invertedParsed: 0,
+    invertedAbsoluteError: 0,
+  };
+  for (const trial of view.trials) {
+    const marketPrior = numericMetric(trial, "marketPrior");
+    if (marketPrior === null) continue;
+    const forecasts = z
+      .array(forecastingForecastSchema)
+      .safeParse([
+        ...(Array.isArray(trial["round1Forecasts"])
+          ? trial["round1Forecasts"]
+          : []),
+        ...(Array.isArray(trial["round2Forecasts"])
+          ? trial["round2Forecasts"]
+          : []),
+      ]);
+    if (!forecasts.success) continue;
+    const driftedAgent = driftedAgentByScenario.get(trial.scenarioId);
+    for (const forecast of forecasts.data) {
+      const inverted = trial.driftInjected && forecast.agentId === driftedAgent;
+      const expected = inverted ? 1 - marketPrior : marketPrior;
+      const absoluteError = Math.abs(forecast.probability - expected);
+      if (inverted) {
+        totals.invertedParsed += 1;
+        totals.invertedAbsoluteError += absoluteError;
+        if (absoluteError < 1e-9) totals.invertedExact += 1;
+      } else {
+        totals.alignedParsed += 1;
+        totals.alignedAbsoluteError += absoluteError;
+        if (absoluteError < 1e-9) totals.alignedExact += 1;
+      }
+    }
+  }
+  if (totals.alignedParsed === 0 || totals.invertedParsed === 0) return null;
+  return {
+    alignedExact: totals.alignedExact,
+    alignedParsed: totals.alignedParsed,
+    alignedMeanAbsoluteError:
+      totals.alignedAbsoluteError / totals.alignedParsed,
+    invertedExact: totals.invertedExact,
+    invertedParsed: totals.invertedParsed,
+    invertedMeanAbsoluteError:
+      totals.invertedAbsoluteError / totals.invertedParsed,
+  };
+}
+
 function renderForecastingDetails(view: DriftDemoRunView): string {
   const contextAnalysis = z
     .object({
@@ -597,9 +676,29 @@ mean aggregate Brier in this run (<code>${formatDecimal(enforcedBrier)}</code>
 enforced versus <code>${formatDecimal(baselineBrier)}</code> baseline; lower is
 better). This is compatible with the semantic gate doing mechanism work without
 improving model forecasting performance.</p>`;
+  const signalAdherence = forecastingSignalAdherence(view);
+  const adherenceInterpretation =
+    signalAdherence === null
+      ? ""
+      : `<p><strong>Model semantic transformation:</strong> among parseable round forecasts,
+aligned members reproduced the frozen source-market YES signal exactly in
+<code>${signalAdherence.alignedExact}/${signalAdherence.alignedParsed}</code> cases
+(mean absolute error <code>${formatDecimal(signalAdherence.alignedMeanAbsoluteError)}</code>),
+while polarity-drifted members reproduced its complement exactly in
+<code>${signalAdherence.invertedExact}/${signalAdherence.invertedParsed}</code> cases
+(mean absolute error <code>${formatDecimal(signalAdherence.invertedMeanAbsoluteError)}</code>).
+This shows model-side interpretation of the local definition; Sema's measured
+role is to address, detect, and enforce that semantic mismatch at aggregation.</p>`;
+  const retainedEvidenceBytes = sumMetric(view.trials, "frozenEvidenceBytes");
+  const evidenceLine =
+    retainedEvidenceBytes === 0
+      ? ""
+      : `<li>Retained frozen evidence: <code>${retainedEvidenceBytes.toLocaleString("en-US")} bytes</code>
+summed once per trial (deduplicated within a trial, not multiplied by member calls).</li>`;
 
   return `<h2>Forecast utility and resource channels</h2>
 ${utilityInterpretation}
+${adherenceInterpretation}
 <div class="table-wrap"><table class="runlist">
 <thead><tr>
 <th>Condition</th>
@@ -614,6 +713,7 @@ ${utilityInterpretation}
 ${sourceLine}
 <li>Wire payload: <code>${sumMetric(view.trials, "wireBytes").toLocaleString("en-US")} bytes</code>.</li>
 <li>Registry hydration/context: <code>${sumMetric(view.trials, "hydrationBytes").toLocaleString("en-US")} bytes</code>.</li>
+${evidenceLine}
 ${contextTokenLine}
 <li>Provider model tokens: <code>${inputTokens.toLocaleString("en-US")} input</code>,
 <code>${cachedInputTokens.toLocaleString("en-US")} cached-input reads</code> (a subset of input),
