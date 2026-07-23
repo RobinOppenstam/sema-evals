@@ -33,7 +33,13 @@ export interface DriftDemoCounter {
   /** Field name in each summary.json condition entry. */
   readonly summaryField: string;
   /** Boolean flag on trial.metrics that the field counts. */
-  readonly metricsFlag: string;
+  readonly metricsFlag?: string;
+  /** Event-details field to count instead of a metrics flag. */
+  readonly eventDetailsField?: string;
+  /** Accepted event-details values when `eventDetailsField` is used. */
+  readonly eventDetailsValues?: readonly string[];
+  /** Older summaries may predate this counter. */
+  readonly optionalInLegacySummary?: boolean;
   /** Column header on the run page. */
   readonly label: string;
   /** Use drift-injected trials as the denominator (else all trials). */
@@ -77,6 +83,15 @@ const driftDemoTrialSchema = z
     scenarioId: z.string(),
     driftInjected: z.boolean(),
     metrics: z.record(z.string(), z.unknown()),
+    events: z
+      .array(
+        z
+          .object({
+            details: z.record(z.string(), z.unknown()),
+          })
+          .passthrough(),
+      )
+      .optional(),
     transcript: transcriptSchema.nullable(),
   })
   .passthrough();
@@ -95,8 +110,25 @@ export interface DriftDemoRunView {
   readonly conditions: readonly ConditionCounts[];
 }
 
-function metricsFlag(trial: DriftDemoTrial, flag: string): boolean {
-  return trial.metrics[flag] === true;
+function counterMatches(
+  trial: DriftDemoTrial,
+  counter: DriftDemoCounter,
+): boolean {
+  if (counter.metricsFlag !== undefined) {
+    return trial.metrics[counter.metricsFlag] === true;
+  }
+  if (
+    counter.eventDetailsField !== undefined &&
+    counter.eventDetailsValues !== undefined
+  ) {
+    return (trial.events ?? []).some((event) => {
+      const value = event.details[counter.eventDetailsField!];
+      return (
+        typeof value === "string" && counter.eventDetailsValues!.includes(value)
+      );
+    });
+  }
+  return false;
 }
 
 function aggregate(
@@ -109,7 +141,7 @@ function aggregate(
     const counts: Record<string, number> = {};
     for (const counter of config.counters) {
       counts[counter.summaryField] = inCondition.filter((trial) =>
-        metricsFlag(trial, counter.metricsFlag),
+        counterMatches(trial, counter),
       ).length;
     }
     return {
@@ -162,6 +194,9 @@ function compareWithSummary(
     for (const counter of config.counters) {
       const stored = entry[counter.summaryField];
       const recomputedValue = counts.counts[counter.summaryField];
+      if (stored === undefined && counter.optionalInLegacySummary === true) {
+        continue;
+      }
       if (stored !== recomputedValue) {
         warnings.push(
           `${counts.condition}.${counter.summaryField}: summary=${String(stored)}, recomputed=${String(recomputedValue)}`,
@@ -470,6 +505,22 @@ export const x402DriftAdapter = makeDriftDemoAdapter({
       label: "Task successes",
       driftScoped: false,
     },
+    {
+      summaryField: "modelFailures",
+      eventDetailsField: "payerStatus",
+      eventDetailsValues: ["refused", "truncated", "error", "blocked"],
+      label: "Provider failures",
+      driftScoped: false,
+      optionalInLegacySummary: true,
+    },
+    {
+      summaryField: "malformedModelOutputs",
+      eventDetailsField: "payerStatus",
+      eventDetailsValues: ["malformed-output"],
+      label: "Malformed outputs",
+      driftScoped: false,
+      optionalInLegacySummary: true,
+    },
   ],
   headline: (latest) => {
     const baseline = conditionByName(latest, "baseline");
@@ -477,10 +528,20 @@ export const x402DriftAdapter = makeDriftDemoAdapter({
     if (baseline === undefined || enforced === undefined) {
       return "conditions ladder incomplete";
     }
+    const modelFailures = latest.conditions.reduce(
+      (total, condition) => total + (condition.counts["modelFailures"] ?? 0),
+      0,
+    );
+    const malformedOutputs = latest.conditions.reduce(
+      (total, condition) =>
+        total + (condition.counts["malformedModelOutputs"] ?? 0),
+      0,
+    );
     return (
       `Baseline: ${baseline.counts["silentPayments"] ?? 0}/${baseline.driftTrials} drifted contracts pay silently; ` +
       `enforced: ${enforced.counts["correctHalts"] ?? 0}/${enforced.driftTrials} refused, ` +
-      `${enforced.counts["falseHalts"] ?? 0} false refusals.`
+      `${enforced.counts["falseHalts"] ?? 0} false refusals; ` +
+      `${modelFailures} provider failures, ${malformedOutputs} malformed outputs.`
     );
   },
 });
