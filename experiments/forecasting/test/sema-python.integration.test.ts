@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,7 +14,13 @@ const DATASET_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../datasets/acquired/historical-resolved-v1.yaml",
 );
-const integration = process.env.SEMA_PYTHON ? describe : describe.skip;
+// The licensed historical subset is operator-local and intentionally ignored.
+// Run this full-dataset integration only where both prerequisites are present;
+// CI still covers the provider itself and the fail-closed collapse unit test.
+const integration =
+  process.env.SEMA_PYTHON && existsSync(DATASET_PATH)
+    ? describe
+    : describe.skip;
 
 integration(
   "historical forecasting dataset with official semahash Python",
