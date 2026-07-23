@@ -70,6 +70,8 @@ describe("experiment-adapter registry", () => {
   it("dispatches known experiment ids to their adapters", () => {
     expect(getAdapter("babel-relay")?.experimentId).toBe("babel-relay");
     expect(getAdapter("sema-tax")?.experimentId).toBe("sema-tax");
+    expect(getAdapter("sema-discovery")?.experimentId).toBe("sema-discovery");
+    expect(getAdapter("workflow-value")?.experimentId).toBe("workflow-value");
     expect(getAdapter("hook-enforcement")?.experimentId).toBe(
       "hook-enforcement",
     );
@@ -79,7 +81,9 @@ describe("experiment-adapter registry", () => {
       "forecasting",
       "hook-enforcement",
       "security",
+      "sema-discovery",
       "sema-tax",
+      "workflow-value",
       "x402-contract-drift",
     ]);
   });

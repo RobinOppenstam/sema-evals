@@ -89,7 +89,9 @@ describe("site URL structure", () => {
       "forecasting",
       "hook-enforcement",
       "security",
+      "sema-discovery",
       "sema-tax",
+      "workflow-value",
       "x402-contract-drift",
     ]);
     expect(result.files).toContain("index.html");
@@ -176,10 +178,10 @@ describe("navbar", () => {
     expect(html).toContain('<a href="../../index.html">Overview</a>');
   });
 
-  it("omits run-less experiments (e.g. workflow-value) from the nav", async () => {
+  it("omits unregistered run-less experiments from the nav", async () => {
     const html = await readOutput("index.html");
-    expect(html).not.toContain("workflow-value");
-    expect(result.experimentIds).not.toContain("workflow-value");
+    expect(html).not.toContain("future-experiment");
+    expect(result.experimentIds).not.toContain("future-experiment");
   });
 });
 
