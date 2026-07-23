@@ -1,0 +1,62 @@
+{
+  "artifactSchemaVersion": "0.3.0",
+  "protocolVersion": "workflow-value-v1",
+  "experimentId": "workflow-value",
+  "runId": "20260723T073224723Z-order-20260716",
+  "mode": "deterministic-harness",
+  "evidenceClaim": "Validates the workflow-value scaffold mechanics only: clearly labelled synthetic seed tasks, hidden executable validators, dev/eval separation, paired randomized conditions, fixed token-budget accounting, semantic delivery channels, repair notice handling, and durable result preservation. Scripted outcomes are not evidence about model performance (ADR 0021).",
+  "createdAt": "2026-07-23T07:32:24.723Z",
+  "orderSeed": 20260716,
+  "seeds": [
+    0
+  ],
+  "conditions": [
+    "task-only",
+    "equal-prose",
+    "opaque-resolver",
+    "content-addressed",
+    "content-addressed-repair"
+  ],
+  "devTaskCount": 1,
+  "evalTaskCount": 2,
+  "trialCount": 15,
+  "tokenBudget": 2048,
+  "invocationTokenReserve": 512,
+  "fixtureDigest": "63655a053cd6ff88991f8091078ca03705f8e51774d31b56caaf4160efaefb71",
+  "datasetGate": {
+    "datasetLabel": "synthetic-seed-fixtures",
+    "status": "seed-only",
+    "readyForModelPilot": false,
+    "requirement": "Acquire and freeze an independently sourced workflow-task dataset with documented licensing, dev/eval partitioning, deduplication, and validator review before any exploratory model pilot."
+  },
+  "scorer": {
+    "version": "workflow-exact-validator-v1",
+    "fingerprint": "b53e6c3382aeb74775038b941d4a05f24d678f271a0597ea5401dec5173276fc"
+  },
+  "protocolFingerprint": "4d2cc2d7e3ee60927111266d3540a7f4bdf39649b58d385242f8fb6727e1dcd2",
+  "runConfiguration": {
+    "mode": "deterministic-harness",
+    "seeds": [
+      0
+    ],
+    "orderSeed": 20260716,
+    "tokenBudget": 2048,
+    "invocationTokenReserve": 512,
+    "semanticBackend": "fixture-sha256-stable-json-v1",
+    "policy": "deterministic-workflow-value-scaffold-v1"
+  },
+  "provenance": {
+    "artifactSchemaVersion": "0.3.0",
+    "protocolVersion": "workflow-value-v1",
+    "fixtureDigest": "63655a053cd6ff88991f8091078ca03705f8e51774d31b56caaf4160efaefb71",
+    "implementationCommit": "3b79b15e18c3412916aabee89e1c176d234593c5+dirty",
+    "dependencyLockDigest": "f6cee25d8785aa39344e03899d1c9319646f71a2484d95227d2bb8c6e6647f0f",
+    "promptDigest": "2006161305ad4c5b3ed7a2a83357336ad9cbd502d7f381752a19ce5e989464d4",
+    "semaVersion": "not-connected",
+    "canonicalizationVersion": "fixture-stable-json-v1",
+    "vocabularyRoot": "",
+    "semanticBackend": "fixture-sha256-stable-json-v1",
+    "modelProvider": "deterministic",
+    "modelName": "workflow-value-scripted-executor-v1"
+  }
+}
