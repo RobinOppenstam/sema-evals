@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "forecasting-posthoc-analysis-v1",
+  "evidenceStatus": "descriptive-post-hoc",
+  "sourceTrialsSha256": "52a7eea0e251daa01d7619deb89f8af091176a42910e85fb9af54a7adb051b6e",
+  "datasetSource": {
+    "name": "SimpleFunctions Settled Prediction Markets",
+    "url": "https://huggingface.co/datasets/SimpleFunctions/settled-markets",
+    "revision": "a27e3e9307266481d51e087fffd5bf934410e01c",
+    "license": "CC-BY-4.0",
+    "attribution": "SimpleFunctions (simplefunctions.dev)"
+  },
+  "method": "Hydration context tokens are the sum of upstream-tokenizer tokens in the compact JSON serialization of the coordination object included in each model request. This excludes chat framing, question text, frozen evidence, peer forecasts, and output. It is a context-channel measurement, not a claimed token or cost saving.",
+  "tokenizer": {
+    "repository": "mistralai/Mistral-Nemo-Instruct-2407",
+    "revision": "04d8a90549d23fc6bd7f642064003592df51e9b3",
+    "sha256": "e11c71726323d33da7b8d6f6f269f1988931c0a52b7122bcdd8c05042974e0db"
+  },
+  "hydrationContextTokens": {
+    "total": 118620,
+    "byCondition": {
+      "baseline": 39540,
+      "addressed-voluntary": 39540,
+      "addressed-enforced": 39540
+    },
+    "modelCalls": 600
+  }
+}

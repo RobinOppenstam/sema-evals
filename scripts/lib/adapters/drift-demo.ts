@@ -33,7 +33,13 @@ export interface DriftDemoCounter {
   /** Field name in each summary.json condition entry. */
   readonly summaryField: string;
   /** Boolean flag on trial.metrics that the field counts. */
-  readonly metricsFlag: string;
+  readonly metricsFlag?: string;
+  /** Event-details field to count instead of a metrics flag. */
+  readonly eventDetailsField?: string;
+  /** Accepted event-details values when `eventDetailsField` is used. */
+  readonly eventDetailsValues?: readonly string[];
+  /** Older summaries may predate this counter. */
+  readonly optionalInLegacySummary?: boolean;
   /** Column header on the run page. */
   readonly label: string;
   /** Use drift-injected trials as the denominator (else all trials). */
@@ -47,6 +53,8 @@ export interface DriftDemoAdapterConfig {
   readonly counters: readonly DriftDemoCounter[];
   /** Builds the overview-card headline from the latest run's recompute. */
   readonly headline: (latest: DriftDemoRunView) => string;
+  /** Optional experiment-specific quantitative detail below the mechanism table. */
+  readonly renderDetails?: (view: DriftDemoRunView) => string;
 }
 
 const driftDemoManifestSchema = z
@@ -65,6 +73,14 @@ const driftDemoManifestSchema = z
       })
       .passthrough()
       .optional(),
+    provenance: z
+      .object({
+        semaVersion: z.string(),
+        canonicalizationVersion: z.string(),
+        semanticBackend: z.string(),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 
@@ -77,7 +93,32 @@ const driftDemoTrialSchema = z
     scenarioId: z.string(),
     driftInjected: z.boolean(),
     metrics: z.record(z.string(), z.unknown()),
+    events: z
+      .array(
+        z
+          .object({
+            details: z.record(z.string(), z.unknown()),
+          })
+          .passthrough(),
+      )
+      .optional(),
     transcript: transcriptSchema.nullable(),
+    usage: z
+      .object({
+        inputTokens: z.number().nonnegative(),
+        cachedInputTokensRead: z.number().nonnegative(),
+        cachedInputTokensWritten: z.number().nonnegative(),
+        reasoningTokens: z.number().nonnegative().nullable(),
+        outputTokens: z.number().nonnegative(),
+        attempts: z.number().nonnegative(),
+        retries: z.number().nonnegative(),
+        errors: z.array(z.string()),
+        latencyMs: z.number().nonnegative(),
+        stopReason: z.string().nullable(),
+        costUsd: z.number().nonnegative().nullable(),
+      })
+      .nullable()
+      .optional(),
   })
   .passthrough();
 
@@ -93,10 +134,29 @@ interface ConditionCounts {
 export interface DriftDemoRunView {
   readonly manifest: DriftDemoManifest;
   readonly conditions: readonly ConditionCounts[];
+  readonly trials: readonly DriftDemoTrial[];
+  readonly analysis: unknown | null;
 }
 
-function metricsFlag(trial: DriftDemoTrial, flag: string): boolean {
-  return trial.metrics[flag] === true;
+function counterMatches(
+  trial: DriftDemoTrial,
+  counter: DriftDemoCounter,
+): boolean {
+  if (counter.metricsFlag !== undefined) {
+    return trial.metrics[counter.metricsFlag] === true;
+  }
+  if (
+    counter.eventDetailsField !== undefined &&
+    counter.eventDetailsValues !== undefined
+  ) {
+    return (trial.events ?? []).some((event) => {
+      const value = event.details[counter.eventDetailsField!];
+      return (
+        typeof value === "string" && counter.eventDetailsValues!.includes(value)
+      );
+    });
+  }
+  return false;
 }
 
 function aggregate(
@@ -109,7 +169,7 @@ function aggregate(
     const counts: Record<string, number> = {};
     for (const counter of config.counters) {
       counts[counter.summaryField] = inCondition.filter((trial) =>
-        metricsFlag(trial, counter.metricsFlag),
+        counterMatches(trial, counter),
       ).length;
     }
     return {
@@ -162,6 +222,9 @@ function compareWithSummary(
     for (const counter of config.counters) {
       const stored = entry[counter.summaryField];
       const recomputedValue = counts.counts[counter.summaryField];
+      if (stored === undefined && counter.optionalInLegacySummary === true) {
+        continue;
+      }
       if (stored !== recomputedValue) {
         warnings.push(
           `${counts.condition}.${counter.summaryField}: summary=${String(stored)}, recomputed=${String(recomputedValue)}`,
@@ -190,6 +253,13 @@ function renderRunPage(
     ...(runConfig?.model === undefined
       ? []
       : [`Model: <code>${escapeHtml(runConfig.model)}</code>`]),
+    ...(manifest.provenance === undefined
+      ? []
+      : [
+          `Semantic backend: <code>${escapeHtml(manifest.provenance.semanticBackend)}</code>`,
+          `Sema version: <code>${escapeHtml(manifest.provenance.semaVersion)}</code>`,
+          `Canonicalization: <code>${escapeHtml(manifest.provenance.canonicalizationVersion)}</code>`,
+        ]),
     `Order seed: <code>${escapeHtml(String(manifest.orderSeed))}</code>`,
   ];
 
@@ -215,6 +285,7 @@ ${cells}
 </tr>`;
     })
     .join("\n");
+  const details = config.renderDetails?.(view) ?? "";
 
   return `<h1>${escapeHtml(config.title)} &mdash; ${escapeHtml(manifest.runId)}</h1>
 <p class="lede">${escapeHtml(manifest.evidenceClaim)}</p>
@@ -232,7 +303,8 @@ ${header}
 </table></div>
 <p class="note">Drift-scoped columns use drift-injected trials as the denominator;
 the rest use all trials in the condition. Every count is recomputed from
-<code>trials.public.jsonl</code> at build time.</p>`;
+<code>trials.public.jsonl</code> at build time.</p>
+${details}`;
 }
 
 function renderExperimentSection(
@@ -319,13 +391,25 @@ async function loadRun(
   const trials = parseTrials(
     await readFile(join(runDir, "trials.public.jsonl"), "utf8"),
   );
+  let analysis: unknown | null = null;
+  try {
+    analysis = JSON.parse(
+      await readFile(join(runDir, "analysis.json"), "utf8"),
+    );
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? error.code
+        : null;
+    if (code !== "ENOENT") throw error;
+  }
   const conditions = aggregate(config, manifest, trials);
   assertSummaryFaithful(
     config.experimentId,
     runId,
     compareWithSummary(config, conditions, summaryOnDisk),
   );
-  return { manifest, conditions };
+  return { manifest, conditions, trials, analysis };
 }
 
 export function makeDriftDemoAdapter(
@@ -381,6 +465,269 @@ function conditionByName(
   name: string,
 ): ConditionCounts | undefined {
   return view.conditions.find((counts) => counts.condition === name);
+}
+
+function numericMetric(trial: DriftDemoTrial, key: string): number | null {
+  const value = trial.metrics[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function meanPresent(values: readonly (number | null)[]): number | null {
+  const present = values.filter((value): value is number => value !== null);
+  if (present.length === 0) return null;
+  return present.reduce((total, value) => total + value, 0) / present.length;
+}
+
+function formatDecimal(value: number | null, digits = 4): string {
+  return value === null ? "n/a" : value.toFixed(digits);
+}
+
+function sumMetric(trials: readonly DriftDemoTrial[], key: string): number {
+  return trials.reduce(
+    (total, trial) => total + (numericMetric(trial, key) ?? 0),
+    0,
+  );
+}
+
+function modelFailureCount(trials: readonly DriftDemoTrial[]): number {
+  return trials.reduce(
+    (total, trial) =>
+      total +
+      (trial.events ?? []).filter((event) => {
+        const status = event.details["modelStatus"];
+        return (
+          typeof status === "string" &&
+          (status !== "completed" || event.details["parseFailure"] !== null)
+        );
+      }).length,
+    0,
+  );
+}
+
+const forecastingForecastSchema = z.object({
+  agentId: z.string(),
+  probability: z.number(),
+});
+
+function forecastingSignalAdherence(view: DriftDemoRunView): {
+  alignedExact: number;
+  alignedParsed: number;
+  alignedMeanAbsoluteError: number;
+  invertedExact: number;
+  invertedParsed: number;
+  invertedMeanAbsoluteError: number;
+} | null {
+  if (
+    view.manifest.runConfiguration?.["informationArm"] !==
+    "frozen-market-signal-v1"
+  ) {
+    return null;
+  }
+  const driftedAgentByScenario = new Map<string, string>();
+  for (const trial of view.trials) {
+    if (trial.condition !== "addressed-enforced" || !trial.driftInjected)
+      continue;
+    const excluded = z.array(z.string()).safeParse(trial["excludedAgentIds"]);
+    if (excluded.success && excluded.data.length === 1) {
+      driftedAgentByScenario.set(trial.scenarioId, excluded.data[0]!);
+    }
+  }
+  const totals = {
+    alignedExact: 0,
+    alignedParsed: 0,
+    alignedAbsoluteError: 0,
+    invertedExact: 0,
+    invertedParsed: 0,
+    invertedAbsoluteError: 0,
+  };
+  for (const trial of view.trials) {
+    const marketPrior = numericMetric(trial, "marketPrior");
+    if (marketPrior === null) continue;
+    const forecasts = z
+      .array(forecastingForecastSchema)
+      .safeParse([
+        ...(Array.isArray(trial["round1Forecasts"])
+          ? trial["round1Forecasts"]
+          : []),
+        ...(Array.isArray(trial["round2Forecasts"])
+          ? trial["round2Forecasts"]
+          : []),
+      ]);
+    if (!forecasts.success) continue;
+    const driftedAgent = driftedAgentByScenario.get(trial.scenarioId);
+    for (const forecast of forecasts.data) {
+      const inverted = trial.driftInjected && forecast.agentId === driftedAgent;
+      const expected = inverted ? 1 - marketPrior : marketPrior;
+      const absoluteError = Math.abs(forecast.probability - expected);
+      if (inverted) {
+        totals.invertedParsed += 1;
+        totals.invertedAbsoluteError += absoluteError;
+        if (absoluteError < 1e-9) totals.invertedExact += 1;
+      } else {
+        totals.alignedParsed += 1;
+        totals.alignedAbsoluteError += absoluteError;
+        if (absoluteError < 1e-9) totals.alignedExact += 1;
+      }
+    }
+  }
+  if (totals.alignedParsed === 0 || totals.invertedParsed === 0) return null;
+  return {
+    alignedExact: totals.alignedExact,
+    alignedParsed: totals.alignedParsed,
+    alignedMeanAbsoluteError:
+      totals.alignedAbsoluteError / totals.alignedParsed,
+    invertedExact: totals.invertedExact,
+    invertedParsed: totals.invertedParsed,
+    invertedMeanAbsoluteError:
+      totals.invertedAbsoluteError / totals.invertedParsed,
+  };
+}
+
+function renderForecastingDetails(view: DriftDemoRunView): string {
+  const contextAnalysis = z
+    .object({
+      method: z.string(),
+      tokenizer: z.object({
+        repository: z.string(),
+        revision: z.string(),
+        sha256: z.string(),
+      }),
+      datasetSource: z.object({
+        name: z.string(),
+        url: z.string().url(),
+        revision: z.string(),
+        license: z.string(),
+        attribution: z.string(),
+      }),
+      hydrationContextTokens: z.object({
+        total: z.number().nonnegative(),
+      }),
+    })
+    .safeParse(view.analysis);
+  const brierByCondition = new Map<string, number | null>();
+  const rows = view.manifest.conditions
+    .map((condition) => {
+      const trials = view.trials.filter(
+        (trial) => trial.condition === condition,
+      );
+      const aggregateBrier = meanPresent(
+        trials.map((trial) => numericMetric(trial, "brierAggregate")),
+      );
+      brierByCondition.set(condition, aggregateBrier);
+      return `<tr>
+<td><code>${escapeHtml(condition)}</code></td>
+<td class="num">${formatDecimal(aggregateBrier)}</td>
+<td class="num">${formatDecimal(meanPresent(trials.map((trial) => numericMetric(trial, "brierMarketPrior"))))}</td>
+<td class="num">${formatDecimal(meanPresent(trials.map((trial) => numericMetric(trial, "brierIndependentAverage"))))}</td>
+<td class="num">${modelFailureCount(trials)}</td>
+</tr>`;
+    })
+    .join("\n");
+  const inputTokens = view.trials.reduce(
+    (total, trial) => total + (trial.usage?.inputTokens ?? 0),
+    0,
+  );
+  const cachedInputTokens = view.trials.reduce(
+    (total, trial) => total + (trial.usage?.cachedInputTokensRead ?? 0),
+    0,
+  );
+  const outputTokens = view.trials.reduce(
+    (total, trial) => total + (trial.usage?.outputTokens ?? 0),
+    0,
+  );
+  const reasoningTokens = view.trials.reduce(
+    (total, trial) => total + (trial.usage?.reasoningTokens ?? 0),
+    0,
+  );
+  const totalModelTokens = inputTokens + outputTokens + reasoningTokens;
+  const providerErrors = view.trials.reduce(
+    (total, trial) => total + (trial.usage?.errors.length ?? 0),
+    0,
+  );
+  const retries = view.trials.reduce(
+    (total, trial) => total + (trial.usage?.retries ?? 0),
+    0,
+  );
+  const costs = view.trials
+    .map((trial) => trial.usage?.costUsd)
+    .filter((cost): cost is number => cost !== undefined && cost !== null);
+  const cost =
+    costs.length === 0
+      ? "not reported"
+      : `$${costs.reduce((total, value) => total + value, 0).toFixed(6)}`;
+  const contextTokenLine = contextAnalysis.success
+    ? `<li>Tokenizer-derived coordination hydration: <code>${contextAnalysis.data.hydrationContextTokens.total.toLocaleString("en-US")} context tokens</code>
+using <code>${escapeHtml(contextAnalysis.data.tokenizer.repository)}@${escapeHtml(contextAnalysis.data.tokenizer.revision)}</code>
+(tokenizer SHA-256 <code>${escapeHtml(contextAnalysis.data.tokenizer.sha256)}</code>).</li>`
+    : "";
+  const sourceLine = contextAnalysis.success
+    ? `<li>Historical source: <a href="${escapeHtml(contextAnalysis.data.datasetSource.url)}">${escapeHtml(contextAnalysis.data.datasetSource.name)}</a>
+at revision <code>${escapeHtml(contextAnalysis.data.datasetSource.revision)}</code>,
+licensed <code>${escapeHtml(contextAnalysis.data.datasetSource.license)}</code>;
+attribution: ${escapeHtml(contextAnalysis.data.datasetSource.attribution)}.</li>`
+    : "";
+  const baselineBrier = brierByCondition.get("baseline") ?? null;
+  const enforcedBrier = brierByCondition.get("addressed-enforced") ?? null;
+  const utilityInterpretation =
+    baselineBrier === null || enforcedBrier === null
+      ? ""
+      : `<p><strong>Descriptive utility result:</strong> enforcement ${enforcedBrier < baselineBrier ? "improved" : "did not improve"}
+mean aggregate Brier in this run (<code>${formatDecimal(enforcedBrier)}</code>
+enforced versus <code>${formatDecimal(baselineBrier)}</code> baseline; lower is
+better). This is compatible with the semantic gate doing mechanism work without
+improving model forecasting performance.</p>`;
+  const signalAdherence = forecastingSignalAdherence(view);
+  const adherenceInterpretation =
+    signalAdherence === null
+      ? ""
+      : `<p><strong>Model semantic transformation:</strong> among parseable round forecasts,
+aligned members reproduced the frozen source-market YES signal exactly in
+<code>${signalAdherence.alignedExact}/${signalAdherence.alignedParsed}</code> cases
+(mean absolute error <code>${formatDecimal(signalAdherence.alignedMeanAbsoluteError)}</code>),
+while polarity-drifted members reproduced its complement exactly in
+<code>${signalAdherence.invertedExact}/${signalAdherence.invertedParsed}</code> cases
+(mean absolute error <code>${formatDecimal(signalAdherence.invertedMeanAbsoluteError)}</code>).
+This shows model-side interpretation of the local definition; Sema's measured
+role is to address, detect, and enforce that semantic mismatch at aggregation.</p>`;
+  const retainedEvidenceBytes = sumMetric(view.trials, "frozenEvidenceBytes");
+  const evidenceLine =
+    retainedEvidenceBytes === 0
+      ? ""
+      : `<li>Retained frozen evidence: <code>${retainedEvidenceBytes.toLocaleString("en-US")} bytes</code>
+summed once per trial (deduplicated within a trial, not multiplied by member calls).</li>`;
+
+  return `<h2>Forecast utility and resource channels</h2>
+${utilityInterpretation}
+${adherenceInterpretation}
+<div class="table-wrap"><table class="runlist">
+<thead><tr>
+<th>Condition</th>
+<th class="num">Mean Brier<br>aggregate</th>
+<th class="num">Mean Brier<br>market prior</th>
+<th class="num">Mean Brier<br>independent</th>
+<th class="num">Malformed / failed<br>model outputs</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table></div>
+<ul>
+${sourceLine}
+<li>Wire payload: <code>${sumMetric(view.trials, "wireBytes").toLocaleString("en-US")} bytes</code>.</li>
+<li>Registry hydration/context: <code>${sumMetric(view.trials, "hydrationBytes").toLocaleString("en-US")} bytes</code>.</li>
+${evidenceLine}
+${contextTokenLine}
+<li>Provider model tokens: <code>${inputTokens.toLocaleString("en-US")} input</code>,
+<code>${cachedInputTokens.toLocaleString("en-US")} cached-input reads</code> (a subset of input),
+<code>${outputTokens.toLocaleString("en-US")} output</code>,
+<code>${reasoningTokens.toLocaleString("en-US")} separately reported reasoning</code>,
+<code>${totalModelTokens.toLocaleString("en-US")} total input + output + reasoning</code>.</li>
+<li>Provider retries/errors: <code>${retries}/${providerErrors}</code>; provider-reported cost: <code>${cost}</code>.</li>
+</ul>
+<p class="note">Lower Brier is better. Model calls were independently sampled
+per condition, so small cross-condition Brier differences are exploratory and
+must be read alongside the clean controls. Cached-input reads are observational,
+not an additional token charge. Wire, hydration, and model-token channels are
+reported separately; a short reference is not treated as a context-token saving.
+${contextAnalysis.success ? escapeHtml(contextAnalysis.data.method) : ""}</p>`;
 }
 
 export const a2aDriftAdapter = makeDriftDemoAdapter({
@@ -470,6 +817,22 @@ export const x402DriftAdapter = makeDriftDemoAdapter({
       label: "Task successes",
       driftScoped: false,
     },
+    {
+      summaryField: "modelFailures",
+      eventDetailsField: "payerStatus",
+      eventDetailsValues: ["refused", "truncated", "error", "blocked"],
+      label: "Provider failures",
+      driftScoped: false,
+      optionalInLegacySummary: true,
+    },
+    {
+      summaryField: "malformedModelOutputs",
+      eventDetailsField: "payerStatus",
+      eventDetailsValues: ["malformed-output"],
+      label: "Malformed outputs",
+      driftScoped: false,
+      optionalInLegacySummary: true,
+    },
   ],
   headline: (latest) => {
     const baseline = conditionByName(latest, "baseline");
@@ -477,10 +840,20 @@ export const x402DriftAdapter = makeDriftDemoAdapter({
     if (baseline === undefined || enforced === undefined) {
       return "conditions ladder incomplete";
     }
+    const modelFailures = latest.conditions.reduce(
+      (total, condition) => total + (condition.counts["modelFailures"] ?? 0),
+      0,
+    );
+    const malformedOutputs = latest.conditions.reduce(
+      (total, condition) =>
+        total + (condition.counts["malformedModelOutputs"] ?? 0),
+      0,
+    );
     return (
       `Baseline: ${baseline.counts["silentPayments"] ?? 0}/${baseline.driftTrials} drifted contracts pay silently; ` +
       `enforced: ${enforced.counts["correctHalts"] ?? 0}/${enforced.driftTrials} refused, ` +
-      `${enforced.counts["falseHalts"] ?? 0} false refusals.`
+      `${enforced.counts["falseHalts"] ?? 0} false refusals; ` +
+      `${modelFailures} provider failures, ${malformedOutputs} malformed outputs.`
     );
   },
 });
@@ -528,4 +901,5 @@ export const forecastingAdapter = makeDriftDemoAdapter({
       `${enforced.counts["falseExclusions"] ?? 0} false exclusions.`
     );
   },
+  renderDetails: renderForecastingDetails,
 });

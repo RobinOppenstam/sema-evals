@@ -1,0 +1,63 @@
+{
+  "artifactSchemaVersion": "0.3.0",
+  "protocolVersion": "0.3.0",
+  "experimentId": "forecasting",
+  "runId": "20260723T135520372Z-order-20260716",
+  "mode": "model-pilot",
+  "evidenceClaim": "Exploratory model pilot. Not preregistered, not confirmatory evidence. Historical questions are replayed after a selected-model audit bound to the exact dataset and, for the frozen-market-signal arm, the exact retained evidence bytes. Model outputs are objectively JSON-parsed and scored against frozen outcomes. The pre-existing primary endpoint remains corrupted aggregation under controlled registry drift; Brier score is reported as the registered utility metric with mandatory market-prior and independent-agent baselines. Conditions make independent model calls with no condition label in the model request; sampling/provider variation remains a nuisance and is preserved, not attributed to Sema.",
+  "createdAt": "2026-07-23T13:55:20.372Z",
+  "orderSeed": 20260716,
+  "seeds": [
+    0
+  ],
+  "conditions": [
+    "baseline",
+    "addressed-voluntary",
+    "addressed-enforced"
+  ],
+  "scenarioCount": 20,
+  "driftScenarioCount": 10,
+  "cleanScenarioCount": 10,
+  "trialCount": 60,
+  "fixtureDigest": "b3933e1335b7611d0b3e6e88d98de03049547037c3167e263d5231222f9670bd",
+  "leakageAuditPassed": true,
+  "scorer": {
+    "version": "forecasting-scorer-v1",
+    "fingerprint": "36c58b163c462c0613b63fdb89446cf3a0ed4eeb65c9de5b76ccc46848b29ebd"
+  },
+  "protocolFingerprint": "8c45bd2b6f1f1b1e52ea55cbc945a10adec51289fe4ddb87c0ab5abb01eac150",
+  "runConfiguration": {
+    "mode": "model-pilot",
+    "seeds": [
+      0
+    ],
+    "orderSeed": 20260716,
+    "semanticBackend": "sema-python",
+    "policy": "deterministic-forecasting-council-demo-v2-canonical-aggregation",
+    "aggregationInterpretation": "canonical-probability-format",
+    "datasetDigest": "b3933e1335b7611d0b3e6e88d98de03049547037c3167e263d5231222f9670bd",
+    "questionSetFingerprint": "1caac145200a0366e0be6f6ae7ba486c59b76094858e24738bf7717d26e5e0f1",
+    "leakageAuditFingerprint": "c1a257380bfc0d87a1368fe4c6410cae4c4a7830d239f196266f86f033e9f425",
+    "provider": "llm.chutes.ai",
+    "model": "unsloth/Mistral-Nemo-Instruct-2407-TEE",
+    "endpointHost": "llm.chutes.ai",
+    "concurrency": 8,
+    "informationArm": "frozen-market-signal-v1",
+    "evidencePackFingerprint": "8be4e831ff82e0ef39a0e948eace368a48a15285a0b50d21017800da8a597d33",
+    "pilotQuestions": 10
+  },
+  "provenance": {
+    "artifactSchemaVersion": "0.3.0",
+    "protocolVersion": "0.3.0",
+    "fixtureDigest": "b3933e1335b7611d0b3e6e88d98de03049547037c3167e263d5231222f9670bd",
+    "implementationCommit": "fd8ef1051a0ba7993fb759c73845fc080e1d1e62",
+    "dependencyLockDigest": "aac98960b3f4f830ed3994105ec37a30d3ef23a92aa8d0b4246ea672487dca58",
+    "promptDigest": "1d814f5d176e27ed44435dc224e9b59a139e3a3e37d5e42f507233dc14633cb8",
+    "semaVersion": "0.3.0",
+    "canonicalizationVersion": "v2",
+    "vocabularyRoot": "/home/jiberish/projects/opensource/sema/data/vocabulary",
+    "semanticBackend": "semahash-python-api",
+    "modelProvider": "llm.chutes.ai",
+    "modelName": "unsloth/Mistral-Nemo-Instruct-2407-TEE"
+  }
+}

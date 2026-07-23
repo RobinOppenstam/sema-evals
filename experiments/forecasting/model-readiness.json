@@ -2,10 +2,14 @@
   "schemaVersion": "forecasting-model-readiness-v1",
   "ready": false,
   "realQuestionsReady": false,
+  "historicalProvenanceValidated": false,
+  "evidencePackValidated": false,
   "leakageAuditComplete": false,
   "modelConfigured": false,
   "blockReasons": [
     "real-polymarket-question-set-not-acquired",
+    "historical-provenance-or-license-not-validated",
+    "evidence-pack-or-no-evidence-protocol-not-validated",
     "model-specific-leakage-audit-not-complete",
     "model-provider-not-configured"
   ]

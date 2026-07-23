@@ -5,7 +5,13 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
 
-import { parseArgs, runForecastingCli } from "../src/cli.js";
+import {
+  assertInformationArm,
+  parseArgs,
+  runForecastingCli,
+  selectPilotScenarios,
+} from "../src/cli.js";
+import { loadFixtureFile } from "../src/fixtures.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_PATH = join(ROOT, "fixtures/scenarios.yaml");
@@ -27,6 +33,7 @@ describe("parseArgs", () => {
     expect(options.seedCount).toBe(1);
     expect(options.fixturePath).toMatch(/scenarios\.yaml$/);
     expect(options.mode).toBe("deterministic-harness");
+    expect(options.concurrency).toBe(1);
   });
 
   it("accepts the sema-python backend selection", () => {
@@ -37,6 +44,7 @@ describe("parseArgs", () => {
   it("accepts --seeds and --order-seed", () => {
     expect(parseArgs(["--seeds", "3"]).seedCount).toBe(3);
     expect(parseArgs(["--order-seed", "42"]).orderSeed).toBe(42);
+    expect(parseArgs(["--concurrency", "8"]).concurrency).toBe(8);
   });
 
   it("rejects an unknown backend", () => {
@@ -47,6 +55,7 @@ describe("parseArgs", () => {
 
   it("rejects a non-positive seed count", () => {
     expect(() => parseArgs(["--seeds", "0"])).toThrow(/positive integer/);
+    expect(() => parseArgs(["--concurrency", "0"])).toThrow(/positive integer/);
   });
 
   it("rejects a negative order seed", () => {
@@ -59,9 +68,55 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--not-a-flag"])).toThrow(/Unknown argument/);
   });
 
-  it("rejects model-pilot explicitly because no provider path is implemented", () => {
+  it("requires a model-specific leakage audit before model-pilot can start", () => {
     expect(() => parseArgs(["--mode", "model-pilot"])).toThrow(
-      /model-pilot is not implemented/,
+      /requires --leakage-audit/,
+    );
+    expect(
+      parseArgs(["--mode", "model-pilot", "--leakage-audit", "audit.json"])
+        .mode,
+    ).toBe("model-pilot");
+  });
+
+  it("requires an explicit OpenAI-compatible model and defaults its key env", () => {
+    const base = [
+      "--mode",
+      "model-pilot",
+      "--leakage-audit",
+      "audit.json",
+      "--provider",
+      "openai-compatible",
+      "--base-url",
+      "https://llm.chutes.ai/v1",
+    ];
+    expect(() => parseArgs(base)).toThrow(/--model is required/);
+    expect(parseArgs([...base, "--model", "served-model"]).apiKeyEnv).toBe(
+      "CHUTES_API_KEY",
+    );
+  });
+
+  it("records an explicit arm and selects complete frozen question pairs", async () => {
+    expect(
+      parseArgs(["--information-arm", "frozen-market-signal-v1"])
+        .informationArm,
+    ).toBe("frozen-market-signal-v1");
+    expect(parseArgs(["--pilot-questions", "10"]).pilotQuestions).toBe(10);
+    const fixture = await loadFixtureFile(FIXTURE_PATH);
+    const drift = fixture.fixtureSet.scenarios[0]!;
+    const clean = { ...drift, id: "paired-clean", drift: null };
+    const selected = selectPilotScenarios([drift, clean], 1);
+    expect(selected).toHaveLength(2);
+    expect(
+      new Set(selected.map((scenario) => scenario.question.questionText)).size,
+    ).toBe(1);
+    expect(() =>
+      selectPilotScenarios(fixture.fixtureSet.scenarios, 999),
+    ).toThrow(/contains only/);
+    expect(() =>
+      assertInformationArm("no-evidence-v1", "frozen-market-signal-v1"),
+    ).toThrow(/does not match dataset arm/);
+    expect(() => assertInformationArm("", "frozen-market-signal-v1")).toThrow(
+      /requires explicit --information-arm/,
     );
   });
 });

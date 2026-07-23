@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "forecasting-source-snapshot-v1",
+  "datasetName": "SimpleFunctions Settled Prediction Markets",
+  "datasetRevision": "a27e3e9307266481d51e087fffd5bf934410e01c",
+  "datasetUrl": "https://huggingface.co/datasets/SimpleFunctions/settled-markets",
+  "sourceDirectory": "experiments/forecasting/datasets/acquired/simplefunctions-settled-markets-a27e3e9",
+  "acquiredAt": "2026-07-23T09:37:41.000Z",
+  "license": "CC-BY-4.0 with SimpleFunctions Terms section 13",
+  "attribution": "SimpleFunctions (simplefunctions.dev)",
+  "publicationRedistributionAuthorized": true,
+  "files": [
+    {
+      "path": "2026-03.jsonl",
+      "sha256": "51a993347e6cfd420b828fb38387fca77b34fb86de2a7952539a07aba89f4f4d"
+    },
+    {
+      "path": "2026-04.jsonl",
+      "sha256": "b85459a5e04379349bb6ed2792af83bbf7d596f8afade91e47f7a5457386daa7"
+    },
+    {
+      "path": "2026-05.jsonl",
+      "sha256": "d0664ebc55bb87cc8bf7250deab80270fd93403df7b464f2a0292e62ca1247c1"
+    },
+    {
+      "path": "2026-06.jsonl",
+      "sha256": "431c1de3fa91b51153d097054007b6e3debff7378a9f0e4a396c1d00a414a827"
+    },
+    {
+      "path": "README.md",
+      "sha256": "296ac8e11a66710b49295dcc274a66f8b13f5313772ad5d89388ccccb152738f"
+    },
+    {
+      "path": "terms.html",
+      "sha256": "0456deb0dc50550efd13422d204c52608f4939c5aeab6707ec1da5872c7d2440"
+    }
+  ]
+}

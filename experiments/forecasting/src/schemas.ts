@@ -53,6 +53,52 @@ export const semanticReferenceSchema = z.object({
 
 export const resolvedOutcomeSchema = z.enum(["YES", "NO"]);
 
+/** A frozen, locally retained evidence item used by a historical replay. */
+export const evidenceItemSchema = z.object({
+  id: z.string().min(1),
+  sourceName: z.string().min(1),
+  sourceUrl: z.string().url(),
+  license: z.string().min(1),
+  publishedAt: z.string().datetime(),
+  /** Timestamp of the source observation; local retrieval may be later. */
+  observedAt: z.string().datetime().optional(),
+  retrievedAt: z.string().datetime(),
+  frozenPath: z.string().min(1),
+  sha256: z.string().length(64),
+  summary: z.string().min(1),
+});
+
+export const evidencePackSchema = z.object({
+  schemaVersion: z.literal("forecasting-evidence-pack-v1"),
+  cutoff: z.string().datetime(),
+  items: z.array(evidenceItemSchema).min(1),
+});
+
+/** Registered model-pilot information arms. Do not infer this from nullness. */
+export const forecastingInformationArmSchema = z.enum([
+  "no-evidence-v1",
+  "frozen-market-signal-v1",
+]);
+
+/** Source and licence metadata for a resolved historical market question. */
+export const historicalQuestionProvenanceSchema = z.object({
+  datasetKind: z.literal("historical-resolved"),
+  marketSourceName: z.string().min(1),
+  marketSourceUrl: z.string().url(),
+  marketLicense: z.string().min(1),
+  acquiredAt: z.string().datetime(),
+  resolutionSourceUrl: z.string().url(),
+  resolutionLicense: z.string().min(1),
+  resolutionVerifiedAt: z.string().datetime(),
+  marketPriorObservedAt: z.string().datetime(),
+  /** The last instant of information a forecaster may use. */
+  forecastCutoff: z.string().datetime(),
+  /** Terms/source snapshots and explicit authorization are required because trial records retain raw question text. */
+  marketTermsSnapshotSha256: z.string().length(64),
+  resolutionTermsSnapshotSha256: z.string().length(64),
+  publicationRedistributionAuthorized: z.literal(true),
+});
+
 /**
  * A resolved Polymarket-style market question. For this deterministic scaffold
  * every fixture is synthetic (invented events); real Polymarket sourcing is
@@ -68,15 +114,19 @@ export const forecastingQuestionSchema = z.object({
   resolutionTimestamp: z.string().datetime(),
   resolvedOutcome: resolvedOutcomeSchema,
   /**
-   * Market's final pre-resolution price in [0, 1] — the market-prior Brier
-   * baseline from the research plan.
+   * Latest available market price at or before `forecastCutoff`, in [0, 1] —
+   * the market-prior Brier baseline from the research plan.
    */
   marketPrior: z.number().min(0).max(1),
   /**
    * Extension point for hand-curated evidence packs (follow-up arm). Null
    * throughout this no-evidence-first scaffold.
    */
-  evidencePack: z.null(),
+  evidencePack: evidencePackSchema.nullable(),
+  /** Null for synthetic deterministic fixtures; mandatory for model pilots. */
+  historicalProvenance: historicalQuestionProvenanceSchema
+    .nullable()
+    .optional(),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -93,10 +143,48 @@ export const leakageAuditEntrySchema = z.object({
   zeroEvidenceAnswer: resolvedOutcomeSchema,
   confidence: z.number().min(0).max(1),
   verdict: z.enum(["keep", "drop"]),
+  /** Required for a model-pilot audit, optional for synthetic fixtures. */
+  modelDescriptor: z.string().min(1).optional(),
+  promptFingerprint: z.string().length(64).optional(),
+  auditedAt: z.string().datetime().optional(),
+  evidenceExcluded: z.literal(true).optional(),
+  rawOutput: z.string().optional(),
+  modelRevision: z.string().min(1).optional(),
+  trainingCutoff: z.string().min(1).optional(),
+  reviewer: z.string().min(1).optional(),
+  rationale: z.string().min(1).optional(),
+  auditStatus: z.enum(["parsed", "malformed"]).optional(),
+  transcript: transcriptSchema.optional(),
+  usage: usageTelemetrySchema.optional(),
 });
 
 export const leakageAuditDocumentSchema = z.object({
-  schemaVersion: z.literal("0.1.0"),
+  schemaVersion: z.union([
+    z.literal("0.1.0"),
+    z.literal("forecasting-model-leakage-audit-v1"),
+  ]),
+  modelDescriptor: z.string().min(1).optional(),
+  datasetDigest: z.string().length(64).optional(),
+  /** Hash of ordered question + resolution-criteria identities in the audit. */
+  questionSetFingerprint: z.string().length(64).optional(),
+  /** Required for an evidence-bearing pilot; prevents silent audit reuse. */
+  informationArm: forecastingInformationArmSchema.optional(),
+  /** Fingerprint of every served evidence pack and its declared digests. */
+  evidencePackFingerprint: z.string().length(64).nullable().optional(),
+  protocolFingerprint: z.string().length(64).optional(),
+  zeroEvidencePrompt: z.string().min(1).optional(),
+  evidencePrompt: z.string().min(1).optional(),
+  aggregate: z
+    .object({
+      uniqueQuestions: z.number().int().positive(),
+      parsedQuestions: z.number().int().nonnegative(),
+      correctAnswers: z.number().int().nonnegative(),
+      accuracy: z.number().min(0).max(1),
+      oneSidedBinomialPValue: z.number().min(0).max(1),
+      alpha: z.number().min(0).max(1),
+      passed: z.boolean(),
+    })
+    .optional(),
   entries: z.array(
     z.object({
       scenarioId: z.string().min(1),
@@ -174,16 +262,22 @@ export const forecastingMetricsSchema = z.object({
    * Round-1 simple average over drift-free members (mandatory independent-agent
    * baseline from the research plan).
    */
-  independentAverage: z.number().min(0).max(1),
+  independentAverage: z.number().min(0).max(1).nullable(),
   /** Null when no aggregate exists or the aggregate is outside [0, 1]. */
   brierAggregate: z.number().nonnegative().nullable(),
   brierMarketPrior: z.number().nonnegative(),
-  brierIndependentAverage: z.number().nonnegative(),
+  brierIndependentAverage: z.number().nonnegative().nullable(),
   outcome: resolvedOutcomeSchema,
   exclusionReasons: z.array(z.string()),
   wireBytes: z.number().int().nonnegative(),
   hydrationBytes: z.number().int().nonnegative(),
   totalSemanticBytes: z.number().int().nonnegative(),
+  /** Deduplicated retained bytes for this scenario; not multiplied by calls. */
+  frozenEvidenceBytes: z.number().int().nonnegative().optional(),
+  /** Provider-reported prompt/context tokens across all member calls. */
+  modelInputTokens: z.number().int().nonnegative().nullable().optional(),
+  /** Provider-reported input + output + reasoning tokens, never an estimate. */
+  totalModelTokens: z.number().int().nonnegative().nullable().optional(),
   elapsedMs: z.number().nonnegative(),
 });
 
@@ -233,12 +327,22 @@ export const forecastingResultManifestSchema = z.object({
   }),
   protocolFingerprint: z.string().length(64),
   runConfiguration: z.object({
-    mode: z.literal("deterministic-harness"),
+    mode: z.enum(["deterministic-harness", "model-pilot"]),
     seeds: z.array(z.number().int().nonnegative()).min(1),
     orderSeed: z.number().int().nonnegative(),
     semanticBackend: z.enum(["fixture", "sema-python"]),
     policy: z.string().min(1),
     aggregationInterpretation: z.literal("canonical-probability-format"),
+    datasetDigest: z.string().length(64).nullable().optional(),
+    questionSetFingerprint: z.string().length(64).nullable().optional(),
+    leakageAuditFingerprint: z.string().length(64).nullable().optional(),
+    provider: z.string().min(1).optional(),
+    model: z.string().min(1).optional(),
+    endpointHost: z.string().nullable().optional(),
+    concurrency: z.number().int().positive().optional(),
+    informationArm: forecastingInformationArmSchema.optional(),
+    evidencePackFingerprint: z.string().length(64).nullable().optional(),
+    pilotQuestions: z.number().int().positive().nullable().optional(),
   }),
   provenance: trialProvenanceSchema,
 });
@@ -346,6 +450,18 @@ export const forecastingFixtureSetSchema = z.object({
   scenarios: z.array(forecastingScenarioSchema).min(1),
 });
 
+/**
+ * Model-pilot input. It deliberately reuses the normal scenarios so the
+ * primary endpoint, conditions, and mandatory baselines cannot disappear in a
+ * live run. Scripted probabilities are retained only for deterministic mode.
+ */
+export const historicalForecastingDatasetSchema = z.object({
+  schemaVersion: z.literal("forecasting-historical-dataset-v1"),
+  informationArm: forecastingInformationArmSchema.default("no-evidence-v1"),
+  licenseNotice: z.string().min(1),
+  scenarios: z.array(forecastingScenarioSchema).min(1),
+});
+
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -370,3 +486,14 @@ export type ScriptedAgent = z.infer<typeof scriptedAgentSchema>;
 export type ScenarioDrift = z.infer<typeof scenarioDriftSchema>;
 export type ForecastingScenario = z.infer<typeof forecastingScenarioSchema>;
 export type ForecastingFixtureSet = z.infer<typeof forecastingFixtureSetSchema>;
+export type EvidencePack = z.infer<typeof evidencePackSchema>;
+export type EvidenceItem = z.infer<typeof evidenceItemSchema>;
+export type ForecastingInformationArm = z.infer<
+  typeof forecastingInformationArmSchema
+>;
+export type HistoricalQuestionProvenance = z.infer<
+  typeof historicalQuestionProvenanceSchema
+>;
+export type HistoricalForecastingDataset = z.infer<
+  typeof historicalForecastingDatasetSchema
+>;

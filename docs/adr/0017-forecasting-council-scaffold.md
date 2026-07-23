@@ -172,6 +172,77 @@ ADR 0010 introduced and ADRs 0012 / 0016 reused.
   model adapters while registries, drift injection, aggregation, and leakage
   audit stay deterministic. Out of scope for this PR; no providers are wired.
 
+### 2026-07-23 model-pilot amendment
+
+The model-pilot execution path is now wired, but remains fail-closed until an
+authorized historical dataset and a selected-model leakage audit are supplied.
+This amendment does not change the registered primary endpoint or promote the
+pilot to confirmatory status.
+
+- Historical questions require an explicit `forecastCutoff`, with the market
+  prior observed no later than that cutoff and the outcome resolved strictly
+  afterward. The model-pilot market baseline is therefore the latest eligible
+  market price at or before the cutoff, not a price observed near resolution.
+- Because result records retain question and resolution text, every source must
+  carry terms-snapshot hashes and explicit publication/redistribution
+  authorization. A free-form licence label is insufficient. Raw acquisition
+  remains ignored and no Polymarket content is committed while permission is
+  unresolved.
+- The first pilot remains the registered no-evidence arm and rejects non-null
+  evidence packs. A later evidence-pack arm requires a separate registration
+  and validator.
+- Leakage audits are bound to the exact dataset digest, served model
+  descriptor, and registered zero-evidence audit protocol. The validated audit
+  artifact, model transcripts, usage, malformed outputs, and provider failures
+  are preserved with the run.
+- Model trials use the durable result journal so settled trials survive a later
+  failure. Aggregation and Brier scoring remain deterministic; no LLM judge is
+  introduced.
+
+### 2026-07-23 historical-pilot registration
+
+The first live pilot is now unblocked with a frozen, licensed, model-audited
+input. This registration is made before the forecasting calls and does not
+change the experiment into confirmatory evidence.
+
+- Source: SimpleFunctions Settled Prediction Markets, revision
+  `a27e3e9307266481d51e087fffd5bf934410e01c`, CC-BY-4.0 with attribution to
+  SimpleFunctions. The tracked source manifest freezes the terms, README, four
+  monthly 2026 partitions, and their SHA-256 digests. Acquired bytes remain
+  ignored.
+- Sample: 50 unique Polymarket questions resolving March–June 2026, balanced
+  25 YES / 25 NO. Eligible priors are 5–95%, categories are capped at four
+  questions and two per category/outcome, and high-frequency/noisy market
+  families are excluded.
+- Pairing: every unique question produces one controlled
+  `ResolutionDefinition.parameters.polarity` drift and one aligned control,
+  for 100 scenarios. All three conditions run on every scenario, yielding 300
+  trials with one seed. Five agents forecast in two rounds, yielding 3,000
+  model calls.
+- Information arm: title and generic source-outcome resolution rule only.
+  `evidencePack` must be null. This is the previously registered no-evidence
+  arm; a later evidence-pack study remains separate.
+- Selected model: `unsloth/Mistral-Nemo-Instruct-2407-TEE` through the Chutes
+  OpenAI-compatible endpoint. The upstream model was released in July 2024;
+  all sampled outcomes resolve in 2026.
+- Leakage gate: outcomes are hidden for all inference calls. At least 90% of
+  unique responses must parse, and a one-sided exact binomial test of
+  zero-evidence answer accuracy must not beat chance at alpha 0.01. Model
+  self-reports are not a scorer. The frozen audit parsed 49/50 and scored 24/49
+  correct (48.98%, p=0.612275), so it passed this screen. This cannot rule out
+  all contamination.
+- Sema gate: historical definitions may only use fields in official Sema's
+  semantic hash surface. Before any forecasting call, every declared mutation
+  must resolve to a different official Sema address from the canonical
+  definition. A collapse aborts the run.
+- Endpoint discipline: the scaffold's pre-existing mechanism endpoint remains
+  corrupted aggregation under controlled drift. Brier score against the
+  frozen outcome is the registered forecasting-utility metric, with market
+  prior and independent-agent average mandatory baselines. All are objective,
+  deterministic scorers.
+- Evidence status: exploratory real-model mechanism and utility evidence, not
+  preregistered confirmatory evidence and not evidence from a live market.
+
 ## Consequences
 
 - Phase 5 has a real package with a scripted forecasting-council demo whose
@@ -186,5 +257,7 @@ ADR 0010 introduced and ADRs 0012 / 0016 reused.
   and the leakage-audit gate each have unit coverage.
 - CI runs no live model and no network: every path is covered by deterministic
   unit tests with the fixture reference backend.
-- The next step is real Polymarket sourcing plus the leakage-audited exploratory
-  pilot; neither is wired in this PR.
+- The historical pilot can now run fail-closed with real model forecasts and
+  official Sema references. Its complete transcripts, usage, malformed
+  outputs, provider errors, source fingerprints, model fingerprints, and
+  semantic-backend metadata are preserved for audit.

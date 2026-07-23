@@ -24,3 +24,4 @@ site/dist/
 # Local test sandboxes, licensed acquisition snapshots, and offline caches are
 # reproducible from tracked metadata and must never be committed.
 .cache/
+experiments/forecasting/datasets/acquired/

@@ -1,0 +1,84 @@
+{
+  "artifactSchemaVersion": "0.3.0",
+  "protocolVersion": "0.3.0",
+  "x402ProtocolVersion": 2,
+  "extensionUri": "https://sema-evals.dev/x402/ext/semantic-canonicalization/v0.1",
+  "experimentId": "x402-contract-drift",
+  "runId": "20260723T092012753Z-order-20260716",
+  "mode": "model-pilot",
+  "evidenceClaim": "Exploratory paper-only model pilot, not confirmatory evidence and not facilitator/on-chain conformance evidence. Only the payer decision is model-driven. Seller, registry drift, verification, enforcement, in-process transport, simulated payload, and settlement remain deterministic. No wallet, signing, network, facilitator, or production write is available.",
+  "createdAt": "2026-07-23T09:20:12.753Z",
+  "orderSeed": 20260716,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "conditions": [
+    "baseline",
+    "advertised-voluntary",
+    "advertised-enforced"
+  ],
+  "scenarioCount": 12,
+  "driftScenarioCount": 6,
+  "cleanScenarioCount": 6,
+  "trialCount": 180,
+  "fixtureDigest": "880581d434fc82cb38d11ec59aaa01fd728873af0af5f273a33bfcecac3b8014",
+  "scorer": {
+    "version": "x402-contract-drift-scorer-v2",
+    "fingerprint": "2f715ef2ba596683a4350adb79a9d8c82f97861f54f9c1f27d094adc520039b8"
+  },
+  "protocolFingerprint": "6fe8b5dde96358454877f41263ee093e01a0aa7b1b970c58552267d24ac5e8cc",
+  "runConfiguration": {
+    "mode": "model-pilot",
+    "provider": "llm.chutes.ai",
+    "model": "unsloth/Mistral-Nemo-Instruct-2407-TEE",
+    "endpointHost": "llm.chutes.ai",
+    "maxTokens": 512,
+    "thinking": null,
+    "harness": null,
+    "concurrency": 8,
+    "payerSystemPrompt": "You are a paper-only x402 payer.\nYou have no wallet, private key, signing capability, network client, facilitator,\nor tools. Never claim to send a transaction or spend funds. Assess only the\nPaymentRequired and deterministic verification material supplied by the user.\nReturn exactly one JSON object and no markdown:\n{\"decision\":\"PAY_PAPER\"|\"REFUSE\"|\"REQUEST_CLARIFICATION\",\"reason\":\"...\"}.\nPAY_PAPER means authorize only the harness's simulated paper payment. REFUSE or\nREQUEST_CLARIFICATION means the harness must not emit that paper payload.",
+    "paperOnly": true,
+    "productionWritesDisabled": true,
+    "sdkConformance": {
+      "schemaVersion": "x402-sdk-transport-conformance-v1",
+      "ready": true,
+      "sdkIdentity": "@x402/core,@x402/fetch,@x402/evm@2.19.0",
+      "checkedHeaders": [
+        "PAYMENT-REQUIRED",
+        "PAYMENT-SIGNATURE",
+        "PAYMENT-RESPONSE"
+      ],
+      "failures": [],
+      "requestCounts": {
+        "happy": 2,
+        "malformed": 1,
+        "v1": 1,
+        "repeated402": 2,
+        "invalidCaip2": 1,
+        "missingExtension": 2,
+        "invalidExtension": 2
+      },
+      "externalNetworkAccessed": false,
+      "attemptedExternalEgress": false,
+      "productionWriteAttempted": false
+    }
+  },
+  "provenance": {
+    "artifactSchemaVersion": "0.3.0",
+    "protocolVersion": "0.3.0",
+    "fixtureDigest": "880581d434fc82cb38d11ec59aaa01fd728873af0af5f273a33bfcecac3b8014",
+    "implementationCommit": "428bba2d9a743ae7d1edd87e9266571e820c06ab",
+    "dependencyLockDigest": "aac98960b3f4f830ed3994105ec37a30d3ef23a92aa8d0b4246ea672487dca58",
+    "promptDigest": "cde65bb54dc1c645eeb7997097b1dd95cb429be637b5aa0cf9e06761e47196ae",
+    "semaVersion": "0.3.0",
+    "canonicalizationVersion": "v2",
+    "vocabularyRoot": "/home/jiberish/projects/opensource/sema/data/vocabulary",
+    "semanticBackend": "semahash-python-api",
+    "modelProvider": "llm.chutes.ai",
+    "modelName": "unsloth/Mistral-Nemo-Instruct-2407-TEE"
+  }
+}

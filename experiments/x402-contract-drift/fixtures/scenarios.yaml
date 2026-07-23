@@ -28,29 +28,33 @@ scenarios:
       - handle: "RefundWindow"
         definition:
           gloss: "Period during which the payer may request a refund."
-          durationDays: 7
-          anchor: "delivery"
+          parameters:
+            durationDays: 7
+            anchor: "delivery"
       - handle: "SettlementFinality"
         definition:
           gloss: "When a settlement is considered final."
-          requiresConfirmations: 12
-          status: "irreversible"
+          parameters:
+            requiresConfirmations: 12
+            status: "irreversible"
       - handle: "DisputeWindow"
         definition:
           gloss: "Time a counterparty may open a dispute."
-          comparator: ">="
-          threshold: 72
-          unit: "hours"
+          parameters:
+            comparator: ">="
+            threshold: 72
+            unit: "hours"
     acceptanceHandles: ["RefundWindow", "SettlementFinality", "DisputeWindow"]
     drift:
       handle: "RefundWindow"
-      fieldPath: "anchor"
+      fieldPath: "parameters.anchor"
       before: "delivery"
       after: "payment"
       mutatedDefinition:
         gloss: "Period during which the payer may request a refund."
-        durationDays: 7
-        anchor: "payment"
+        parameters:
+          durationDays: 7
+          anchor: "payment"
   - id: "refund-window-clean"
     title: "API access with aligned refund-window registries"
     description: "The no-drift control for the refund-window topic."
@@ -66,19 +70,22 @@ scenarios:
       - handle: "RefundWindow"
         definition:
           gloss: "Period during which the payer may request a refund."
-          durationDays: 7
-          anchor: "delivery"
+          parameters:
+            durationDays: 7
+            anchor: "delivery"
       - handle: "SettlementFinality"
         definition:
           gloss: "When a settlement is considered final."
-          requiresConfirmations: 12
-          status: "irreversible"
+          parameters:
+            requiresConfirmations: 12
+            status: "irreversible"
       - handle: "DisputeWindow"
         definition:
           gloss: "Time a counterparty may open a dispute."
-          comparator: ">="
-          threshold: 72
-          unit: "hours"
+          parameters:
+            comparator: ">="
+            threshold: 72
+            unit: "hours"
     acceptanceHandles: ["RefundWindow", "SettlementFinality", "DisputeWindow"]
     drift: null
   - id: "amount-basis-drift"
@@ -98,27 +105,31 @@ scenarios:
       - handle: "AmountBasis"
         definition:
           gloss: "Whether the stated amount is before or after fees."
-          basis: "gross"
-          includesNetworkFee: true
+          parameters:
+            basis: "gross"
+            includesNetworkFee: true
       - handle: "FeeBearer"
         definition:
           gloss: "Which party pays protocol and network fees."
-          party: "payer"
+          parameters:
+            party: "payer"
       - handle: "SettlementFinality"
         definition:
           gloss: "When a settlement is considered final."
-          requiresConfirmations: 12
-          status: "irreversible"
+          parameters:
+            requiresConfirmations: 12
+            status: "irreversible"
     acceptanceHandles: ["AmountBasis", "FeeBearer", "SettlementFinality"]
     drift:
       handle: "AmountBasis"
-      fieldPath: "basis"
+      fieldPath: "parameters.basis"
       before: "gross"
       after: "net"
       mutatedDefinition:
         gloss: "Whether the stated amount is before or after fees."
-        basis: "net"
-        includesNetworkFee: true
+        parameters:
+          basis: "net"
+          includesNetworkFee: true
   - id: "amount-basis-clean"
     title: "Checkout with aligned amount-basis registries"
     description: "The no-drift control for the amount-basis topic."
@@ -134,17 +145,20 @@ scenarios:
       - handle: "AmountBasis"
         definition:
           gloss: "Whether the stated amount is before or after fees."
-          basis: "gross"
-          includesNetworkFee: true
+          parameters:
+            basis: "gross"
+            includesNetworkFee: true
       - handle: "FeeBearer"
         definition:
           gloss: "Which party pays protocol and network fees."
-          party: "payer"
+          parameters:
+            party: "payer"
       - handle: "SettlementFinality"
         definition:
           gloss: "When a settlement is considered final."
-          requiresConfirmations: 12
-          status: "irreversible"
+          parameters:
+            requiresConfirmations: 12
+            status: "irreversible"
     acceptanceHandles: ["AmountBasis", "FeeBearer", "SettlementFinality"]
     drift: null
   - id: "fee-bearer-drift"
@@ -164,27 +178,31 @@ scenarios:
       - handle: "FeeBearer"
         definition:
           gloss: "Which party pays protocol and network fees."
-          party: "payer"
+          parameters:
+            party: "payer"
       - handle: "DeliveryCondition"
         definition:
           gloss: "When the seller must deliver the purchased resource."
-          trigger: "on_settlement"
+          parameters:
+            trigger: "on_settlement"
       - handle: "AuthorizationValidity"
         definition:
           gloss: "How long a signed payment authorization remains valid."
-          comparator: "<="
-          threshold: 300
-          unit: "seconds"
+          parameters:
+            comparator: "<="
+            threshold: 300
+            unit: "seconds"
     acceptanceHandles:
       ["FeeBearer", "DeliveryCondition", "AuthorizationValidity"]
     drift:
       handle: "FeeBearer"
-      fieldPath: "party"
+      fieldPath: "parameters.party"
       before: "payer"
       after: "payee"
       mutatedDefinition:
         gloss: "Which party pays protocol and network fees."
-        party: "payee"
+        parameters:
+          party: "payee"
   - id: "fee-bearer-clean"
     title: "Subscription with aligned fee-bearer registries"
     description: "The no-drift control for the fee-bearer topic."
@@ -200,17 +218,20 @@ scenarios:
       - handle: "FeeBearer"
         definition:
           gloss: "Which party pays protocol and network fees."
-          party: "payer"
+          parameters:
+            party: "payer"
       - handle: "DeliveryCondition"
         definition:
           gloss: "When the seller must deliver the purchased resource."
-          trigger: "on_settlement"
+          parameters:
+            trigger: "on_settlement"
       - handle: "AuthorizationValidity"
         definition:
           gloss: "How long a signed payment authorization remains valid."
-          comparator: "<="
-          threshold: 300
-          unit: "seconds"
+          parameters:
+            comparator: "<="
+            threshold: 300
+            unit: "seconds"
     acceptanceHandles:
       ["FeeBearer", "DeliveryCondition", "AuthorizationValidity"]
     drift: null
@@ -231,29 +252,33 @@ scenarios:
       - handle: "SettlementFinality"
         definition:
           gloss: "When a settlement is considered final."
-          requiresConfirmations: 64
-          status: "irreversible"
+          parameters:
+            requiresConfirmations: 64
+            status: "irreversible"
       - handle: "DeliveryCondition"
         definition:
           gloss: "When the seller must deliver the purchased resource."
-          trigger: "on_settlement"
+          parameters:
+            trigger: "on_settlement"
       - handle: "DisputeWindow"
         definition:
           gloss: "Time a counterparty may open a dispute."
-          comparator: ">="
-          threshold: 48
-          unit: "hours"
+          parameters:
+            comparator: ">="
+            threshold: 48
+            unit: "hours"
     acceptanceHandles:
       ["SettlementFinality", "DeliveryCondition", "DisputeWindow"]
     drift:
       handle: "SettlementFinality"
-      fieldPath: "requiresConfirmations"
+      fieldPath: "parameters.requiresConfirmations"
       before: 64
       after: 1
       mutatedDefinition:
         gloss: "When a settlement is considered final."
-        requiresConfirmations: 1
-        status: "irreversible"
+        parameters:
+          requiresConfirmations: 1
+          status: "irreversible"
   - id: "settlement-finality-clean"
     title: "Escrow release with aligned settlement-finality registries"
     description: "The no-drift control for the settlement-finality topic."
@@ -269,18 +294,21 @@ scenarios:
       - handle: "SettlementFinality"
         definition:
           gloss: "When a settlement is considered final."
-          requiresConfirmations: 64
-          status: "irreversible"
+          parameters:
+            requiresConfirmations: 64
+            status: "irreversible"
       - handle: "DeliveryCondition"
         definition:
           gloss: "When the seller must deliver the purchased resource."
-          trigger: "on_settlement"
+          parameters:
+            trigger: "on_settlement"
       - handle: "DisputeWindow"
         definition:
           gloss: "Time a counterparty may open a dispute."
-          comparator: ">="
-          threshold: 48
-          unit: "hours"
+          parameters:
+            comparator: ">="
+            threshold: 48
+            unit: "hours"
     acceptanceHandles:
       ["SettlementFinality", "DeliveryCondition", "DisputeWindow"]
     drift: null
@@ -301,28 +329,32 @@ scenarios:
       - handle: "DeliveryCondition"
         definition:
           gloss: "When the seller must deliver the purchased resource."
-          trigger: "on_settlement"
+          parameters:
+            trigger: "on_settlement"
       - handle: "RefundWindow"
         definition:
           gloss: "Period during which the payer may request a refund."
-          durationDays: 14
-          anchor: "delivery"
+          parameters:
+            durationDays: 14
+            anchor: "delivery"
       - handle: "AuthorizationValidity"
         definition:
           gloss: "How long a signed payment authorization remains valid."
-          comparator: "<="
-          threshold: 120
-          unit: "seconds"
+          parameters:
+            comparator: "<="
+            threshold: 120
+            unit: "seconds"
     acceptanceHandles:
       ["DeliveryCondition", "RefundWindow", "AuthorizationValidity"]
     drift:
       handle: "DeliveryCondition"
-      fieldPath: "trigger"
+      fieldPath: "parameters.trigger"
       before: "on_settlement"
       after: "on_payment"
       mutatedDefinition:
         gloss: "When the seller must deliver the purchased resource."
-        trigger: "on_payment"
+        parameters:
+          trigger: "on_payment"
   - id: "delivery-condition-clean"
     title: "Content unlock with aligned delivery-condition registries"
     description: "The no-drift control for the delivery-condition topic."
@@ -338,18 +370,21 @@ scenarios:
       - handle: "DeliveryCondition"
         definition:
           gloss: "When the seller must deliver the purchased resource."
-          trigger: "on_settlement"
+          parameters:
+            trigger: "on_settlement"
       - handle: "RefundWindow"
         definition:
           gloss: "Period during which the payer may request a refund."
-          durationDays: 14
-          anchor: "delivery"
+          parameters:
+            durationDays: 14
+            anchor: "delivery"
       - handle: "AuthorizationValidity"
         definition:
           gloss: "How long a signed payment authorization remains valid."
-          comparator: "<="
-          threshold: 120
-          unit: "seconds"
+          parameters:
+            comparator: "<="
+            threshold: 120
+            unit: "seconds"
     acceptanceHandles:
       ["DeliveryCondition", "RefundWindow", "AuthorizationValidity"]
     drift: null
@@ -370,29 +405,33 @@ scenarios:
       - handle: "DisputeWindow"
         definition:
           gloss: "Time a counterparty may open a dispute."
-          comparator: ">="
-          threshold: 168
-          unit: "hours"
+          parameters:
+            comparator: ">="
+            threshold: 168
+            unit: "hours"
       - handle: "AmountBasis"
         definition:
           gloss: "Whether the stated amount is before or after fees."
-          basis: "gross"
-          includesNetworkFee: false
+          parameters:
+            basis: "gross"
+            includesNetworkFee: false
       - handle: "PartialFillPolicy"
         definition:
           gloss: "Whether partial settlement of the required amount is allowed."
-          allowPartial: false
+          parameters:
+            allowPartial: false
     acceptanceHandles: ["DisputeWindow", "AmountBasis", "PartialFillPolicy"]
     drift:
       handle: "DisputeWindow"
-      fieldPath: "threshold"
+      fieldPath: "parameters.threshold"
       before: 168
       after: 24
       mutatedDefinition:
         gloss: "Time a counterparty may open a dispute."
-        comparator: ">="
-        threshold: 24
-        unit: "hours"
+        parameters:
+          comparator: ">="
+          threshold: 24
+          unit: "hours"
   - id: "dispute-window-clean"
     title: "Marketplace purchase with aligned dispute-window registries"
     description: "The no-drift control for the dispute-window topic."
@@ -408,17 +447,20 @@ scenarios:
       - handle: "DisputeWindow"
         definition:
           gloss: "Time a counterparty may open a dispute."
-          comparator: ">="
-          threshold: 168
-          unit: "hours"
+          parameters:
+            comparator: ">="
+            threshold: 168
+            unit: "hours"
       - handle: "AmountBasis"
         definition:
           gloss: "Whether the stated amount is before or after fees."
-          basis: "gross"
-          includesNetworkFee: false
+          parameters:
+            basis: "gross"
+            includesNetworkFee: false
       - handle: "PartialFillPolicy"
         definition:
           gloss: "Whether partial settlement of the required amount is allowed."
-          allowPartial: false
+          parameters:
+            allowPartial: false
     acceptanceHandles: ["DisputeWindow", "AmountBasis", "PartialFillPolicy"]
     drift: null

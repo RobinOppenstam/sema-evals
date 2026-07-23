@@ -19,6 +19,15 @@ const FIXTURE_PATH = resolve(
 );
 
 describe("probability-format garbage average", () => {
+  it("normalizes official Sema definitions through parameters", () => {
+    expect(normalizeProbability(0.6, { parameters: { scale: "unit" } })).toBe(
+      0.6,
+    );
+    expect(normalizeProbability(60, { parameters: { scale: "percent" } })).toBe(
+      0.6,
+    );
+  });
+
   it("baseline averages 0.55+0.60+0.65+0.58+62 into exactly 12.876", async () => {
     const { fixtureSet } = await loadFixtureFile(FIXTURE_PATH);
     const scenario = fixtureSet.scenarios.find(

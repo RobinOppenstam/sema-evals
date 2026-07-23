@@ -287,8 +287,9 @@ decision record rather than silently moving the goalposts.
 
 Alongside the numbered phases, several parallel tracks emerged from upstream
 work: the [harness-enforcement pilots](#harness-enforcement) (8 published
-runs), the x402 payment-drift demo, workflow-value, and sema-discovery. They
-follow the same experiment standard but are not gates in the numbered plan.
+runs), the x402 payment-drift demo and exploratory paper-payer pilot,
+workflow-value, and sema-discovery. They follow the same experiment standard
+but are not gates in the numbered plan.
 
 ## Experiment contract
 

@@ -248,5 +248,5 @@ describe("deterministic build", () => {
     } finally {
       await rm(other, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 });

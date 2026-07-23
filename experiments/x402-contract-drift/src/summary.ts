@@ -15,6 +15,10 @@ export interface X402DriftConditionSummary {
   correctHalts: number;
   falseHalts: number;
   taskSuccesses: number;
+  /** Non-completed provider terminal statuses in model-pilot trials. */
+  modelFailures: number;
+  /** Completed provider calls whose payer JSON did not match the contract. */
+  malformedModelOutputs: number;
   /** Over drift trials. */
   detectionRate: number;
   /** Primary endpoint, over drift trials. */
@@ -44,6 +48,14 @@ function mean(values: readonly number[]): number {
     return 0;
   }
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function payerTerminalStatus(trial: X402DriftTrialRecord): string | null {
+  const event = [...trial.events]
+    .reverse()
+    .find((candidate) => candidate.agent === "sema-payer-agent");
+  const status = event?.details.payerStatus;
+  return typeof status === "string" ? status : null;
 }
 
 export function summarizeX402Drift(
@@ -86,6 +98,17 @@ export function summarizeX402Drift(
       const taskSuccesses = trials.filter(
         (trial) => trial.metrics.taskSuccess,
       ).length;
+      const terminalStatuses = trials.map(payerTerminalStatus);
+      const modelFailures = terminalStatuses.filter(
+        (status) =>
+          status === "refused" ||
+          status === "truncated" ||
+          status === "error" ||
+          status === "blocked",
+      ).length;
+      const malformedModelOutputs = terminalStatuses.filter(
+        (status) => status === "malformed-output",
+      ).length;
 
       return {
         condition,
@@ -99,6 +122,8 @@ export function summarizeX402Drift(
         correctHalts,
         falseHalts,
         taskSuccesses,
+        modelFailures,
+        malformedModelOutputs,
         detectionRate: rate(detected, driftTrials.length),
         silentPaymentRate: rate(silentPayments, driftTrials.length),
         falseHaltRate: rate(falseHalts, cleanTrials.length),
@@ -130,7 +155,10 @@ function number(value: number): string {
   return value.toFixed(1);
 }
 
-export function x402DriftSummaryMarkdown(summary: X402DriftSummary): string {
+export function x402DriftSummaryMarkdown(
+  summary: X402DriftSummary,
+  mode: "deterministic-harness" | "model-pilot" = "deterministic-harness",
+): string {
   const rows = summary.conditions.map((condition) =>
     [
       condition.condition,
@@ -138,6 +166,8 @@ export function x402DriftSummaryMarkdown(summary: X402DriftSummary): string {
       condition.driftTrials,
       percent(condition.detectionRate),
       percent(condition.silentPaymentRate),
+      condition.modelFailures,
+      condition.malformedModelOutputs,
       condition.correctHalts,
       condition.falseHalts,
       percent(condition.falseHaltRate),
@@ -150,14 +180,16 @@ export function x402DriftSummaryMarkdown(summary: X402DriftSummary): string {
   return [
     "# x402 payment-contract drift summary",
     "",
-    "> Harness validation only. These deterministic, scripted-agent outcomes are a construction, not empirical evidence about language models, and not conformance evidence against a real x402 SDK (see ADR 0016).",
+    mode === "model-pilot"
+      ? "> Exploratory paper-only model-run results. Only payer decisions were model-driven; seller, registries, verification, enforcement, transport, and settlement simulation remained deterministic. No wallet, signing, facilitator, network payment, or production write was available. Provider failures and malformed decisions are retained as failed trials and never count as silent payment."
+      : "> Harness validation only. These deterministic, scripted-agent outcomes are a construction, not empirical evidence about language models, and not conformance evidence against a real x402 SDK (see ADR 0016).",
     "",
     `Trials: ${summary.trialCount} across ${summary.scenarioCount} scenarios (${summary.driftScenarioCount} drift, ${summary.cleanScenarioCount} no-drift).`,
     "",
     "Primary endpoint: silent payment under cross-party registry drift (payer pays using its drifted definition with no surfaced mismatch). Secondary: false refusals on no-drift trials.",
     "",
-    "Condition | Trials | Drift trials | Detection | Silent pay | Correct refusals | False refusals | False-refusal rate | Task success | Mean wire B | Mean hydration B",
-    "--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
+    "Condition | Trials | Drift trials | Detection | Silent pay | Provider failures | Malformed outputs | Correct refusals | False refusals | False-refusal rate | Task success | Mean wire B | Mean hydration B",
+    "--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
     ...rows,
     "",
   ].join("\n");
