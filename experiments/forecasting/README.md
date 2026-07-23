@@ -55,7 +55,7 @@ outputs; their Brier score is `null` because Brier is defined for probabilities.
 - **Secondary endpoint**: false exclusions on no-drift trials.
 
 Every trial also records **Brier scores** for the council aggregate, the
-market-prior baseline (final pre-resolution price), and the independent-agent
+market-prior baseline (latest available price at or before `forecastCutoff`), and the independent-agent
 simple average (round-1, drift-free members).
 
 Questions are **synthetic** Polymarket-style fixtures (invented events) so CI
@@ -80,10 +80,42 @@ pnpm experiment:forecasting -- \
 Deterministic harness outcomes are constructed and must not be presented as
 evidence about language models, nor as evidence about live prediction markets.
 
-**Model-pilot mode is not runnable.** The executor contract exists, but real
-Polymarket sourcing, provider configuration, leakage-audited prompts, and the
-evidence-pack arm remain future work; see ADR 0017.
+## Model-pilot readiness (fail closed)
 
-`src/model-executor.ts` now defines the separate council-member prompt executor
-and strict forecast result contract. `model-readiness.json` remains blocked on
-real questions, a model-specific leakage audit, and model configuration.
+`model-pilot` is wired through the shared `createModelProvider` adapter and
+preserves every member transcript, usage record, malformed output, and provider
+failure. Forecasts are strictly JSON-parsed and Brier scoring, market-prior,
+independent-agent, drift, and exclusion metrics are deterministic; no LLM is a
+judge.
+
+It will not run until all of these executable checks pass:
+
+- an operator-acquired, historical resolved-market dataset validates source URL,
+  licence metadata, outcome provenance, and a pre-resolution market-prior time;
+- a selected-model, dataset-digest-bound, zero-evidence leakage audit has a
+  complete `keep` decision for every included question;
+- the configured provider is available and its required credential is present.
+
+The registered first pilot is **no evidence** (ADR 0017), and its loader
+rejects every non-null evidence pack. A later evidence-pack arm requires its
+own registered validator for licence metadata, retained-byte digests, and
+pre-resolution cutoffs; it is not silently enabled here.
+
+Raw Polymarket acquisition and licensed source snapshots belong under the
+ignored `datasets/acquired/` directory. Public reports must not publish raw
+market content unless redistribution permission is established. Consequently
+[`model-readiness.json`](model-readiness.json) correctly remains blocked; no
+placeholder data is considered model-ready.
+
+Once an authorized acquisition and audit exist locally:
+
+```bash
+pnpm experiment:forecasting -- \
+  --mode model-pilot \
+  --dataset experiments/forecasting/datasets/acquired/historical-resolved-v1.yaml \
+  --leakage-audit experiments/forecasting/datasets/acquired/<model>-leakage-audit.json \
+  --provider openai-compatible --base-url https://llm.chutes.ai/v1 \
+  --api-key-env CHUTES_API_KEY --model <served-model-id>
+```
+
+This produces an exploratory bundle only; it is not confirmatory evidence.

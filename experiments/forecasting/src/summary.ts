@@ -24,7 +24,9 @@ export interface ForecastingConditionSummary {
   falseExclusionRate: number;
   meanBrierAggregate: number | null;
   meanBrierMarketPrior: number;
-  meanBrierIndependentAverage: number;
+  meanBrierIndependentAverage: number | null;
+  /** Model calls that failed or did not produce an objective forecast. */
+  modelFailureCount: number;
   meanWireBytes: number;
   meanHydrationBytes: number;
   meanTotalSemanticBytes: number;
@@ -37,6 +39,7 @@ export interface ForecastingSummary {
   cleanScenarioCount: number;
   leakageAuditPassed: boolean;
   leakageAuditFailures: string[];
+  modelDriven: boolean;
   conditions: ForecastingConditionSummary[];
 }
 
@@ -67,7 +70,7 @@ function meanNullable(values: readonly (number | null)[]): number | null {
 export function recomputeTrialBriers(record: ForecastingTrialRecord): {
   brierAggregate: number | null;
   brierMarketPrior: number;
-  brierIndependentAverage: number;
+  brierIndependentAverage: number | null;
 } {
   const outcome = record.metrics.outcome;
   return {
@@ -77,10 +80,10 @@ export function recomputeTrialBriers(record: ForecastingTrialRecord): {
         ? null
         : brierScore(record.metrics.aggregateProbability, outcome),
     brierMarketPrior: brierScore(record.metrics.marketPrior, outcome),
-    brierIndependentAverage: brierScore(
-      record.metrics.independentAverage,
-      outcome,
-    ),
+    brierIndependentAverage:
+      record.metrics.independentAverage === null
+        ? null
+        : brierScore(record.metrics.independentAverage, outcome),
   };
 }
 
@@ -173,8 +176,21 @@ export function summarizeForecasting(
         meanBrierMarketPrior: mean(
           trials.map((trial) => trial.metrics.brierMarketPrior),
         ),
-        meanBrierIndependentAverage: mean(
+        meanBrierIndependentAverage: meanNullable(
           trials.map((trial) => trial.metrics.brierIndependentAverage),
+        ),
+        modelFailureCount: trials.reduce(
+          (count, trial) =>
+            count +
+            trial.events.filter((event) => {
+              if (event.type !== "message") return false;
+              const status = event.details.modelStatus;
+              return (
+                typeof status === "string" &&
+                (status !== "completed" || event.details.parseFailure !== null)
+              );
+            }).length,
+          0,
         ),
         meanWireBytes: mean(trials.map((trial) => trial.metrics.wireBytes)),
         meanHydrationBytes: mean(
@@ -193,6 +209,7 @@ export function summarizeForecasting(
     cleanScenarioCount: scenarioIds.size - driftScenarioIds.size,
     leakageAuditPassed,
     leakageAuditFailures,
+    modelDriven: records.some((record) => record.usage !== null),
     conditions,
   };
 }
@@ -221,13 +238,16 @@ export function forecastingSummaryMarkdown(
       number(condition.meanBrierAggregate),
       number(condition.meanBrierMarketPrior),
       number(condition.meanBrierIndependentAverage),
+      condition.modelFailureCount,
     ].join(" | "),
   );
 
   return [
     "# Forecasting council summary",
     "",
-    "> Harness validation only. These deterministic, scripted-agent outcomes are a construction, not empirical evidence about language models, and not evidence about live prediction markets (see ADR 0017).",
+    summary.modelDriven
+      ? "> Exploratory model pilot. Not preregistered or confirmatory evidence. Objective parsing and deterministic scoring are used; no LLM judge is used."
+      : "> Harness validation only. These deterministic, scripted-agent outcomes are a construction, not empirical evidence about language models, and not evidence about live prediction markets (see ADR 0017).",
     "",
     `Trials: ${summary.trialCount} across ${summary.scenarioCount} scenarios (${summary.driftScenarioCount} drift, ${summary.cleanScenarioCount} no-drift).`,
     "",
@@ -235,8 +255,8 @@ export function forecastingSummaryMarkdown(
     "",
     "Primary endpoint: corrupted aggregation under coordination-term drift (drifted forecast entered the aggregate with no surfaced mismatch). Secondary: false exclusions on no-drift trials. Brier scores recorded for council aggregate, market prior, and independent-agent average.",
     "",
-    "Condition | Trials | Drift trials | Detection | Corrupted agg | Correct exclusions | False exclusions | False-excl rate | Mean Brier agg | Mean Brier market | Mean Brier indep",
-    "--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
+    "Condition | Trials | Drift trials | Detection | Corrupted agg | Correct exclusions | False exclusions | False-excl rate | Mean Brier agg | Mean Brier market | Mean Brier indep | Model failures",
+    "--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:",
     ...rows,
     "",
   ].join("\n");

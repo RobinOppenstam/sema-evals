@@ -30,16 +30,16 @@ extensibility point instead of A2A's.
 ### The extension rides inside x402's own extensibility point — no core-field fork
 
 "Extension-compatible, no fork" is implemented literally: the Sema extension
-uses only x402's own `PaymentRequirements.extra` field, and no core x402 field
+uses only x402 V2's top-level `PaymentRequired.extensions` field, and no core x402 field
 (`scheme`, `network`, `asset`, `payTo`, `maxAmountRequired`, `description`,
 …) is ever repurposed.
 
 - **402 PaymentRequirementsResponse.** The seller responds with an in-repo
-  model of the x402 v1 payment-required payload: `x402Version`, `error`, and
-  `accepts[]` of `PaymentRequirements`.
+  model of the x402 V2 payment-required payload: `x402Version`, `resource`,
+  `error`, `accepts[]` of `PaymentRequirements`, and `extensions`.
 
-- **Acceptance contract in `extra`.** Under advertised conditions, the chosen
-  `PaymentRequirements.extra` carries:
+- **Acceptance contract in top-level `extensions`.** Under advertised
+  conditions, `PaymentRequired.extensions[SEMANTIC_EXTENSION_URI].info` carries:
 
   ```
   {
@@ -50,10 +50,11 @@ uses only x402's own `PaymentRequirements.extra` field, and no core x402 field
 
   Each required reference is content-addressed (a `ref` bearing the definition
   digest) — the same reference shape as a2a-drift. A baseline seller omits
-  `extra` entirely. A non-participating payer finds no contract and proceeds as
-  a plain x402 client.
+  the extension entirely. A non-participating payer finds no contract and
+  proceeds as a plain x402 client. Scheme-specific
+  `PaymentRequirements.extra` remains untouched.
 
-- **PaymentPayload and SettlementResponse.** The payer's `X-PAYMENT` content is
+- **PaymentPayload and SettlementResponse.** The payer's `PAYMENT-SIGNATURE` header content is
   modelled as a typed `PaymentPayload` object; signing is simulated
   deterministically (no real crypto). Settlement is an in-repo
   `SettlementResponse`. Enforcement refuses to emit the `PaymentPayload` while
@@ -63,11 +64,13 @@ uses only x402's own `PaymentRequirements.extra` field, and no core x402 field
 
 The x402 wire shapes (`PaymentRequirements`, `PaymentPayload`,
 `SettlementResponse`, and the 402 envelope) are modelled in-repo as typed zod
-schemas. We take **no runtime dependency on an external x402 SDK, any network
-service, or any chain**. These are faithful models of the v1 shapes at the
-level that matters for the claim under test — extension placement and payer
-middleware transition rules — **not** conformance artifacts against an official
-x402 SDK or live facilitator. Document this plainly on every evidence surface
+schemas. The deterministic experiment itself takes no network or chain action.
+An isolated loopback conformance test pins official `@x402/core`, `@x402/fetch`,
+and `@x402/evm` packages and validates V2 `PAYMENT-REQUIRED` →
+`PAYMENT-SIGNATURE` retry → `PAYMENT-RESPONSE` serialization with an unfunded
+test key. It does not contact a facilitator, broadcast a transaction, or prove
+settlement. Neither path is conformance evidence against a live facilitator or
+chain. Document this plainly on every evidence surface
 (ADR, README, bundle `evidenceClaim`, summary markdown).
 
 ### Drift-injection design
@@ -98,7 +101,7 @@ onto x402:
   description / handle lists); the payer resolves them against its own drifted
   registry and pays. Nothing can detect the drift. **Isolates the silent-
   payment failure mode** (the primary endpoint's positive class).
-- `advertised-voluntary` — `extra` carries content-addressed references and an
+- `advertised-voluntary` — top-level `extensions` carries content-addressed references and an
   acceptance contract; the payer verifies against its own registry, surfaces a
   mismatch, and still pays. **Isolates voluntary detection**.
 - `advertised-enforced` — identical wire, but the payment middleware refuses to
@@ -127,14 +130,15 @@ success: the misunderstood payment still shipped.
 
 ### Deterministic-first, and the exit-gate mapping
 
-This experiment's exit gate _is_ the deterministic demo, so a **model-pilot
-mode is out of scope for this PR** (recorded as future work below). The
-scripted payer and seller exercise every path with exact, test-checked metrics:
+The deterministic demo is the mechanism-validation gate. An exploratory
+model-pilot drives only a controlled paper payer; it is separately gated on the
+loopback official-SDK transport check. The scripted payer and seller exercise
+every path with exact, test-checked metrics:
 
 | Exit-gate requirement                   | Where it is demonstrated                                                                                            |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Payer + seller demo                     | `demo.ts` (payer + seller over `transport.ts`)                                                                      |
-| Under current x402 conventions          | acceptance contract only in `PaymentRequirements.extra` (`schemas.ts`, `schemas.test.ts`)                           |
+| Under current x402 conventions          | V2 top-level `PaymentRequired.extensions`; `PAYMENT-*` headers (`schemas.ts`, `schemas.test.ts`)                    |
 | Detects a controlled mismatch           | 100% detection under both advertised conditions; 0% (100% silent) under baseline (`demo.test.ts`, `matrix.test.ts`) |
 | Voluntary detection vs enforced refusal | voluntary pays with `halted=false`; enforced refuses with `halted=true` + typed reason (`demo.test.ts`)             |
 | False-refusal guard (secondary)         | enforced never refuses a no-drift control (`middleware.test.ts`, `matrix.test.ts`)                                  |
@@ -146,17 +150,14 @@ scripted payer and seller exercise every path with exact, test-checked metrics:
 The x402-contract-drift record, metrics, and manifest schemas live in the
 experiment and compose core's existing `trialEventSchema`,
 `trialProvenanceSchema`, `usageTelemetrySchema`, and `transcriptSchema`. The
-bundle is written through the generic `writeResultBundleWith` with the
+deterministic bundle is written through the generic `writeResultBundleWith` with the
 experiment's own record/manifest schemas, summarizer, and markdown renderer —
 the same pattern ADR 0010 introduced and ADR 0012 reused.
 
 ### Future work (noted, not done here)
 
-- Conformance-test the same wire shapes against an official x402 SDK and a real
-  HTTP transport / facilitator (out of scope; no providers are wired).
-- Add a **model-pilot mode** that drives a real payer agent through the existing
-  model adapters while seller, transport, registries, drift injection, and
-  middleware stay deterministic. Out of scope for this PR.
+- Facilitator verification, settlement, and any on-chain behavior. These remain
+  explicitly out of scope; no live capital is ever used.
 
 ## Consequences
 
@@ -165,10 +166,10 @@ the same pattern ADR 0010 introduced and ADR 0012 reused.
   raw records, and whose result bundle and summary state plainly that they are a
   construction — not evidence about language models and not conformance evidence
   against a real x402 SDK.
-- The extension's placement is testable in isolation: `extra` round-trips,
+- The extension's placement is testable in isolation: top-level `extensions` round-trips,
   drift isolation (including fixture-typo fail-closed), the middleware
   transition rules, and the false-refusal guard each have unit coverage.
-- CI runs no live model, no network, and no crypto libraries: every path is
-  covered by deterministic unit tests with the fixture reference backend.
-- The next step is a real-SDK/transport conformance pass and a model-pilot mode;
-  neither is wired in this PR.
+- CI's conformance fixture uses only an ephemeral localhost HTTP server and an
+  unfunded deterministic test key; it has no external network, facilitator, or
+  chain dependency. Model-pilot remains exploratory, paper-only, and cannot
+  reach a production-write surface.

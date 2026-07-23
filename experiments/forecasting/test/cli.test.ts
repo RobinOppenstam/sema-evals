@@ -59,9 +59,30 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--not-a-flag"])).toThrow(/Unknown argument/);
   });
 
-  it("rejects model-pilot explicitly because no provider path is implemented", () => {
+  it("requires a model-specific leakage audit before model-pilot can start", () => {
     expect(() => parseArgs(["--mode", "model-pilot"])).toThrow(
-      /model-pilot is not implemented/,
+      /requires --leakage-audit/,
+    );
+    expect(
+      parseArgs(["--mode", "model-pilot", "--leakage-audit", "audit.json"])
+        .mode,
+    ).toBe("model-pilot");
+  });
+
+  it("requires an explicit OpenAI-compatible model and defaults its key env", () => {
+    const base = [
+      "--mode",
+      "model-pilot",
+      "--leakage-audit",
+      "audit.json",
+      "--provider",
+      "openai-compatible",
+      "--base-url",
+      "https://llm.chutes.ai/v1",
+    ];
+    expect(() => parseArgs(base)).toThrow(/--model is required/);
+    expect(parseArgs([...base, "--model", "served-model"]).apiKeyEnv).toBe(
+      "CHUTES_API_KEY",
     );
   });
 });

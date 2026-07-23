@@ -186,6 +186,7 @@ describe("summarizeForecasting math", () => {
         records[1]!.metrics.brierAggregate!) /
       2;
     expect(baseline?.meanBrierAggregate).toBeCloseTo(expectedMeanAgg, 10);
+    expect(baseline?.modelFailureCount).toBe(0);
   });
 
   it("fails the leakage audit gate when a recorded audit is missing keep", () => {

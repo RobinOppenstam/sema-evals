@@ -10,9 +10,10 @@ extension mechanism is honored.
 
 This is **mechanism validation** for an x402-shaped payment flow. The
 deterministic harness validates the in-repo wire model, drift checks, and
-fail-closed transition. Real-SDK, facilitator, transport, and chain conformance
-remain separate future gates; no workflow-utility or live-payment claim follows
-from this demo.
+fail-closed transition. A separate pinned-official-SDK fixture validates only
+loopback V2 client/header interoperability. Facilitator, settlement, and chain
+conformance remain out of scope; no workflow-utility or live-payment claim
+follows from this demo.
 
 ## Design
 
@@ -37,11 +38,14 @@ condition.
   Enforcement refuses to emit the payload while any required reference
   mismatches, with the typed reason `semantic-reference-mismatch`.
 
-The x402 wire shapes are modelled faithfully in-repo as typed zod schemas
-rather than pulled from an external SDK — determinism and dependency-lightness
-win, and real-SDK conformance testing is future work (see
-[ADR 0016](../../docs/adr/0016-x402-contract-drift-design.md)). These are
-**in-repo models, not conformance artifacts**.
+The deterministic wire shapes are modelled in-repo as typed zod schemas. The
+separate conformance fixture pins `@x402/core`, `@x402/fetch`, and `@x402/evm`
+at `2.19.0`, then runs an ephemeral `127.0.0.1` V2
+`PAYMENT-REQUIRED` → `PAYMENT-SIGNATURE` retry → `PAYMENT-RESPONSE` exchange
+with an unfunded deterministic key. It checks malformed input, V1 rejection,
+and a repeated-402 stop condition. It makes no external request, facilitator
+call, RPC call, broadcast, or settlement claim. See
+[ADR 0016](../../docs/adr/0016-x402-contract-drift-design.md).
 
 ### Conditions
 
@@ -78,11 +82,26 @@ Deterministic harness outcomes are constructed and must not be presented as
 evidence about language models, nor as conformance evidence against a real x402
 SDK.
 
-**Model-pilot mode** is not runnable yet. It requires an experiment-specific
-payer executor and controlled tool runner; the shared model adapters supply
-invocation and telemetry but not the edit/test workflow. See ADR 0016.
+## Run (exploratory model pilot)
 
-`src/model-executor.ts` now defines the thin payer decision contract. It is
-paper/historical-replay only, records that no production write was attempted,
-and remains blocked by `model-readiness.json` until model configuration and
-real-SDK transport conformance are complete.
+The model pilot drives only the payer's terminal paper decision. Seller,
+registry drift, verification, enforcement, header transport, payload creation,
+and settlement simulation remain deterministic. The model has no tools, wallet,
+private key, RPC endpoint, facilitator, or production-write path. Every
+provider result, including refusal, truncation, error, and malformed JSON, is
+recorded with its transcript and usage; it never counts as silent payment.
+
+```bash
+pnpm experiment:x402 -- \
+  --mode model-pilot \
+  --provider openai-compatible \
+  --base-url https://llm.chutes.ai/v1 \
+  --model <provider-model-id> \
+  --repetitions 5
+```
+
+For an OpenAI-compatible provider, set `CHUTES_API_KEY` first (or pass
+`--api-key-env`). The shared provider surface also supports Anthropic and the
+repository's subscription CLI harnesses. The executable localhost conformance
+gate runs before provider construction; a failed check prevents every model
+call.

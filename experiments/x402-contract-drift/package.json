@@ -9,6 +9,10 @@
     "start": "tsx src/cli.ts"
   },
   "dependencies": {
+    "@x402/core": "2.19.0",
+    "@x402/evm": "2.19.0",
+    "@x402/fetch": "2.19.0",
+    "viem": "2.55.8",
     "@sema-evals/adapters": "workspace:*",
     "@sema-evals/core": "workspace:*",
     "@sema-evals/reporters": "workspace:*",

@@ -172,6 +172,37 @@ ADR 0010 introduced and ADRs 0012 / 0016 reused.
   model adapters while registries, drift injection, aggregation, and leakage
   audit stay deterministic. Out of scope for this PR; no providers are wired.
 
+### 2026-07-23 model-pilot amendment
+
+The model-pilot execution path is now wired, but remains fail-closed until an
+authorized historical dataset and a selected-model leakage audit are supplied.
+This amendment does not change the registered primary endpoint or promote the
+pilot to confirmatory status.
+
+- Historical questions require an explicit `forecastCutoff`, with the market
+  prior observed no later than that cutoff and the outcome resolved strictly
+  afterward. The model-pilot market baseline is therefore the latest eligible
+  market price at or before the cutoff, not a price observed near resolution.
+- Because result records retain question and resolution text, every source must
+  carry terms-snapshot hashes and explicit publication/redistribution
+  authorization. A free-form licence label is insufficient. Raw acquisition
+  remains ignored and no Polymarket content is committed while permission is
+  unresolved.
+- The first pilot remains the registered no-evidence arm and rejects non-null
+  evidence packs. A later evidence-pack arm requires a separate registration
+  and validator.
+- Leakage audits are bound to the exact dataset digest, served model
+  descriptor, and registered zero-evidence audit protocol. The validated audit
+  artifact, model transcripts, usage, malformed outputs, and provider failures
+  are preserved with the run.
+- Model trials use the durable result journal so settled trials survive a later
+  failure. Aggregation and Brier scoring remain deterministic; no LLM judge is
+  introduced.
+
+The executable path is therefore present, while the live pilot is still
+blocked on legitimately reusable historical inputs and its model-specific
+audit.
+
 ## Consequences
 
 - Phase 5 has a real package with a scripted forecasting-council demo whose

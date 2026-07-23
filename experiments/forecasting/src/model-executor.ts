@@ -17,6 +17,8 @@ export const forecastingModelReadinessGateSchema = z
     schemaVersion: z.literal("forecasting-model-readiness-v1"),
     ready: z.boolean(),
     realQuestionsReady: z.boolean(),
+    historicalProvenanceValidated: z.boolean(),
+    evidencePackValidated: z.boolean(),
     leakageAuditComplete: z.boolean(),
     modelConfigured: z.boolean(),
     blockReasons: z.array(z.string().min(1)),
@@ -27,6 +29,12 @@ export const forecastingModelReadinessGateSchema = z
       ...(gate.realQuestionsReady
         ? []
         : ["real-polymarket-question-set-not-acquired"]),
+      ...(gate.historicalProvenanceValidated
+        ? []
+        : ["historical-provenance-or-license-not-validated"]),
+      ...(gate.evidencePackValidated
+        ? []
+        : ["evidence-pack-or-no-evidence-protocol-not-validated"]),
       ...(gate.leakageAuditComplete
         ? []
         : ["model-specific-leakage-audit-not-complete"]),
@@ -79,7 +87,11 @@ export async function executeForecastingCouncilMember(
     agentId: string;
     question: string;
     resolutionCriteria: string;
-    evidenceCutoff: string;
+    forecastCutoff: string;
+    evidence?: readonly { id: string; summary: string }[];
+    round?: 1 | 2;
+    peerForecasts?: readonly { agentId: string; probability: number }[];
+    coordination?: Readonly<Record<string, unknown>>;
   },
 ) {
   const gate = forecastingModelReadinessGateSchema.parse(gateInput);
@@ -111,21 +123,28 @@ export async function executeForecastingCouncilMember(
       parsedOutput = null;
     }
     const parsed = forecastingCouncilOutputSchema.safeParse(parsedOutput);
+    const outputMatchesAgent =
+      parsed.success && parsed.data.agentId === request.agentId;
     return forecastingModelExecutorResultSchema.parse({
       schemaVersion: "forecasting-model-executor-v1",
       status:
-        response.output.status === "completed" && !parsed.success
+        response.output.status === "completed" &&
+        (!parsed.success || !outputMatchesAgent)
           ? "malformed-output"
           : response.output.status,
       requestFingerprint,
       executorFingerprint,
       rawOutput: response.output.text,
-      parsedOutput: parsed.success ? parsed.data : null,
+      parsedOutput: outputMatchesAgent ? parsed.data : null,
       transcript: response.transcript,
       usage: response.usage,
       failure:
-        response.output.status === "completed" && !parsed.success
-          ? { stage: "parse", message: "invalid structured forecast" }
+        response.output.status === "completed" &&
+        (!parsed.success || !outputMatchesAgent)
+          ? {
+              stage: "parse",
+              message: "invalid structured forecast or agent id",
+            }
           : null,
     });
   } catch (error) {

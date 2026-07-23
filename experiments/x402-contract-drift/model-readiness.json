@@ -3,10 +3,7 @@
   "ready": false,
   "paperReplayReady": true,
   "modelConfigured": false,
-  "sdkConformanceReady": false,
+  "sdkConformanceReady": true,
   "productionWritesDisabled": true,
-  "blockReasons": [
-    "model-provider-not-configured",
-    "real-sdk-transport-conformance-not-complete"
-  ]
+  "blockReasons": ["model-provider-not-configured"]
 }
