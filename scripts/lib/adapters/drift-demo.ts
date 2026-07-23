@@ -71,6 +71,14 @@ const driftDemoManifestSchema = z
       })
       .passthrough()
       .optional(),
+    provenance: z
+      .object({
+        semaVersion: z.string(),
+        canonicalizationVersion: z.string(),
+        semanticBackend: z.string(),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 
@@ -225,6 +233,13 @@ function renderRunPage(
     ...(runConfig?.model === undefined
       ? []
       : [`Model: <code>${escapeHtml(runConfig.model)}</code>`]),
+    ...(manifest.provenance === undefined
+      ? []
+      : [
+          `Semantic backend: <code>${escapeHtml(manifest.provenance.semanticBackend)}</code>`,
+          `Sema version: <code>${escapeHtml(manifest.provenance.semaVersion)}</code>`,
+          `Canonicalization: <code>${escapeHtml(manifest.provenance.canonicalizationVersion)}</code>`,
+        ]),
     `Order seed: <code>${escapeHtml(String(manifest.orderSeed))}</code>`,
   ];
 

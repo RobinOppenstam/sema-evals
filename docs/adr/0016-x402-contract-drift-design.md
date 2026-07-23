@@ -81,9 +81,13 @@ vocabulary with, for a drift scenario, exactly one acceptance handle's
 definition replaced by a mutated variant. This is the controlled **cross-party
 registry drift**: identical everywhere except the one drifted handle. A
 `assertDriftIsolation` guardrail recomputes both registries and fails closed
-unless the payer differs from the seller on exactly the drifted handle (or
-nowhere, for a no-drift control), so a fixture typo cannot silently widen or
-void the drift. The seller addresses the canonical definition in `extra`; the
+unless the payer differs from the seller on exactly the drifted handle, the
+declared field path resolves to the recorded before/after values, and every
+top-level definition field belongs to Sema's semantic hash surface (or nowhere,
+for a no-drift control). An official-Python integration test additionally
+requires every declared mutation to produce a different Sema address. These
+checks prevent a fixture typo or non-semantic field from silently widening or
+voiding the drift. The seller addresses the canonical definition in the extension; the
 payer recomputes the reference from its own (drifted) definition through the
 same canonicalization pathway, and the digests diverge — the addressing channel
 is what exposes the drift.
