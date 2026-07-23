@@ -23,6 +23,20 @@ const GROUND_TRUTH_MARKERS = [
   "SILENT_PAYMENT",
 ];
 
+const SEMA_SEMANTIC_FIELDS = new Set([
+  "dependencies",
+  "signature",
+  "data_schema",
+  "mechanism",
+  "gloss",
+  "invariants",
+  "preconditions",
+  "postconditions",
+  "parameters",
+  "failure_modes",
+  "derived_from",
+]);
+
 describe("fixture integrity", () => {
   it("loads 10–14 scenarios over 6–8 payment-term handles with paired controls", async () => {
     const { fixtureSet, driftScenarioCount, cleanScenarioCount } =
@@ -60,6 +74,24 @@ describe("fixture integrity", () => {
       if (scenario.drift) {
         expect(payerFacing).not.toContain(String(scenario.drift.before));
         expect(payerFacing).not.toContain(String(scenario.drift.after));
+      }
+    }
+  });
+
+  it("stores every definition attribute in a field hashed by Sema", async () => {
+    const { fixtureSet } = await loadFixtureFile(FIXTURE_PATH);
+    for (const scenario of fixtureSet.scenarios) {
+      const definitions = [
+        ...scenario.patterns.map((pattern) => pattern.definition),
+        ...(scenario.drift ? [scenario.drift.mutatedDefinition] : []),
+      ];
+      for (const definition of definitions) {
+        for (const field of Object.keys(definition)) {
+          expect(
+            SEMA_SEMANTIC_FIELDS.has(field),
+            `${scenario.id} uses non-semantic top-level field ${field}`,
+          ).toBe(true);
+        }
       }
     }
   });

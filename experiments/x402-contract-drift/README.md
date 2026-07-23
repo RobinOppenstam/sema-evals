@@ -66,6 +66,10 @@ measured on the same pairing.
 References are produced through the same canonicalization pathway as the other
 experiments (`FixtureReferenceProvider` by default;
 `SemaPythonReferenceProvider` compatible via `--semantic-backend sema-python`).
+Fixture definitions keep term attributes under Sema's semantic `parameters`
+field, and the official-Python integration test fails if any declared mutation
+collapses to the canonical Sema address. This is an addressing check; the
+TypeScript middleware, not Sema itself, performs the payment halt.
 
 ## Run (deterministic harness)
 

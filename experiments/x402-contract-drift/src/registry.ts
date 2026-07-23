@@ -2,6 +2,25 @@ import { fingerprint } from "@sema-evals/core";
 
 import type { X402DriftScenario } from "./schemas.js";
 
+function valueAtPath(
+  definition: Record<string, unknown>,
+  fieldPath: string,
+): unknown {
+  let current: unknown = definition;
+  for (const segment of fieldPath.split(".")) {
+    if (
+      typeof current !== "object" ||
+      current === null ||
+      Array.isArray(current) ||
+      !Object.prototype.hasOwnProperty.call(current, segment)
+    ) {
+      throw new Error(`Definition does not contain field path ${fieldPath}.`);
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
 /**
  * A single party's payment-term registry: a handle -> definition map. Each
  * party resolves acceptance-contract handles against ITS OWN registry, so a
@@ -90,6 +109,24 @@ export function assertDriftIsolation(scenario: X402DriftScenario): void {
   if (changed.length !== 1 || changed[0] !== scenario.drift.handle) {
     throw new Error(
       `Scenario ${scenario.id} drift is not isolated to ${scenario.drift.handle}; changed handles: ${changed.join(", ") || "none"}.`,
+    );
+  }
+  const canonical = seller.resolve(scenario.drift.handle);
+  const mutated = payer.resolve(scenario.drift.handle);
+  if (
+    fingerprint(valueAtPath(canonical, scenario.drift.fieldPath)) !==
+    fingerprint(scenario.drift.before)
+  ) {
+    throw new Error(
+      `Scenario ${scenario.id} canonical ${scenario.drift.fieldPath} does not match drift.before.`,
+    );
+  }
+  if (
+    fingerprint(valueAtPath(mutated, scenario.drift.fieldPath)) !==
+    fingerprint(scenario.drift.after)
+  ) {
+    throw new Error(
+      `Scenario ${scenario.id} mutated ${scenario.drift.fieldPath} does not match drift.after.`,
     );
   }
 }
