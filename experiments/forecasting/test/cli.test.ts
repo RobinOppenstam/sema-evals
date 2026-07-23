@@ -27,6 +27,7 @@ describe("parseArgs", () => {
     expect(options.seedCount).toBe(1);
     expect(options.fixturePath).toMatch(/scenarios\.yaml$/);
     expect(options.mode).toBe("deterministic-harness");
+    expect(options.concurrency).toBe(1);
   });
 
   it("accepts the sema-python backend selection", () => {
@@ -37,6 +38,7 @@ describe("parseArgs", () => {
   it("accepts --seeds and --order-seed", () => {
     expect(parseArgs(["--seeds", "3"]).seedCount).toBe(3);
     expect(parseArgs(["--order-seed", "42"]).orderSeed).toBe(42);
+    expect(parseArgs(["--concurrency", "8"]).concurrency).toBe(8);
   });
 
   it("rejects an unknown backend", () => {
@@ -47,6 +49,7 @@ describe("parseArgs", () => {
 
   it("rejects a non-positive seed count", () => {
     expect(() => parseArgs(["--seeds", "0"])).toThrow(/positive integer/);
+    expect(() => parseArgs(["--concurrency", "0"])).toThrow(/positive integer/);
   });
 
   it("rejects a negative order seed", () => {

@@ -145,7 +145,9 @@ export const leakageAuditEntrySchema = z.object({
   trainingCutoff: z.string().min(1).optional(),
   reviewer: z.string().min(1).optional(),
   rationale: z.string().min(1).optional(),
+  auditStatus: z.enum(["parsed", "malformed"]).optional(),
   transcript: transcriptSchema.optional(),
+  usage: usageTelemetrySchema.optional(),
 });
 
 export const leakageAuditDocumentSchema = z.object({
@@ -157,6 +159,17 @@ export const leakageAuditDocumentSchema = z.object({
   datasetDigest: z.string().length(64).optional(),
   protocolFingerprint: z.string().length(64).optional(),
   zeroEvidencePrompt: z.string().min(1).optional(),
+  aggregate: z
+    .object({
+      uniqueQuestions: z.number().int().positive(),
+      parsedQuestions: z.number().int().nonnegative(),
+      correctAnswers: z.number().int().nonnegative(),
+      accuracy: z.number().min(0).max(1),
+      oneSidedBinomialPValue: z.number().min(0).max(1),
+      alpha: z.number().min(0).max(1),
+      passed: z.boolean(),
+    })
+    .optional(),
   entries: z.array(
     z.object({
       scenarioId: z.string().min(1),
@@ -304,6 +317,7 @@ export const forecastingResultManifestSchema = z.object({
     provider: z.string().min(1).optional(),
     model: z.string().min(1).optional(),
     endpointHost: z.string().nullable().optional(),
+    concurrency: z.number().int().positive().optional(),
   }),
   provenance: trialProvenanceSchema,
 });

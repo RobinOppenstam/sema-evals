@@ -15,6 +15,8 @@
     "experiment:a2a": "pnpm build && pnpm --filter @sema-evals/a2a-drift run start",
     "experiment:babel": "pnpm build && pnpm --filter @sema-evals/babel-relay run start",
     "experiment:forecasting": "pnpm build && pnpm --filter @sema-evals/forecasting run start",
+    "forecasting:prepare-dataset": "tsx experiments/forecasting/scripts/prepare-historical-dataset.ts",
+    "forecasting:leakage-audit": "tsx experiments/forecasting/scripts/run-leakage-audit.ts",
     "experiment:prepare": "pnpm build",
     "experiment:security": "pnpm build && pnpm --filter @sema-evals/security run start",
     "experiment:sema-discovery": "pnpm build && pnpm --filter @sema-evals/sema-discovery run start",

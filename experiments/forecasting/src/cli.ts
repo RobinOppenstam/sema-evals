@@ -34,6 +34,7 @@ import { loadFixtureFile } from "./fixtures.js";
 import { buildLeakageAuditDocument } from "./leakage.js";
 import { runModelForecastingTrial } from "./model-demo.js";
 import {
+  assertSemanticDriftsAddressable,
   evaluateModelLeakageAudit,
   loadHistoricalForecastingDataset,
 } from "./model-readiness.js";
@@ -71,6 +72,7 @@ interface CliOptions {
   model: string;
   thinking: AnthropicThinkingMode;
   maxTokens: number;
+  concurrency: number;
 }
 
 function usage(): string {
@@ -93,6 +95,7 @@ function usage(): string {
     "  --model <id>        Model id",
     "  --thinking <m>      adaptive or none (anthropic only; default adaptive)",
     "  --max-tokens <n>    Max output tokens (default 1024)",
+    "  --concurrency <n>   Maximum trials in flight (default 1)",
     "  --help              Show this help",
     "",
     "Model pilot is exploratory and requires a validated historical dataset and model-specific leakage audit.",
@@ -142,6 +145,7 @@ export function parseArgs(args: readonly string[]): CliOptions {
     model: "claude-sonnet-5",
     thinking: "adaptive",
     maxTokens: 1024,
+    concurrency: 1,
   };
   let modelExplicit = false;
   let apiKeyEnvExplicit = false;
@@ -236,6 +240,10 @@ export function parseArgs(args: readonly string[]): CliOptions {
     }
     if (argument === "--max-tokens") {
       options.maxTokens = positiveInteger(args[++index], argument);
+      continue;
+    }
+    if (argument === "--concurrency") {
+      options.concurrency = positiveInteger(args[++index], argument);
       continue;
     }
     throw new Error(`Unknown argument: ${argument}\n\n${usage()}`);
@@ -393,6 +401,9 @@ export async function runForecastingCli(
 
   const referenceProvider = createReferenceProvider(options);
   const semanticMetadata = await referenceProvider.metadata();
+  if (isModelRun) {
+    await assertSemanticDriftsAddressable(scenarios, referenceProvider);
+  }
   const vocabularyRoot = process.env.SEMA_VOCABULARY_ROOT ?? "";
   const seeds = Array.from({ length: options.seedCount }, (_, index) => index);
 
@@ -484,6 +495,7 @@ export async function runForecastingCli(
       model: isModelRun ? options.model : undefined,
       endpointHost:
         isModelRun && options.baseUrl ? new URL(options.baseUrl).host : null,
+      concurrency: options.concurrency,
     },
     provenance,
   });
@@ -516,9 +528,15 @@ export async function runForecastingCli(
               vocabularyRoot,
               provenance,
             }),
-      journal
-        ? { onComplete: async (record) => journal.append(record) }
-        : undefined,
+      {
+        concurrency: options.concurrency,
+        ...(journal
+          ? {
+              onComplete: async (record: ForecastingTrialRecord) =>
+                journal.append(record),
+            }
+          : {}),
+      },
     );
   } catch (error) {
     if (journal) await journal.fail(error);

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   LEAKAGE_AUDIT_PROTOCOL_FINGERPRINT,
+  assertSemanticDriftsAddressable,
   evaluateModelLeakageAudit,
   loadHistoricalForecastingDataset,
 } from "../src/model-readiness.js";
@@ -15,6 +16,19 @@ const expected = {
   datasetDigest: "a".repeat(64),
 };
 const temporaryDirectories: string[] = [];
+const usage = {
+  inputTokens: 1,
+  cachedInputTokensRead: 0,
+  cachedInputTokensWritten: 0,
+  reasoningTokens: null,
+  outputTokens: 1,
+  attempts: 1,
+  retries: 0,
+  errors: [],
+  latencyMs: 1,
+  stopReason: "stop",
+  costUsd: null,
+};
 
 afterEach(async () => {
   await Promise.all(
@@ -65,10 +79,22 @@ function dataset(
           verdict: "drop",
         },
         patterns: [
-          { handle: "ResolutionDefinition", definition: { x: 1 } },
-          { handle: "EvidenceCutoff", definition: { x: 1 } },
-          { handle: "ProbabilityFormat", definition: { x: 1 } },
-          { handle: "AggregationRule", definition: { x: 1 } },
+          {
+            handle: "ResolutionDefinition",
+            definition: { parameters: { x: 1 } },
+          },
+          {
+            handle: "EvidenceCutoff",
+            definition: { parameters: { x: 1 } },
+          },
+          {
+            handle: "ProbabilityFormat",
+            definition: { parameters: { x: 1 } },
+          },
+          {
+            handle: "AggregationRule",
+            definition: { parameters: { x: 1 } },
+          },
         ],
         coordinationHandles: [
           "ResolutionDefinition",
@@ -153,6 +179,62 @@ describe("model-pilot readiness", () => {
     ).rejects.toThrow(/publicationRedistributionAuthorized/);
   });
 
+  it("rejects semantic fields outside the official Sema hash surface", async () => {
+    const invalid = dataset();
+    const definition = (
+      invalid.scenarios as {
+        patterns: { definition: Record<string, unknown> }[];
+      }[]
+    )[0]!.patterns[0]!.definition;
+    definition.polarity = "source_yes_is_yes";
+    await expect(
+      loadHistoricalForecastingDataset(await writeDataset(invalid)),
+    ).rejects.toThrow(/outside Sema's semantic hash surface/);
+  });
+
+  it("fails closed when a semantic backend collapses declared drift", async () => {
+    const scenarios = dataset().scenarios as Parameters<
+      typeof assertSemanticDriftsAddressable
+    >[0];
+    const drifted = [
+      {
+        ...scenarios[0]!,
+        drift: {
+          agentId: "b",
+          handle: "ResolutionDefinition",
+          fieldPath: "parameters.polarity",
+          before: "yes",
+          after: "no",
+          mutatedDefinition: { parameters: { polarity: "no" } },
+        },
+      },
+    ];
+    const provider = {
+      backend: "collapsing-test-backend",
+      async metadata() {
+        return {
+          backend: this.backend,
+          semaVersion: "test",
+          canonicalizationVersion: "test",
+          officialSema: false,
+        };
+      },
+      async reference(handle: string) {
+        return {
+          handle,
+          display: `${handle}#same`,
+          full: `same:${handle}`,
+          digest: "same",
+          backend: this.backend,
+          officialSema: false,
+        };
+      },
+    };
+    await expect(
+      assertSemanticDriftsAddressable(drifted, provider),
+    ).rejects.toThrow(/collapses to one/);
+  });
+
   it("requires a selected-model, dataset-bound, zero-evidence audit for every question", () => {
     const valid = evaluateModelLeakageAudit(
       {
@@ -162,6 +244,15 @@ describe("model-pilot readiness", () => {
         protocolFingerprint: LEAKAGE_AUDIT_PROTOCOL_FINGERPRINT,
         zeroEvidencePrompt:
           "Question and resolution criteria only; no evidence material.",
+        aggregate: {
+          uniqueQuestions: 1,
+          parsedQuestions: 1,
+          correctAnswers: 0,
+          accuracy: 0,
+          oneSidedBinomialPValue: 1,
+          alpha: 0.01,
+          passed: true,
+        },
         entries: [
           {
             scenarioId: "market-a",
@@ -180,7 +271,9 @@ describe("model-pilot readiness", () => {
               reviewer: "named-human-reviewer",
               rationale:
                 "No high-confidence answer attributable to post-cutoff knowledge.",
+              auditStatus: "parsed",
               transcript: { entries: [] },
+              usage,
             },
           },
         ],

@@ -77,7 +77,11 @@ export function normalizeProbability(
   reported: number,
   probabilityFormat: Record<string, unknown>,
 ): number {
-  const scale = probabilityFormat["scale"];
+  const parameters = probabilityFormat["parameters"];
+  const scale =
+    typeof parameters === "object" && parameters !== null
+      ? (parameters as Record<string, unknown>)["scale"]
+      : probabilityFormat["scale"];
   if (scale === "unit") {
     return reported;
   }
