@@ -52,6 +52,12 @@ async function main(): Promise<void> {
   const manifestRaw = await readFile(join(sourceDir, "manifest.json"), "utf8");
   const summaryRaw = await readFile(join(sourceDir, "summary.json"), "utf8");
   const trialsRaw = await readFile(join(sourceDir, "trials.jsonl"), "utf8");
+  // Only an explicitly public-safe derivative is eligible for promotion.
+  // A private analysis.json may contain retained source/provider material.
+  const analysisPath = join(sourceDir, "analysis.public.json");
+  const analysisRaw = (await pathExists(analysisPath))
+    ? await readFile(analysisPath, "utf8")
+    : null;
 
   // Peek the experiment id, then dispatch to that experiment's adapter for the
   // manifest parse gate and the trial redaction policy.
@@ -103,12 +109,16 @@ async function main(): Promise<void> {
     "",
   ].join("\n");
 
-  await Promise.all([
+  const writes = [
     writeFile(join(destDir, "manifest.json"), manifestRaw, "utf8"),
     writeFile(join(destDir, "summary.json"), summaryRaw, "utf8"),
     writeFile(join(destDir, "trials.public.jsonl"), publicTrials, "utf8"),
     writeFile(join(destDir, "PROMOTED.md"), promotedMd, "utf8"),
-  ]);
+    ...(analysisRaw === null
+      ? []
+      : [writeFile(join(destDir, "analysis.json"), analysisRaw, "utf8")]),
+  ];
+  await Promise.all(writes);
 
   console.log(
     `Promoted ${manifest.experimentId}/${manifest.runId} to ${destDir}`,

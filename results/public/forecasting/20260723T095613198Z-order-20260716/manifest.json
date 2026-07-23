@@ -1,0 +1,59 @@
+{
+  "artifactSchemaVersion": "0.3.0",
+  "protocolVersion": "0.3.0",
+  "experimentId": "forecasting",
+  "runId": "20260723T095613198Z-order-20260716",
+  "mode": "model-pilot",
+  "evidenceClaim": "Exploratory model pilot. Not preregistered, not confirmatory evidence. Historical questions are replayed after a selected-model, zero-evidence leakage audit; model outputs are objectively JSON-parsed and scored against frozen outcomes. The pre-existing primary endpoint remains corrupted aggregation under controlled registry drift; Brier score is reported as the registered utility metric with mandatory market-prior and independent-agent baselines.",
+  "createdAt": "2026-07-23T09:56:13.198Z",
+  "orderSeed": 20260716,
+  "seeds": [
+    0
+  ],
+  "conditions": [
+    "baseline",
+    "addressed-voluntary",
+    "addressed-enforced"
+  ],
+  "scenarioCount": 100,
+  "driftScenarioCount": 50,
+  "cleanScenarioCount": 50,
+  "trialCount": 300,
+  "fixtureDigest": "a7848ccbd0252f20ce1c29ed9627f994902b7178c7a2b1369bbdd3c736a9b369",
+  "leakageAuditPassed": true,
+  "scorer": {
+    "version": "forecasting-scorer-v1",
+    "fingerprint": "36c58b163c462c0613b63fdb89446cf3a0ed4eeb65c9de5b76ccc46848b29ebd"
+  },
+  "protocolFingerprint": "1f71289f8d414ce9609f0cadfa2bb514973dd71c84e2606c27d19143883adefc",
+  "runConfiguration": {
+    "mode": "model-pilot",
+    "seeds": [
+      0
+    ],
+    "orderSeed": 20260716,
+    "semanticBackend": "sema-python",
+    "policy": "deterministic-forecasting-council-demo-v2-canonical-aggregation",
+    "aggregationInterpretation": "canonical-probability-format",
+    "datasetDigest": "a7848ccbd0252f20ce1c29ed9627f994902b7178c7a2b1369bbdd3c736a9b369",
+    "leakageAuditFingerprint": "0ec78d9dfaec7172de9350ab1e36f5711fc38086f04cf654327e8610d2ef57d2",
+    "provider": "llm.chutes.ai",
+    "model": "unsloth/Mistral-Nemo-Instruct-2407-TEE",
+    "endpointHost": "llm.chutes.ai",
+    "concurrency": 8
+  },
+  "provenance": {
+    "artifactSchemaVersion": "0.3.0",
+    "protocolVersion": "0.3.0",
+    "fixtureDigest": "a7848ccbd0252f20ce1c29ed9627f994902b7178c7a2b1369bbdd3c736a9b369",
+    "implementationCommit": "d13bbb58571247375bb7477ee404e5c4fa47c800",
+    "dependencyLockDigest": "aac98960b3f4f830ed3994105ec37a30d3ef23a92aa8d0b4246ea672487dca58",
+    "promptDigest": "a75e76abfe3c9dbad0ec231e5316a991f54478038abf4a388b798be702f7b9e2",
+    "semaVersion": "0.3.0",
+    "canonicalizationVersion": "v2",
+    "vocabularyRoot": "/home/jiberish/projects/opensource/sema/data/vocabulary",
+    "semanticBackend": "semahash-python-api",
+    "modelProvider": "llm.chutes.ai",
+    "modelName": "unsloth/Mistral-Nemo-Instruct-2407-TEE"
+  }
+}
